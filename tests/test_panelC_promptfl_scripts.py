@@ -94,7 +94,7 @@ def test_panelC_static_configuration_matches_design():
         "LOCAL_EPOCHS": "3",
         "BATCH_SIZE": "32",
         "TEST_BATCH_SIZE": "64",
-        "NUM_WORKERS": "0",
+        "NUM_WORKERS": "8",
         "GLOBAL_EVAL_INTERVAL": "5",
         "UPDATE_RETENTION_INTERVAL": "5",
         "LOG_UPDATE_RETENTION": "False",
@@ -147,7 +147,7 @@ def test_panelC_single_gpu_dry_run_expands_exact_matrix():
     assert all("--local_epochs 3" in line for line in commands)
     assert all("/PanelC_users30_localE3/" in line for line in commands)
     assert all("--log_update_retention False" in line for line in commands)
-    assert all("DATALOADER.NUM_WORKERS 0" in line for line in commands)
+    assert all("DATALOADER.NUM_WORKERS 8" in line for line in commands)
 
     for seed in ("1", "42", "2026"):
         schedule = f"output/panelC_shared_schedules/users30_frac1.0_round100_seed{seed}.json"
