@@ -7,10 +7,10 @@ from pathlib import Path
 
 
 DEFAULT_SUMMARY = Path(
-    "output/cifar100_LT/PromptFL_fedavg_vit_b16_batchSize32/PanelC/summary/panel_c_summary.csv"
+    "output/cifar100_LT/PromptFL_fedavg_vit_b16_batchSize32/PanelC_users30_localE3/summary/panel_c_summary.csv"
 )
 DEFAULT_OUTPUT = Path(
-    "output/cifar100_LT/PromptFL_fedavg_vit_b16_batchSize32/PanelC/summary/panel_c.pdf"
+    "output/cifar100_LT/PromptFL_fedavg_vit_b16_batchSize32/PanelC_users30_localE3/summary/panel_c.pdf"
 )
 
 

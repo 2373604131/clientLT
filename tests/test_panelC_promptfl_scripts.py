@@ -88,14 +88,16 @@ def test_panelC_static_configuration_matches_design():
     expected = {
         "MODEL": "fedavg",
         "TRAINER": "PromptFL",
-        "USERS": "50",
+        "USERS": "30",
         "FRAC": "1.0",
         "ROUND": "100",
-        "LOCAL_EPOCHS": "5",
+        "LOCAL_EPOCHS": "3",
         "BATCH_SIZE": "32",
         "TEST_BATCH_SIZE": "64",
+        "NUM_WORKERS": "0",
         "GLOBAL_EVAL_INTERVAL": "5",
         "UPDATE_RETENTION_INTERVAL": "5",
+        "LOG_UPDATE_RETENTION": "False",
         "HEAD_CLIENT_RATIO": "0.9",
         "TAIL_CLIENT_RATIO": "0.1",
         "HEAD_CLASS_RATIO": "0.8",
@@ -139,14 +141,16 @@ def test_panelC_single_gpu_dry_run_expands_exact_matrix():
 
     assert sum("--partition noniid-labeldir-fine" in line for line in commands) == 15
     assert sum("--partition client-longtail" in line for line in commands) == 15
-    assert all("--num_users 50" in line for line in commands)
+    assert all("--num_users 30" in line for line in commands)
     assert all("--frac 1.0" in line for line in commands)
     assert all("--round 100" in line for line in commands)
-    assert all("--local_epochs 5" in line for line in commands)
-    assert all("/PanelC/" in line for line in commands)
+    assert all("--local_epochs 3" in line for line in commands)
+    assert all("/PanelC_users30_localE3/" in line for line in commands)
+    assert all("--log_update_retention False" in line for line in commands)
+    assert all("DATALOADER.NUM_WORKERS 0" in line for line in commands)
 
     for seed in ("1", "42", "2026"):
-        schedule = f"output/panelC_shared_schedules/users50_frac1.0_round100_seed{seed}.json"
+        schedule = f"output/panelC_shared_schedules/users30_frac1.0_round100_seed{seed}.json"
         seed_commands = [line for line in commands if f"--seed {seed} " in line]
         assert len(seed_commands) == 10
         assert all(f"--split_seed {seed}" in line for line in seed_commands)
@@ -163,7 +167,7 @@ def test_panelC_alpha_mapping_and_output_directories():
         assert "--partition noniid-labeldir-fine" in line
         assert f"--beta {alpha}" in line
         assert "--intra_group_alpha" not in line
-        assert f"partition=noniid-labeldir-fine_alpha={alpha}_IF=0.01_localE=5_seed=1" in line
+        assert f"partition=noniid-labeldir-fine_alpha={alpha}_IF=0.01_localE=3_seed=1" in line
 
     for idx, alpha in enumerate(alphas, start=5):
         line = seed1[idx]
@@ -176,7 +180,7 @@ def test_panelC_alpha_mapping_and_output_directories():
         assert "--tail_client_ratio 0.1" in line
         assert "--head_class_ratio 0.8" in line
         assert "--tail_class_ratio 0.2" in line
-        assert f"partition=client-longtail_lambda=0.75_alpha={alpha}_rho=3.0_IF=0.01_localE=5_seed=1" in line
+        assert f"partition=client-longtail_lambda=0.75_alpha={alpha}_rho=3.0_IF=0.01_localE=3_seed=1" in line
 
 
 def test_panelC_common_training_arguments_are_present_in_both_scripts():
@@ -226,7 +230,7 @@ def test_panelC_3gpu_dry_run_assigns_each_task_once_when_bash_available():
 
 
 def test_create_client_schedule_outputs_valid_full_participation_schedule(tmp_path):
-    schedule_path = tmp_path / "users50_frac1.0_round100_seed1.json"
+    schedule_path = tmp_path / "users30_frac1.0_round100_seed1.json"
     subprocess.run(
         [
             os.sys.executable,
@@ -236,7 +240,7 @@ def test_create_client_schedule_outputs_valid_full_participation_schedule(tmp_pa
             "--num_rounds",
             "100",
             "--num_users",
-            "50",
+            "30",
             "--frac",
             "1.0",
             "--seed",
@@ -254,10 +258,10 @@ def test_create_client_schedule_outputs_valid_full_participation_schedule(tmp_pa
     payload = json.loads(schedule_path.read_text(encoding="utf-8"))
     schedule = payload["schedule"]
     assert payload["num_rounds"] == 100
-    assert payload["num_users"] == 50
-    assert payload["clients_per_round"] == 50
+    assert payload["num_users"] == 30
+    assert payload["clients_per_round"] == 30
     assert len(schedule) == 100
     for clients in schedule:
-        assert len(clients) == 50
-        assert len(set(clients)) == 50
-        assert sorted(clients) == list(range(50))
+        assert len(clients) == 30
+        assert len(set(clients)) == 30
+        assert sorted(clients) == list(range(30))

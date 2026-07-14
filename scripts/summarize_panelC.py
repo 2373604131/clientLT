@@ -8,7 +8,7 @@ from collections import defaultdict
 from pathlib import Path
 
 
-DEFAULT_ROOT = Path("output/cifar100_LT/PromptFL_fedavg_vit_b16_batchSize32/PanelC")
+DEFAULT_ROOT = Path("output/cifar100_LT/PromptFL_fedavg_vit_b16_batchSize32/PanelC_users30_localE3")
 RUN_RE = re.compile(
     r"partition=(?P<partition>noniid-labeldir-fine|client-longtail).*?"
     r"alpha=(?P<alpha>[0-9.]+).*?"

@@ -21,17 +21,18 @@ CFG="vit_b16"
 LR="0.001"
 GAMMA="1"
 
-USERS="50"
+USERS="30"
 FRAC="1.0"
 ROUND="100"
-LOCAL_EPOCHS="5"
+LOCAL_EPOCHS="3"
 
 BATCH_SIZE="32"
 TEST_BATCH_SIZE="64"
-NUM_WORKERS="4"
+NUM_WORKERS="0"
 
 GLOBAL_EVAL_INTERVAL="5"
 UPDATE_RETENTION_INTERVAL="5"
+LOG_UPDATE_RETENTION="False"
 
 NCTX="4"
 N_GENERAL="1"
@@ -58,7 +59,7 @@ FEDERATED_SINGLE_SCHEDULER_STEP="True"
 TOTAL_RUNS="30"
 DATASET_CONFIG="configs/datasets/${DATASET}.yaml"
 TRAINER_CONFIG="configs/trainers/PromptFL/${CFG}.yaml"
-BASE_OUTPUT_DIR="output/${DATASET}/${TRAINER}_${MODEL}_${CFG}_batchSize${BATCH_SIZE}/PanelC"
+BASE_OUTPUT_DIR="output/${DATASET}/${TRAINER}_${MODEL}_${CFG}_batchSize${BATCH_SIZE}/PanelC_users${USERS}_localE${LOCAL_EPOCHS}"
 
 read -r -a GPU_ARRAY <<< "${GPUS}"
 GPU_COUNT="${#GPU_ARRAY[@]}"
@@ -111,7 +112,7 @@ build_common_cmd() {
     --tail_class_ratio "${TAIL_CLASS_RATIO}"
     --client_schedule_file "${schedule_file}"
     --client_schedule_seed "${seed}"
-    --log_update_retention True
+    --log_update_retention "${LOG_UPDATE_RETENTION}"
     --update_retention_interval "${UPDATE_RETENTION_INTERVAL}"
     --update_retention_param_key prompt_learner.class_aware_ctx
   )

@@ -17,17 +17,18 @@ set "CFG=vit_b16"
 set "LR=0.001"
 set "GAMMA=1"
 
-set "USERS=50"
+set "USERS=30"
 set "FRAC=1.0"
 set "ROUND=100"
-set "LOCAL_EPOCHS=5"
+set "LOCAL_EPOCHS=3"
 
 set "BATCH_SIZE=32"
 set "TEST_BATCH_SIZE=64"
-set "NUM_WORKERS=4"
+set "NUM_WORKERS=0"
 
 set "GLOBAL_EVAL_INTERVAL=5"
 set "UPDATE_RETENTION_INTERVAL=5"
+set "LOG_UPDATE_RETENTION=False"
 
 set "NCTX=4"
 set "N_GENERAL=1"
@@ -80,7 +81,7 @@ for %%D in (%DATASETS%) do (
     exit /b 1
   )
 
-  set "BASE_OUTPUT_DIR=output/!DATASET!/%TRAINER%_%MODEL%_%CFG%_batchSize%BATCH_SIZE%/PanelC"
+  set "BASE_OUTPUT_DIR=output/!DATASET!/%TRAINER%_%MODEL%_%CFG%_batchSize%BATCH_SIZE%/PanelC_users%USERS%_localE%LOCAL_EPOCHS%"
 
   for %%S in (%SEEDS%) do (
     set "SEED=%%S"
@@ -90,7 +91,7 @@ for %%D in (%DATASETS%) do (
       set "PARTITION=noniid-labeldir-fine"
       set "ALPHA=%%A"
       set "DIR=!BASE_OUTPUT_DIR!/partition=!PARTITION!_alpha=!ALPHA!_IF=%IMB_FACTOR%_localE=%LOCAL_EPOCHS%_seed=!SEED!"
-      set "CMD=%PYTHON_BIN% federated_main.py --root "%DATA%" --model "%MODEL%" --trainer "%TRAINER%" --dataset "!DATASET!" --seed "!SEED!" --split_seed "!SEED!" --num_users "%USERS%" --frac "%FRAC%" --round "%ROUND%" --local_epochs "%LOCAL_EPOCHS%" --isolate_local_optimizer_state "%ISOLATE_LOCAL_OPTIMIZER_STATE%" --federated_single_scheduler_step "%FEDERATED_SINGLE_SCHEDULER_STEP%" --lr "%LR%" --gamma "%GAMMA%" --n_ctx "%NCTX%" --n_general "%N_GENERAL%" --ctx_init "%CTXINIT%" --csc "%CSC%" --dataset-config-file "!DATASET_CONFIG!" --config-file "!TRAINER_CONFIG!" --output-dir "!DIR!" --imb_factor "%IMB_FACTOR%" --imb_type "%IMB_TYPE%" --train_batch_size "%BATCH_SIZE%" --test_batch_size "%TEST_BATCH_SIZE%" --global_eval_interval "%GLOBAL_EVAL_INTERVAL%" --num_classes "!NUM_CLASSES!" --tail_class_ratio "%TAIL_CLASS_RATIO%" --client_schedule_file "!SCHEDULE_FILE!" --client_schedule_seed "!SEED!" --log_update_retention True --update_retention_interval "%UPDATE_RETENTION_INTERVAL%" --update_retention_param_key prompt_learner.class_aware_ctx --partition "!PARTITION!" --beta "!ALPHA!" DATALOADER.NUM_WORKERS "%NUM_WORKERS%""
+      set "CMD=%PYTHON_BIN% federated_main.py --root "%DATA%" --model "%MODEL%" --trainer "%TRAINER%" --dataset "!DATASET!" --seed "!SEED!" --split_seed "!SEED!" --num_users "%USERS%" --frac "%FRAC%" --round "%ROUND%" --local_epochs "%LOCAL_EPOCHS%" --isolate_local_optimizer_state "%ISOLATE_LOCAL_OPTIMIZER_STATE%" --federated_single_scheduler_step "%FEDERATED_SINGLE_SCHEDULER_STEP%" --lr "%LR%" --gamma "%GAMMA%" --n_ctx "%NCTX%" --n_general "%N_GENERAL%" --ctx_init "%CTXINIT%" --csc "%CSC%" --dataset-config-file "!DATASET_CONFIG!" --config-file "!TRAINER_CONFIG!" --output-dir "!DIR!" --imb_factor "%IMB_FACTOR%" --imb_type "%IMB_TYPE%" --train_batch_size "%BATCH_SIZE%" --test_batch_size "%TEST_BATCH_SIZE%" --global_eval_interval "%GLOBAL_EVAL_INTERVAL%" --num_classes "!NUM_CLASSES!" --tail_class_ratio "%TAIL_CLASS_RATIO%" --client_schedule_file "!SCHEDULE_FILE!" --client_schedule_seed "!SEED!" --log_update_retention "%LOG_UPDATE_RETENTION%" --update_retention_interval "%UPDATE_RETENTION_INTERVAL%" --update_retention_param_key prompt_learner.class_aware_ctx --partition "!PARTITION!" --beta "!ALPHA!" DATALOADER.NUM_WORKERS "%NUM_WORKERS%""
       call :RunPanelC "Dirichlet" "alpha" "!ALPHA!"
     )
 
@@ -98,7 +99,7 @@ for %%D in (%DATASETS%) do (
       set "PARTITION=client-longtail"
       set "ALPHA=%%A"
       set "DIR=!BASE_OUTPUT_DIR!/partition=!PARTITION!_lambda=%SPECIALIZATION_LAMBDA%_alpha=!ALPHA!_rho=%HEAD_LEAKAGE_SCALE%_IF=%IMB_FACTOR%_localE=%LOCAL_EPOCHS%_seed=!SEED!"
-      set "CMD=%PYTHON_BIN% federated_main.py --root "%DATA%" --model "%MODEL%" --trainer "%TRAINER%" --dataset "!DATASET!" --seed "!SEED!" --split_seed "!SEED!" --num_users "%USERS%" --frac "%FRAC%" --round "%ROUND%" --local_epochs "%LOCAL_EPOCHS%" --isolate_local_optimizer_state "%ISOLATE_LOCAL_OPTIMIZER_STATE%" --federated_single_scheduler_step "%FEDERATED_SINGLE_SCHEDULER_STEP%" --lr "%LR%" --gamma "%GAMMA%" --n_ctx "%NCTX%" --n_general "%N_GENERAL%" --ctx_init "%CTXINIT%" --csc "%CSC%" --dataset-config-file "!DATASET_CONFIG!" --config-file "!TRAINER_CONFIG!" --output-dir "!DIR!" --imb_factor "%IMB_FACTOR%" --imb_type "%IMB_TYPE%" --train_batch_size "%BATCH_SIZE%" --test_batch_size "%TEST_BATCH_SIZE%" --global_eval_interval "%GLOBAL_EVAL_INTERVAL%" --num_classes "!NUM_CLASSES!" --tail_class_ratio "%TAIL_CLASS_RATIO%" --client_schedule_file "!SCHEDULE_FILE!" --client_schedule_seed "!SEED!" --log_update_retention True --update_retention_interval "%UPDATE_RETENTION_INTERVAL%" --update_retention_param_key prompt_learner.class_aware_ctx --partition "!PARTITION!" --head_client_ratio "%HEAD_CLIENT_RATIO%" --tail_client_ratio "%TAIL_CLIENT_RATIO%" --head_class_ratio "%HEAD_CLASS_RATIO%" --tail_class_ratio "%TAIL_CLASS_RATIO%" --specialization_lambda "%SPECIALIZATION_LAMBDA%" --intra_group_alpha "!ALPHA!" --head_leakage_scale "%HEAD_LEAKAGE_SCALE%" DATALOADER.NUM_WORKERS "%NUM_WORKERS%""
+      set "CMD=%PYTHON_BIN% federated_main.py --root "%DATA%" --model "%MODEL%" --trainer "%TRAINER%" --dataset "!DATASET!" --seed "!SEED!" --split_seed "!SEED!" --num_users "%USERS%" --frac "%FRAC%" --round "%ROUND%" --local_epochs "%LOCAL_EPOCHS%" --isolate_local_optimizer_state "%ISOLATE_LOCAL_OPTIMIZER_STATE%" --federated_single_scheduler_step "%FEDERATED_SINGLE_SCHEDULER_STEP%" --lr "%LR%" --gamma "%GAMMA%" --n_ctx "%NCTX%" --n_general "%N_GENERAL%" --ctx_init "%CTXINIT%" --csc "%CSC%" --dataset-config-file "!DATASET_CONFIG!" --config-file "!TRAINER_CONFIG!" --output-dir "!DIR!" --imb_factor "%IMB_FACTOR%" --imb_type "%IMB_TYPE%" --train_batch_size "%BATCH_SIZE%" --test_batch_size "%TEST_BATCH_SIZE%" --global_eval_interval "%GLOBAL_EVAL_INTERVAL%" --num_classes "!NUM_CLASSES!" --tail_class_ratio "%TAIL_CLASS_RATIO%" --client_schedule_file "!SCHEDULE_FILE!" --client_schedule_seed "!SEED!" --log_update_retention "%LOG_UPDATE_RETENTION%" --update_retention_interval "%UPDATE_RETENTION_INTERVAL%" --update_retention_param_key prompt_learner.class_aware_ctx --partition "!PARTITION!" --head_client_ratio "%HEAD_CLIENT_RATIO%" --tail_client_ratio "%TAIL_CLIENT_RATIO%" --head_class_ratio "%HEAD_CLASS_RATIO%" --tail_class_ratio "%TAIL_CLASS_RATIO%" --specialization_lambda "%SPECIALIZATION_LAMBDA%" --intra_group_alpha "!ALPHA!" --head_leakage_scale "%HEAD_LEAKAGE_SCALE%" DATALOADER.NUM_WORKERS "%NUM_WORKERS%""
       call :RunPanelC "Client-LT" "alpha" "!ALPHA!"
     )
   )
