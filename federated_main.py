@@ -13,6 +13,13 @@ import hashlib
 import logging
 import math
 from utils.fed_utils import average_weights
+from utils.experiment_d import (
+    append_client_update_norms,
+    append_runtime_metrics,
+    get_trainable_state_keys,
+    run_experiment_d_round,
+    should_log_experiment_d,
+)
 from loss.prompt_loss import PromptLoss, update_class_priors
 
 from trainers.capt import MABScheduler
@@ -3411,6 +3418,8 @@ def main(args):
                 # idxs_users = list(range(0,cfg.DATASET.USERS))
                 print("idxs_users", idxs_users)
                 print("------------local train start epoch:", epoch, "-------------")
+                round_start_time = time.time()
+                local_training_start = time.time()
                 pre_global_weights = copy.deepcopy(global_weights)
                 for idx in idxs_users:
                     local_trainer.model.load_state_dict(global_weights, strict=False)
@@ -3473,6 +3482,7 @@ def main(args):
                     local_weight = local_trainer.model.state_dict()
                     local_weights[idx] = copy.deepcopy(local_weight)
                 print("------------local train finish epoch:", epoch, "-------------")
+                local_training_seconds = time.time() - local_training_start
                 if should_log_update_retention(args, epoch, max_epoch):
                     append_update_retention(
                         args.output_dir,
@@ -3488,16 +3498,58 @@ def main(args):
                     )
                 # update global weights
                 global_weights = average_weights(local_weights, idxs_users, datanumber_client)
-                # update global weights
                 global_trainer.model.load_state_dict(global_weights)  # hsh
+
+                experimentD_diagnostic_seconds = 0.0
+                if bool(args.experimentD_enable):
+                    experimentD_start = time.time()
+                    if bool(args.experimentD_log_update_norm):
+                        append_client_update_norms(
+                            args.output_dir,
+                            args,
+                            epoch,
+                            pre_global_weights,
+                            local_weights,
+                            idxs_users,
+                            datanumber_client,
+                            get_trainable_state_keys(global_trainer.model),
+                        )
+                    if should_log_experiment_d(args, epoch):
+                        run_experiment_d_round(
+                            args.output_dir,
+                            args,
+                            epoch,
+                            global_trainer,
+                            pre_global_weights,
+                            global_weights,
+                            local_weights,
+                            idxs_users,
+                            datanumber_client,
+                            client_class_counts,
+                            n_cls,
+                        )
+                    experimentD_diagnostic_seconds = time.time() - experimentD_start
 
                 if not run_global_eval:
                     print_skip_global_eval(epoch, args.global_eval_interval)
                     print("Epoch on server :", epoch)
+                    if bool(args.experimentD_enable):
+                        append_runtime_metrics(
+                            args.output_dir,
+                            epoch,
+                            args.local_epochs,
+                            local_training_seconds,
+                            experimentD_diagnostic_seconds,
+                            0.0,
+                            time.time() - round_start_time,
+                            time.time() - start,
+                        )
                     continue
 
                 print("------------global test start-------------")
+                global_eval_start = time.time()
                 result = global_trainer.global_test(is_global=True, current_epoch=epoch)
+                normal_global_eval_seconds = time.time() - global_eval_start
 
                 prompt_state = {'epoch': epoch}
                 prompt_state.update(collect_prompt_state(global_trainer.model.prompt_learner))
@@ -3551,6 +3603,17 @@ def main(args):
                     overall_acc,
                     last_class_accuracy,
                 )
+                if bool(args.experimentD_enable):
+                    append_runtime_metrics(
+                        args.output_dir,
+                        epoch,
+                        args.local_epochs,
+                        local_training_seconds,
+                        experimentD_diagnostic_seconds,
+                        normal_global_eval_seconds,
+                        time.time() - round_start_time,
+                        time.time() - start,
+                    )
 
                 print("Epoch on server :", epoch)
 
@@ -4472,6 +4535,16 @@ if __name__ == "__main__":
     parser.add_argument('--log_update_retention', type=str2bool, default=False, help='log class-wise local-to-global update retention diagnostics')
     parser.add_argument('--update_retention_interval', type=int, default=1, help='write update-retention diagnostics every N rounds')
     parser.add_argument('--update_retention_param_key', type=str, default='prompt_learner.class_aware_ctx', help='class-wise parameter key used for update-retention diagnostics')
+    parser.add_argument('--experimentD_enable', type=str2bool, default=False, help='enable Experiment D counterfactual diagnostics without changing FedAvg training')
+    parser.add_argument('--experimentD_rounds', type=str, default='', help='comma-separated 1-based communication rounds for Experiment D diagnostics, e.g. 5,10,20,30')
+    parser.add_argument('--experimentD_include_normalized', type=str2bool, default=True, help='also evaluate the auxiliary support-normalized counterfactual')
+    parser.add_argument('--experimentD_log_update_norm', type=str2bool, default=True, help='log per-client trainable-parameter update norms when Experiment D is enabled')
+    parser.add_argument('--experimentD_require_full_participation', type=str2bool, default=True, help='require frac=1.0 and all clients selected for Experiment D diagnostics')
+    parser.add_argument('--experimentD_verify_fedavg', type=str2bool, default=True, help='verify reconstructed full FedAvg state matches average_weights output')
+    parser.add_argument('--experimentD_eval_mode', type=str, default='class_filtered', choices=['class_filtered', 'full'], help='evaluation loader mode for Experiment D counterfactual diagnostics')
+    parser.add_argument('--experimentD_log_classwise_agg', type=str2bool, default=None, help=argparse.SUPPRESS)
+    parser.add_argument('--experimentD_interval', type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument('--experimentD_param_key', type=str, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--seed", type=int, default=1, help="only positive value enables a fixed seed")
     add_expF_runtime_arguments(parser)
     parser.add_argument('--mu', type=float, default=0.5, help='The parameter for fedprox')
@@ -4717,6 +4790,16 @@ if __name__ == "__main__":
     parser.add_argument('--encoder', type=str, choices=['text', 'vision', 'both'], default='both')
 
     args = parser.parse_args()
+    if (
+        args.experimentD_log_classwise_agg is not None
+        or args.experimentD_interval is not None
+        or args.experimentD_param_key is not None
+    ):
+        print(
+            "WARNING: deprecated Experiment D arguments "
+            "--experimentD_log_classwise_agg/--experimentD_interval/--experimentD_param_key "
+            "are ignored. Use --experimentD_enable and --experimentD_rounds instead."
+        )
     if args.use_fedtef is not None:
         args.use_tail_expert = args.use_fedtef
         if args.use_fedtef:
