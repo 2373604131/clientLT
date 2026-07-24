@@ -32,6 +32,15 @@ ROUND_METRICS = [
     "mean_positive_sample_specialist_ratio",
 ]
 
+EXPECTED_FILES = [
+    ("round_metrics.csv", 100),
+    ("experiment_d/experiment_d_per_class.csv", 60),
+    ("experiment_d/experiment_d_round_summary.csv", 3),
+    ("experiment_d/client_update_norms.csv", 3000),
+    ("experiment_d/client_update_norm_summary.csv", 100),
+    ("experiment_d/runtime_metrics.csv", 100),
+]
+
 PAIR_METRICS = [
     "mean_gain_support_actual",
     "mean_gain_support_normalized",
@@ -78,6 +87,23 @@ def sample_std(values):
 def read_csv(path):
     with path.open("r", newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
+
+
+def validate_run_dir(run_dir):
+    if (run_dir / "failed.flag").exists():
+        return False, "failed.flag exists"
+    if (run_dir / "running.lock").exists():
+        return False, "running.lock exists"
+    if not (run_dir / "finished.flag").exists():
+        return False, "finished.flag missing"
+    for rel_path, expected_rows in EXPECTED_FILES:
+        path = run_dir / rel_path
+        if not path.exists():
+            return False, f"missing {rel_path}"
+        rows = read_csv(path)
+        if len(rows) != expected_rows:
+            return False, f"{rel_path} has {len(rows)} rows, expected {expected_rows}"
+    return True, ""
 
 
 def write_csv(path, rows, fieldnames=None):
@@ -146,6 +172,13 @@ def collect(root, strict=False):
         info = parse_run_dir(run_dir)
         if info is None:
             warnings.append(f"skip unrecognized run directory: {run_dir}")
+            continue
+        valid, reason = validate_run_dir(run_dir)
+        if not valid:
+            message = f"skip incomplete run {run_dir}: {reason}"
+            if strict:
+                raise RuntimeError(message)
+            warnings.append(message)
             continue
         common = common_run_fields(info, run_dir)
         per_class_path = run_dir / "experiment_d" / "experiment_d_per_class.csv"
