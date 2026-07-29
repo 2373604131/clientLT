@@ -160,8 +160,18 @@ def collect_events(root, seeds):
         if info is None or info["seed"] not in seeds:
             continue
         path = run_dir / "experiment_d" / "experiment_d_per_class.csv"
+        partition_summary_path = run_dir / "partition_summary.json"
         if not path.exists():
             warnings.append(f"missing mechanism file: {path}")
+            continue
+        if not partition_summary_path.exists():
+            warnings.append(f"missing partition metadata: {partition_summary_path}")
+            continue
+        partition_summary = json.loads(partition_summary_path.read_text(encoding="utf-8"))
+        tail_ids = {int(x) for x in partition_summary.get("tail_classes", [])}
+        head_ids = {int(x) for x in partition_summary.get("head_classes", [])}
+        if not tail_ids or tail_ids & head_ids or tail_ids | head_ids != set(range(len(partition_summary.get("global_class_counts", [])))):
+            warnings.append(f"invalid head/tail metadata: {partition_summary_path}")
             continue
         rows = read_csv(path)
         input_files.append(path)
@@ -173,7 +183,12 @@ def collect_events(root, seeds):
             warnings.append(f"{path} missing columns: {', '.join(missing_cols)}")
             continue
         for row in rows:
-            if row.get("class_group") != "tail":
+            class_id = int(float(row["class_id"]))
+            expected_group = "tail" if class_id in tail_ids else "head"
+            if row.get("class_group") != expected_group:
+                warnings.append(f"class-group metadata mismatch in {path}: class={class_id}")
+                continue
+            if expected_group != "tail":
                 continue
             acc_before = as_float(row["acc_before"])
             acc_support = as_float(row["acc_support_actual"])
@@ -192,7 +207,7 @@ def collect_events(root, seeds):
                     **info,
                     "run_dir": str(run_dir),
                     "communication_round": int(float(row["communication_round"])),
-                    "tail_class_id": int(float(row["class_id"])),
+                    "tail_class_id": class_id,
                     "A_before": acc_before,
                     "A_support": acc_support,
                     "A_all": acc_all,
@@ -205,9 +220,9 @@ def collect_events(root, seeds):
     return events, input_files, warnings
 
 
-def validate_events(events):
+def validate_events(events, seeds):
     checks = []
-    required_groups = {(p, s) for p in PARTITION_LABELS for s in DEFAULT_SEEDS}
+    required_groups = {(p, s) for p in PARTITION_LABELS for s in seeds}
     present_groups = {(e["partition"], e["seed"]) for e in events}
     checks.append(("required groups present", required_groups.issubset(present_groups)))
 
@@ -228,7 +243,6 @@ def validate_events(events):
     class_sets = {group: tuple(sorted(v["classes"])) for group, v in group_sets.items()}
     checks.append(("same diagnostic rounds across groups", len(set(round_sets.values())) == 1))
     checks.append(("same bottom-20 tail classes across groups", len(set(class_sets.values())) == 1))
-    checks.append(("tail classes are class 80-99", set(next(iter(class_sets.values()), ())) == set(range(80, 100))))
 
     expected_events_per_group = None
     if group_sets:
@@ -474,7 +488,7 @@ def main():
     seeds = set(args.seeds)
 
     events, input_files, warnings = collect_events(root, seeds)
-    checks, round_sets, class_sets, counts, duplicates, expected_events = validate_events(events)
+    checks, round_sets, class_sets, counts, duplicates, expected_events = validate_events(events, args.seeds)
     final_acc, final_acc_path = load_final_accuracy(root, seeds)
 
     event_path = output_dir / "experimentD_mechanism_events.csv"

@@ -278,15 +278,17 @@ class CustomCLIP(nn.Module):
 
         return prompt
 
-    def forward(self, image, return_features=False, return_prob=False):
-        image_features = self.image_encoder(image.type(self.dtype))
-
+    def _logits_from_normalized_features(self, image_features):
         prompts = self.prompt_learner()
         tokenized_prompts = self.tokenized_prompts
         text_features = self.text_encoder(prompts, tokenized_prompts)
+        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+        return self.logit_scale.exp() * image_features @ text_features.t(), text_features
+
+    def forward(self, image, return_features=False, return_prob=False):
+        image_features = self.image_encoder(image.type(self.dtype))
 
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
 
         logit_scale = self.logit_scale.exp()
         # general_prompts = self.construct_general_prompts()
@@ -324,12 +326,45 @@ class CustomCLIP(nn.Module):
             return probabilities.squeeze(0).tolist()
 
         elif return_features:
-            logits = logit_scale * image_features @ text_features.t()
+            logits, text_features = self._logits_from_normalized_features(image_features)
             return image_features, logits, text_features
 
         else:
-            logits = logit_scale * image_features @ text_features.t()
+            logits, _ = self._logits_from_normalized_features(image_features)
             return logits
+
+    def logits_from_cached_features(self, image_features, trainable_state=None):
+        """Evaluate logits from normalized cached image features.
+
+        This helper is for offline Oracle analysis only. It never calls the
+        image encoder and restores the original PromptFL trainable state and
+        train/eval mode before returning.
+        """
+        was_training = self.training
+        original_state = {}
+        try:
+            if trainable_state:
+                current = self.state_dict()
+                for key, value in trainable_state.items():
+                    if key not in current:
+                        raise KeyError(f"Unknown PromptFL trainable key: {key}")
+                    original_state[key] = current[key].detach().clone()
+                patched = self.state_dict()
+                for key, value in trainable_state.items():
+                    patched[key] = value.detach().to(device=patched[key].device, dtype=patched[key].dtype)
+                self.load_state_dict(patched, strict=False)
+            self.eval()
+            features = image_features.to(device=self.logit_scale.device, dtype=self.dtype)
+            features = features / features.norm(dim=-1, keepdim=True).clamp_min(1e-12)
+            logits, _ = self._logits_from_normalized_features(features)
+            return logits
+        finally:
+            if original_state:
+                restored = self.state_dict()
+                for key, value in original_state.items():
+                    restored[key] = value
+                self.load_state_dict(restored, strict=False)
+            self.train(was_training)
 
 
 # @TRAINER_REGISTRY.register("PromptFL")
@@ -377,7 +412,6 @@ class PromptFL(TrainerX):
 
         # Note that multi-gpu training could be slow because CLIP's size is
         # big, which slows down the copy operation in DataParallel
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0,3,2,1"
         device_count = torch.cuda.device_count()
         if device_count > 1:
             print(f"Multiple GPUs detected (n_gpus={device_count}), use all of them!")

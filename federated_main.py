@@ -12,13 +12,25 @@ import json
 import hashlib
 import logging
 import math
+import shutil
+import traceback
 from utils.fed_utils import average_weights
 from utils.experiment_d import (
     append_client_update_norms,
     append_runtime_metrics,
     get_trainable_state_keys,
+    parse_experiment_d_rounds,
     run_experiment_d_round,
     should_log_experiment_d,
+)
+from utils.oracle_cusp import (
+    make_flat_spec,
+    save_round_dump,
+    sha256_file,
+    sha256_json,
+    trainable_float_keys,
+    validate_train_feature_cache,
+    write_json_atomic,
 )
 from loss.prompt_loss import PromptLoss, update_class_priors
 
@@ -34,6 +46,225 @@ from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import pdist, squareform
 
 logger = logging.getLogger(__name__)
+
+
+def _oracle_cusp_round_directory(output_dir, communication_round):
+    return os.path.join(output_dir, "experiment_d", "oracle_cusp", f"round_{int(communication_round):03d}")
+
+
+def _oracle_cusp_invalid_dump_path(output_dir, communication_round):
+    return os.path.join(output_dir, "experiment_d", "oracle_cusp", f"round_{int(communication_round):03d}_invalid_dump.json")
+
+
+def _stable_oracle_train_sources(local_trainer, num_users):
+    train_x = list(getattr(local_trainer.dm.dataset, "train_x", []) or [])
+    federated_train_x = getattr(local_trainer.dm.dataset, "federated_train_x", None)
+    if not train_x or not federated_train_x:
+        raise RuntimeError("Oracle CUSP requires dataset.train_x and dataset.federated_train_x for stable sample ids")
+
+    identity_to_index = {}
+    for dataset_index, item in enumerate(train_x):
+        identity = _item_identity(item)
+        if identity in identity_to_index:
+            raise RuntimeError(f"Oracle CUSP duplicate global train identity: {identity}")
+        identity_to_index[identity] = int(dataset_index)
+
+    seen_indices = set()
+    client_sources = {}
+    for client_id in range(int(num_users)):
+        rows = []
+        for item in federated_train_x[client_id]:
+            identity = _item_identity(item)
+            if identity not in identity_to_index:
+                raise RuntimeError(f"Oracle CUSP client item missing from global train_x: client={client_id}")
+            dataset_index = identity_to_index[identity]
+            if dataset_index in seen_indices:
+                raise RuntimeError(f"Oracle CUSP duplicated dataset_index across clients: {dataset_index}")
+            seen_indices.add(dataset_index)
+            rows.append((int(dataset_index), item))
+        client_sources[int(client_id)] = sorted(rows, key=lambda pair: pair[0])
+
+    expected = set(range(len(train_x)))
+    if seen_indices != expected:
+        missing = sorted(expected - seen_indices)[:10]
+        extra = sorted(seen_indices - expected)[:10]
+        raise RuntimeError(f"Oracle CUSP client partition is not a full train_x partition: missing={missing}, extra={extra}")
+    return client_sources
+
+
+def _cache_oracle_train_features(local_trainer, model, cfg, num_users, expected_counts, output_path, max_per_class):
+    """Cache a deterministic train-view feature table for offline utility."""
+    if hasattr(model, "image_encoder") is False:
+        raise RuntimeError("Oracle CUSP requires a PromptFL model with image_encoder")
+    from Dassl.dassl.data.data_manager import build_data_loader
+
+    max_per_class = int(max_per_class)
+    expected = torch.as_tensor(expected_counts, dtype=torch.long).cpu()
+    saved_per_class = torch.zeros_like(expected)
+    features, labels, identities = [], [], []
+    client_sources = _stable_oracle_train_sources(local_trainer, num_users)
+    test_transform = getattr(local_trainer.dm.test_loader.dataset, "transform", None)
+    was_training = model.training
+    model.eval()
+    try:
+        with torch.no_grad():
+            for client_id in range(int(num_users)):
+                indexed_items = client_sources[client_id]
+                data_source = [item for _, item in indexed_items]
+                dataset_indices = [dataset_index for dataset_index, _ in indexed_items]
+                loader = build_data_loader(
+                    cfg,
+                    sampler_type=cfg.DATALOADER.TEST.SAMPLER,
+                    data_source=data_source,
+                    batch_size=cfg.DATALOADER.TEST.BATCH_SIZE,
+                    tfm=test_transform,
+                    is_train=False,
+                )
+                cursor = 0
+                for batch in loader:
+                    inputs, batch_labels = local_trainer.parse_batch_train(batch)
+                    image_features = model.image_encoder(inputs.type(model.dtype))
+                    image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+                    for row, label in enumerate(batch_labels.detach().cpu().tolist()):
+                        label = int(label)
+                        dataset_index = int(dataset_indices[cursor])
+                        cursor += 1
+                        if max_per_class and saved_per_class[label] >= max_per_class:
+                            continue
+                        features.append(image_features[row].detach().float().cpu())
+                        labels.append(label)
+                        identities.append([int(client_id), dataset_index])
+                        saved_per_class[label] += 1
+                if cursor != len(dataset_indices):
+                    raise RuntimeError(f"Oracle CUSP cache loader length mismatch for client {client_id}")
+    finally:
+        model.train(was_training)
+    if not features:
+        raise RuntimeError("Oracle CUSP train feature cache is empty")
+    if max_per_class == 0 and not torch.equal(saved_per_class, expected):
+        raise RuntimeError(
+            "Oracle CUSP train cache class counts differ from partition counts: "
+            f"cached={saved_per_class.tolist()} expected={expected.tolist()}"
+        )
+    cache = {
+        "schema_version": "cusp_round1_v1",
+        "source": "train",
+        "test_used_for_utility": False,
+        "sample_identity_kind": "client_id,dataset_index",
+        "features": torch.stack(features),
+        "labels": torch.tensor(labels, dtype=torch.long),
+        "sample_identity": torch.tensor(identities, dtype=torch.long),
+        "class_counts": saved_per_class,
+        "feature_dtype": "torch.float32",
+    }
+    order = torch.argsort(cache["sample_identity"][:, 0] * (len(local_trainer.dm.dataset.train_x) + 1) + cache["sample_identity"][:, 1])
+    cache["features"] = cache["features"][order]
+    cache["labels"] = cache["labels"][order]
+    cache["sample_identity"] = cache["sample_identity"][order]
+    validate_train_feature_cache(cache, expected if max_per_class == 0 else None)
+    torch.save(cache, output_path)
+
+
+def save_oracle_cusp_round_dump(
+    output_dir, args, cfg, epoch, global_before, global_after, local_weights,
+    selected_clients, datanumber_client, client_class_counts, global_class_counts,
+    global_trainer, local_trainer,
+):
+    communication_round = int(epoch) + 1
+    keys = trainable_float_keys(global_trainer.model)
+    if set(keys) != set(get_trainable_state_keys(global_trainer.model)):
+        raise RuntimeError("Oracle CUSP trainable key invariant failed: non-floating trainable parameter found")
+    spec = make_flat_spec(global_before, keys)
+    selected = sorted(int(client_id) for client_id in selected_clients)
+    if len(selected) != int(args.num_users):
+        raise RuntimeError(f"Oracle CUSP requires all {args.num_users} clients at round {communication_round}, got {len(selected)}")
+    weights = [float(datanumber_client[client_id]) / sum(float(datanumber_client[x]) for x in selected) for client_id in selected]
+    counts = torch.stack([torch.as_tensor(client_class_counts[idx]).cpu() for idx in selected])
+    splits = get_lt_class_splits_from_counts(global_class_counts, args.tail_class_ratio)
+    payload = {
+        "trainable_keys": keys,
+        "flatten_spec": spec.as_dict(),
+        "global_before_trainable": {key: global_before[key].detach().cpu().clone() for key in keys},
+        "local_trainable_states": [{key: local_weights[idx][key].detach().cpu().clone() for key in keys} for idx in selected],
+        "global_after_fedavg_trainable": {key: global_after[key].detach().cpu().clone() for key in keys},
+        "selected_client_ids": selected,
+        "fedavg_weights": weights,
+        "client_sample_counts": [int(datanumber_client[idx]) for idx in selected],
+        "client_class_counts": counts,
+        "num_classes": int(len(global_class_counts)),
+    }
+    run_dir = _oracle_cusp_round_directory(output_dir, communication_round)
+    if os.path.exists(run_dir):
+        raise RuntimeError(f"Oracle CUSP dump target already exists; refusing to overwrite: {run_dir}")
+    parent_dir = os.path.dirname(run_dir)
+    os.makedirs(parent_dir, exist_ok=True)
+    tmp_dir = os.path.join(parent_dir, f".round_{communication_round:03d}.tmp.{os.getpid()}")
+    if os.path.exists(tmp_dir):
+        shutil.rmtree(tmp_dir)
+    os.makedirs(tmp_dir)
+    cache_hash = None
+    stage = "start"
+    checks = []
+    schedule_hash = sha256_file(args.client_schedule_file) if getattr(args, "client_schedule_file", "") else None
+    split_fingerprint_path = os.path.join(output_dir, "client_split_fingerprint.json")
+    split_fingerprint = json.load(open(split_fingerprint_path, "r", encoding="utf-8")) if os.path.exists(split_fingerprint_path) else {}
+    trainable_metadata = [
+        {"key": key, "shape": list(shape), "dtype": dtype, "numel": int(end - start)}
+        for key, shape, dtype, (start, end) in zip(spec.keys, spec.shapes, spec.dtypes, spec.offsets)
+    ]
+    metadata = {
+        "dataset": args.dataset, "trainer": args.trainer, "model": args.model,
+        "seed": int(args.seed), "split_seed": int(args.split_seed),
+        "client_schedule_seed": int(args.client_schedule_seed), "client_schedule_file": getattr(args, "client_schedule_file", ""),
+        "client_schedule_sha256": schedule_hash, "communication_round": communication_round,
+        "internal_epoch": int(epoch), "num_users": int(args.num_users), "frac": float(args.frac),
+        "local_epochs": int(args.local_epochs), "partition": args.partition, "beta": float(args.beta),
+        "specialization_lambda": float(args.specialization_lambda), "intra_group_alpha": float(args.intra_group_alpha),
+        "head_leakage_scale": float(args.head_leakage_scale), "head_client_ratio": float(args.head_client_ratio),
+        "tail_client_ratio": float(args.tail_client_ratio), "head_class_ratio": float(args.head_class_ratio),
+        "tail_class_ratio": float(args.tail_class_ratio), "global_class_counts": [int(x) for x in torch.as_tensor(global_class_counts).tolist()],
+        "head_class_ids": [int(x) for x in splits["head"]], "tail_class_ids": [int(x) for x in splits["tail"]],
+        "utility_data_source": "train", "test_used_for_utility": False,
+        "dataset_config_file": args.dataset_config_file, "trainer_config_file": args.config_file,
+        "resolved_args": vars(args), "trainable_parameters": trainable_metadata,
+        "client_ids": selected, "client_sample_counts": payload["client_sample_counts"],
+        "fedavg_weights": weights, "fedavg_weight_sum": float(sum(weights)),
+        "global_lt_fingerprint": sha256_json({"global_class_counts": [int(x) for x in torch.as_tensor(global_class_counts).tolist()]}),
+        "client_split_fingerprint": split_fingerprint,
+        "resolved_config": cfg.dump(),
+    }
+    try:
+        stage = "cache_train_features"
+        if bool(args.oracle_cusp_cache_train_features):
+            cache_path = os.path.join(tmp_dir, "train_feature_cache.pt")
+            _cache_oracle_train_features(
+                local_trainer, global_trainer.model, cfg, args.num_users, global_class_counts,
+                cache_path, args.oracle_cusp_max_train_samples_per_class,
+            )
+            cache_hash = sha256_file(cache_path)
+            metadata["train_feature_cache_sha256"] = cache_hash
+            checks.append("train_feature_cache")
+        else:
+            metadata["train_feature_cache_sha256"] = None
+        stage = "round_state"
+        save_round_dump(tmp_dir, payload, metadata)
+        checks.append("round_state")
+        stage = "atomic_rename"
+        os.replace(tmp_dir, run_dir)
+    except Exception as exc:
+        if os.path.exists(tmp_dir):
+            shutil.rmtree(tmp_dir)
+        invalid = {
+            "schema_version": "cusp_round1_v1",
+            "communication_round": communication_round,
+            "stage": stage,
+            "exception": repr(exc),
+            "traceback": traceback.format_exc(),
+            "completed_checks": checks,
+        }
+        write_json_atomic(_oracle_cusp_invalid_dump_path(output_dir, communication_round), invalid)
+        raise
+    print(f"Saved Oracle CUSP dump: {run_dir}")
 
 
 def normalize_dataset_name(dataset_name):
@@ -745,6 +976,7 @@ def save_partition_summary(output_dir, client_class_counts, args, num_users, num
         "num_clients": num_users,
         "num_classes": num_classes,
         "global_class_counts": [float(x) for x in global_counts.tolist()],
+        "global_lt_fingerprint": sha256_json({"global_class_counts": [int(x) for x in global_counts.tolist()]}),
         "class_num_clients": [int(x) for x in class_num_clients.tolist()],
         "num_support_clients": [int(x) for x in class_num_clients.tolist()],
         "tail_topology_index": [float(x) for x in topology_index.tolist()],
@@ -2916,6 +3148,16 @@ def setup_cfg(args):
 
 def main(args):
     cfg = setup_cfg(args)
+    oracle_cusp_minimal = bool(args.oracle_cusp_enable)
+    if bool(args.oracle_cusp_enable):
+        if args.trainer != "PromptFL" or args.model != "fedavg" or abs(float(args.frac) - 1.0) > 1e-12:
+            raise ValueError("Oracle CUSP Round-1 requires trainer=PromptFL, model=fedavg, and frac=1.0")
+        if not getattr(args, "client_schedule_file", ""):
+            raise ValueError("Oracle CUSP minimal pilot requires an explicit --client_schedule_file")
+        if int(args.oracle_cusp_round) != int(args.round):
+            raise ValueError("Oracle CUSP minimal pilot requires --oracle_cusp_round to equal the final --round")
+        if not bool(cfg.TRAINER.PROMPTFL.CSC):
+            raise ValueError("Oracle CUSP Round-1 requires CSC=True so all PromptFL trainable states are explicit")
     print(f"Resolved local epochs per selected client: {cfg.OPTIM.MAX_EPOCH}")
     if cfg.SEED >= 0:
         # print("Setting fixed seed: {}".format(cfg.SEED))
@@ -3203,6 +3445,8 @@ def main(args):
 
     for epoch in range(start_epoch, max_epoch):
         run_global_eval = should_run_global_eval(epoch, max_epoch, args.global_eval_interval)
+        if oracle_cusp_minimal:
+            run_global_eval = False
 
         if args.trainer == 'CLIP':
             print("------------trainer == CLIP, global test_acpfl start-------------")
@@ -3529,6 +3773,22 @@ def main(args):
                             n_cls,
                         )
                     experimentD_diagnostic_seconds = time.time() - experimentD_start
+
+                if (
+                    bool(args.oracle_cusp_enable)
+                    and int(epoch) + 1 == int(args.oracle_cusp_round)
+                ):
+                    save_oracle_cusp_round_dump(
+                        args.output_dir, args, cfg, epoch, pre_global_weights,
+                        global_weights, local_weights, idxs_users, datanumber_client,
+                        client_class_counts, global_class_counts, global_trainer, local_trainer,
+                    )
+                    print("Oracle CUSP minimal dump saved; ending training before any global test access.")
+                    if args.trainer != 'CLIP':
+                        local_trainer.fed_after_train()
+                    if args.model != 'local':
+                        global_trainer.fed_after_train()
+                    return
 
                 if not run_global_eval:
                     print_skip_global_eval(epoch, args.global_eval_interval)
@@ -4542,6 +4802,10 @@ if __name__ == "__main__":
     parser.add_argument('--experimentD_require_full_participation', type=str2bool, default=True, help='require frac=1.0 and all clients selected for Experiment D diagnostics')
     parser.add_argument('--experimentD_verify_fedavg', type=str2bool, default=True, help='verify reconstructed full FedAvg state matches average_weights output')
     parser.add_argument('--experimentD_eval_mode', type=str, default='class_filtered', choices=['class_filtered', 'full'], help='evaluation loader mode for Experiment D counterfactual diagnostics')
+    parser.add_argument('--oracle_cusp_enable', type=str2bool, default=False, help='save a centralized offline Oracle CUSP dump; default leaves PromptFL/FedAvg unchanged')
+    parser.add_argument('--oracle_cusp_round', type=int, default=10, help='1-based communication round to save for Oracle CUSP')
+    parser.add_argument('--oracle_cusp_cache_train_features', type=str2bool, default=True, help='cache frozen training image features for offline Oracle utility')
+    parser.add_argument('--oracle_cusp_max_train_samples_per_class', type=int, default=0, help='0 caches every training sample; otherwise cap each class')
     parser.add_argument('--experimentD_log_classwise_agg', type=str2bool, default=None, help=argparse.SUPPRESS)
     parser.add_argument('--experimentD_interval', type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument('--experimentD_param_key', type=str, default=None, help=argparse.SUPPRESS)
