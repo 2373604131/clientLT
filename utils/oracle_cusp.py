@@ -11,7 +11,6 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
@@ -240,11 +239,6 @@ def finite_difference_utility(margin_fn: Callable[[torch.Tensor], torch.Tensor],
                "stable": sign_agreement >= 0.95 and math.isfinite(relative) and relative <= 0.10}
 
 
-def normalize_to_budget(delta: torch.Tensor, budget: float, eps: float = 1e-12) -> torch.Tensor:
-    norm = float(delta.norm().item())
-    return delta.clone() if norm <= budget + eps or norm <= eps else delta * (budget / norm)
-
-
 def scale_to_budget(delta: torch.Tensor, budget: float, eps: float = 1e-12) -> tuple[torch.Tensor | None, dict]:
     """Scale a valid nonzero direction to exactly the FedAvg update norm."""
     delta = torch.as_tensor(delta, dtype=torch.float64)
@@ -347,8 +341,7 @@ def solve_cusp(a: torch.Tensor, u_fedavg: torch.Tensor, head_mask: torch.Tensor,
         import cvxpy as cp
     except ImportError:
         return None, {"status": "dependency_missing", "failure_reason": "cvxpy is not installed"}
-    except Exception as exc:
-        return None, {"status": "dependency_missing", "failure_reason": f"cvxpy import failed: {exc}"}
+
     a_np, u_np = a.detach().cpu().numpy(), u_fedavg.detach().cpu().numpy()
     n, r = a_np.shape
     u, tau, slack = cp.Variable(r), cp.Variable(), cp.Variable(n, nonneg=True)
@@ -361,11 +354,10 @@ def solve_cusp(a: torch.Tensor, u_fedavg: torch.Tensor, head_mask: torch.Tensor,
     try:
         problem.solve()
     except cp.SolverError as exc:
-        return None, {"status": "solver_missing_or_failed", "failure_reason": str(exc)}
-    except (FloatingPointError, ArithmeticError, ValueError) as exc:
-        return None, {"status": "numerical_exception", "failure_reason": str(exc)}
+        return None, {"status": "solver_failed", "failure_reason": str(exc)}
     except Exception as exc:
-        return None, {"status": "unexpected_exception", "failure_reason": str(exc)}
+        return None, {"status": "solver_failed", "failure_reason": str(exc)}
+
     report = {"status": problem.status, "objective": problem.value, "tau": None if tau.value is None else float(tau.value),
               "slack_sum": None if slack.value is None else float(np.sum(slack.value)), "lambda": lam, "mu": mu, "utility_tolerance": tolerance}
     if problem.status in {"infeasible", "unbounded", "infeasible_inaccurate", "unbounded_inaccurate"}:
@@ -377,9 +369,7 @@ def solve_cusp(a: torch.Tensor, u_fedavg: torch.Tensor, head_mask: torch.Tensor,
     return torch.tensor(u.value, dtype=torch.float64), report
 
 
-def write_json_atomic(path: str | Path, payload: Mapping) -> None:
+def write_json(path: str | Path, payload: Mapping) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_name(f"{path.name}.tmp.{os.getpid()}")
-    tmp_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp_path, path)
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")

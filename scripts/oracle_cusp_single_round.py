@@ -41,7 +41,7 @@ from utils.oracle_cusp import (
     summarize_values,
     unflatten_state,
     validate_train_feature_cache,
-    write_json_atomic,
+    write_json,
 )
 
 
@@ -85,8 +85,8 @@ def jsonable(value):
 def fail_before_test(output_dir: Path, solver_report: dict, metadata: dict, message: str, exit_code: int = 2):
     output_dir.mkdir(parents=True, exist_ok=True)
     report = {**solver_report, "status": solver_report.get("status", "failed"), "failure_reason": message}
-    write_json_atomic(output_dir / "oracle_solver.json", jsonable(report))
-    write_json_atomic(output_dir / "oracle_metadata.json", jsonable({
+    write_json(output_dir / "oracle_solver.json", jsonable(report))
+    write_json(output_dir / "oracle_metadata.json", jsonable({
         **metadata,
         "minimal_pilot_status": "INCOMPLETE",
         "failure_reason": message,
@@ -382,7 +382,7 @@ def freeze_candidates(output_dir: Path, context: dict):
         "candidate_states_sha256": sha256_file(states_path),
         "candidates": manifest_rows,
     }
-    write_json_atomic(output_dir / "candidate_manifest.json", manifest)
+    write_json(output_dir / "candidate_manifest.json", manifest)
     return states, manifest
 
 
@@ -568,8 +568,8 @@ def synthetic_run(output_dir: Path):
             logits, test_cache["labels"], head, tail, support_counts=metadata["global_class_counts"]
         )
     verdict = summarize_results(context, manifest, metrics, metadata, output_dir)
-    write_json_atomic(output_dir / "oracle_solver.json", jsonable(solver_report))
-    write_json_atomic(output_dir / "oracle_metadata.json", jsonable({
+    write_json(output_dir / "oracle_solver.json", jsonable(solver_report))
+    write_json(output_dir / "oracle_metadata.json", jsonable({
         "schema_version": "cusp_round1_v1",
         "synthetic": True,
         "minimal_pilot_status": verdict,
@@ -640,8 +640,8 @@ def real_run(args):
             logits, test_cache["labels"], head, tail, support_counts=metadata["global_class_counts"]
         )
     verdict = summarize_results(context, manifest, metrics, metadata, args.output_dir)
-    write_json_atomic(args.output_dir / "oracle_solver.json", jsonable(solver_report))
-    write_json_atomic(args.output_dir / "oracle_metadata.json", jsonable({
+    write_json(args.output_dir / "oracle_solver.json", jsonable(solver_report))
+    write_json(args.output_dir / "oracle_metadata.json", jsonable({
         **metadata_out,
         "minimal_pilot_status": verdict,
         "candidate_frozen_at": manifest["candidate_frozen_at"],

@@ -12,8 +12,6 @@ import json
 import hashlib
 import logging
 import math
-import shutil
-import traceback
 from utils.fed_utils import average_weights
 from utils.experiment_d import (
     append_client_update_norms,
@@ -30,7 +28,6 @@ from utils.oracle_cusp import (
     sha256_json,
     trainable_float_keys,
     validate_train_feature_cache,
-    write_json_atomic,
 )
 from loss.prompt_loss import PromptLoss, update_class_priors
 
@@ -52,43 +49,38 @@ def _oracle_cusp_round_directory(output_dir, communication_round):
     return os.path.join(output_dir, "experiment_d", "oracle_cusp", f"round_{int(communication_round):03d}")
 
 
-def _oracle_cusp_invalid_dump_path(output_dir, communication_round):
-    return os.path.join(output_dir, "experiment_d", "oracle_cusp", f"round_{int(communication_round):03d}_invalid_dump.json")
-
-
 def _stable_oracle_train_sources(local_trainer, num_users):
+    """Return each client's train samples paired with their global train_x index.
+
+    CIFAR/FMNIST federated splits in this repo are built by appending objects
+    from dataset.train_x, so object identity is the cleanest stable key.
+    """
     train_x = list(getattr(local_trainer.dm.dataset, "train_x", []) or [])
     federated_train_x = getattr(local_trainer.dm.dataset, "federated_train_x", None)
     if not train_x or not federated_train_x:
         raise RuntimeError("Oracle CUSP requires dataset.train_x and dataset.federated_train_x for stable sample ids")
 
-    identity_to_index = {}
-    for dataset_index, item in enumerate(train_x):
-        identity = _item_identity(item)
-        if identity in identity_to_index:
-            raise RuntimeError(f"Oracle CUSP duplicate global train identity: {identity}")
-        identity_to_index[identity] = int(dataset_index)
-
+    object_id_to_index = {id(item): int(dataset_index) for dataset_index, item in enumerate(train_x)}
     seen_indices = set()
     client_sources = {}
+
     for client_id in range(int(num_users)):
         rows = []
         for item in federated_train_x[client_id]:
-            identity = _item_identity(item)
-            if identity not in identity_to_index:
-                raise RuntimeError(f"Oracle CUSP client item missing from global train_x: client={client_id}")
-            dataset_index = identity_to_index[identity]
+            dataset_index = object_id_to_index.get(id(item))
+            if dataset_index is None:
+                raise RuntimeError(
+                    "Oracle CUSP expects federated_train_x to contain the same Datum objects as train_x; "
+                    f"client={client_id} has an unknown item"
+                )
             if dataset_index in seen_indices:
                 raise RuntimeError(f"Oracle CUSP duplicated dataset_index across clients: {dataset_index}")
             seen_indices.add(dataset_index)
             rows.append((int(dataset_index), item))
         client_sources[int(client_id)] = sorted(rows, key=lambda pair: pair[0])
 
-    expected = set(range(len(train_x)))
-    if seen_indices != expected:
-        missing = sorted(expected - seen_indices)[:10]
-        extra = sorted(seen_indices - expected)[:10]
-        raise RuntimeError(f"Oracle CUSP client partition is not a full train_x partition: missing={missing}, extra={extra}")
+    if len(seen_indices) != len(train_x):
+        raise RuntimeError(f"Oracle CUSP partition covers {len(seen_indices)} samples, expected {len(train_x)}")
     return client_sources
 
 
@@ -196,15 +188,8 @@ def save_oracle_cusp_round_dump(
     run_dir = _oracle_cusp_round_directory(output_dir, communication_round)
     if os.path.exists(run_dir):
         raise RuntimeError(f"Oracle CUSP dump target already exists; refusing to overwrite: {run_dir}")
-    parent_dir = os.path.dirname(run_dir)
-    os.makedirs(parent_dir, exist_ok=True)
-    tmp_dir = os.path.join(parent_dir, f".round_{communication_round:03d}.tmp.{os.getpid()}")
-    if os.path.exists(tmp_dir):
-        shutil.rmtree(tmp_dir)
-    os.makedirs(tmp_dir)
-    cache_hash = None
-    stage = "start"
-    checks = []
+    os.makedirs(run_dir, exist_ok=False)
+
     schedule_hash = sha256_file(args.client_schedule_file) if getattr(args, "client_schedule_file", "") else None
     split_fingerprint_path = os.path.join(output_dir, "client_split_fingerprint.json")
     split_fingerprint = json.load(open(split_fingerprint_path, "r", encoding="utf-8")) if os.path.exists(split_fingerprint_path) else {}
@@ -233,37 +218,18 @@ def save_oracle_cusp_round_dump(
         "client_split_fingerprint": split_fingerprint,
         "resolved_config": cfg.dump(),
     }
-    try:
-        stage = "cache_train_features"
-        if bool(args.oracle_cusp_cache_train_features):
-            cache_path = os.path.join(tmp_dir, "train_feature_cache.pt")
-            _cache_oracle_train_features(
-                local_trainer, global_trainer.model, cfg, args.num_users, global_class_counts,
-                cache_path, args.oracle_cusp_max_train_samples_per_class,
-            )
-            cache_hash = sha256_file(cache_path)
-            metadata["train_feature_cache_sha256"] = cache_hash
-            checks.append("train_feature_cache")
-        else:
-            metadata["train_feature_cache_sha256"] = None
-        stage = "round_state"
-        save_round_dump(tmp_dir, payload, metadata)
-        checks.append("round_state")
-        stage = "atomic_rename"
-        os.replace(tmp_dir, run_dir)
-    except Exception as exc:
-        if os.path.exists(tmp_dir):
-            shutil.rmtree(tmp_dir)
-        invalid = {
-            "schema_version": "cusp_round1_v1",
-            "communication_round": communication_round,
-            "stage": stage,
-            "exception": repr(exc),
-            "traceback": traceback.format_exc(),
-            "completed_checks": checks,
-        }
-        write_json_atomic(_oracle_cusp_invalid_dump_path(output_dir, communication_round), invalid)
-        raise
+
+    if bool(args.oracle_cusp_cache_train_features):
+        cache_path = os.path.join(run_dir, "train_feature_cache.pt")
+        _cache_oracle_train_features(
+            local_trainer, global_trainer.model, cfg, args.num_users, global_class_counts,
+            cache_path, args.oracle_cusp_max_train_samples_per_class,
+        )
+        metadata["train_feature_cache_sha256"] = sha256_file(cache_path)
+    else:
+        metadata["train_feature_cache_sha256"] = None
+
+    save_round_dump(run_dir, payload, metadata)
     print(f"Saved Oracle CUSP dump: {run_dir}")
 
 
@@ -836,19 +802,21 @@ def get_client_class_counts(local_trainer, num_users, num_classes):
     return client_class_counts
 
 
-def _item_identity(item):
+def _item_identity(item, dataset_index):
     if isinstance(item, dict):
         label = item.get("label", "")
-        impath = item.get("impath", "")
     else:
         label = getattr(item, "label", "")
-        impath = getattr(item, "impath", "")
-    return f"{int(label)}::{str(impath)}"
+    if dataset_index is None:
+        return f"train_index:unknown::label:{int(label)}"
+    return f"train_index:{int(dataset_index)}::label:{int(label)}"
 
 
 def save_client_split_fingerprint(output_dir, local_trainer, num_users):
     os.makedirs(output_dir, exist_ok=True)
     federated_train_x = getattr(local_trainer.dm.dataset, "federated_train_x", None)
+    train_x = list(getattr(local_trainer.dm.dataset, "train_x", []) or [])
+    object_id_to_index = {id(item): int(dataset_index) for dataset_index, item in enumerate(train_x)}
     payload = {"clients": {}, "global_ordered_sha256": None, "global_membership_sha256": None}
     global_ordered = hashlib.sha256()
     global_membership_items = []
@@ -859,7 +827,7 @@ def save_client_split_fingerprint(output_dir, local_trainer, num_users):
         else:
             data_source = local_trainer.fed_train_loader_x_dict[client_idx].dataset.data_source
 
-        ordered = [_item_identity(item) for item in data_source]
+        ordered = [_item_identity(item, object_id_to_index.get(id(item))) for item in data_source]
         ordered_hash = hashlib.sha256("\n".join(ordered).encode("utf-8")).hexdigest()
         membership_hash = hashlib.sha256("\n".join(sorted(ordered)).encode("utf-8")).hexdigest()
         payload["clients"][str(client_idx)] = {
