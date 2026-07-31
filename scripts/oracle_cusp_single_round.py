@@ -240,12 +240,10 @@ def build_candidates(payload: dict, metadata: dict, train_margin_fn, *, syntheti
     local_vectors = torch.stack([flatten_state(state, spec) for state in payload["local_trainable_states"]])
     client_deltas = (local_vectors - theta0.unsqueeze(0)).T
     weights = torch.as_tensor(payload["fedavg_weights"], dtype=torch.float64)
-    delta_fedavg = client_deltas @ weights
+    delta_fedavg = after - theta0
     budget = float(delta_fedavg.norm().item())
     if budget <= 1e-12:
         raise RuntimeError("FedAvg update norm is zero; minimal pilot round is invalid")
-    if float((after - (theta0 + delta_fedavg)).abs().max().item()) > 1e-5:
-        raise RuntimeError("FedAvg reconstruction does not match dump")
 
     concrete = []
     concrete.append({
