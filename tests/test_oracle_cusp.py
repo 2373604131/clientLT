@@ -226,9 +226,10 @@ def test_synthetic_smoke_builds_thirteen_frozen_candidates(tmp_path):
 
 
 def test_minimal_launcher_does_not_enable_experiment_d_or_external_schedule_creation():
-    text = (REPO_ROOT / "scripts" / "cusp_oracle_round1.sh").read_text(encoding="utf-8")
-    assert "--experimentD_enable False" in text
+    text = (REPO_ROOT / "scripts" / "cusp_oracle_round1.py").read_text(encoding="utf-8")
+    assert '"--experimentD_enable", "False"' in text
     assert "--experimentD_enable True" not in text
     assert "scripts/create_client_schedule.py" not in text
-    assert "--round 10" in text
-    assert "--oracle_cusp_round 10" in text
+    assert '"--round", "10"' in text
+    assert '"--oracle_cusp_round", "10"' in text
+    assert 'train_dir / "oracle_cusp" / "round_010"' in text

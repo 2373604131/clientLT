@@ -245,6 +245,62 @@ def compute_theoretical_ratios(lambda_T: float, tail_client_ratio: float) -> dic
     }
 
 
+def allocate_integer_budget_by_class(class_counts: dict[int, int], total_budget: int) -> dict[int, int]:
+    total_count = sum(class_counts.values())
+    if total_count <= 0 or total_budget <= 0:
+        return {class_id: 0 for class_id in class_counts}
+
+    raw = {class_id: count * total_budget / total_count for class_id, count in class_counts.items()}
+    budgets = {class_id: min(int(math.floor(value)), class_counts[class_id]) for class_id, value in raw.items()}
+    remainder = int(total_budget) - sum(budgets.values())
+    while remainder > 0:
+        candidates = [class_id for class_id, count in class_counts.items() if budgets[class_id] < count]
+        candidates.sort(key=lambda class_id: (raw[class_id] - math.floor(raw[class_id]), class_counts[class_id], -class_id), reverse=True)
+        for class_id in candidates:
+            if remainder <= 0:
+                break
+            budgets[class_id] += 1
+            remainder -= 1
+    return budgets
+
+
+def integer_uniform_metrics(total: int, num_clients: int) -> dict[str, float]:
+    if total <= 0:
+        return {"top2": float("nan"), "neff": float("nan"), "entropy": float("nan")}
+    counts = np.full(num_clients, total // num_clients, dtype=np.float64)
+    counts[: total % num_clients] += 1
+    mass = counts / float(total)
+    top2 = float(np.sort(mass)[::-1][:2].sum())
+    neff = float(1.0 / np.square(mass).sum())
+    entropy = entropy_from_counts(counts, num_clients)
+    return {"top2": top2, "neff": neff, "entropy": entropy}
+
+
+def experiment_B_integer_bounds(
+    labels: np.ndarray,
+    tail_classes: list[int],
+    tail_client_ratio: float,
+    lambda_T: float,
+    num_tail_clients: int,
+) -> list[dict[str, Any]]:
+    tail_class_counts = {class_id: int(np.sum(labels == class_id)) for class_id in tail_classes}
+    tail_to_tail_ratio = float(tail_client_ratio) + (1.0 - float(tail_client_ratio)) * float(lambda_T)
+    total_tail_budget = int(round(sum(tail_class_counts.values()) * tail_to_tail_ratio))
+    budgets = allocate_integer_budget_by_class(tail_class_counts, total_tail_budget)
+    rows = []
+    for class_id in tail_classes:
+        metrics = integer_uniform_metrics(budgets[class_id], num_tail_clients)
+        rows.append({
+            "class_id": int(class_id),
+            "global_tail_class_count": int(tail_class_counts[class_id]),
+            "specialist_budget": int(budgets[class_id]),
+            "uniform_integer_top2_lower_bound": metrics["top2"],
+            "uniform_integer_neff_upper_bound": metrics["neff"],
+            "uniform_integer_entropy_upper_bound": metrics["entropy"],
+        })
+    return rows
+
+
 def validate_partition(labels: np.ndarray, net_dataidx_map: dict[int, np.ndarray]) -> None:
     all_indices = []
     for client_id, indices in net_dataidx_map.items():
@@ -368,40 +424,75 @@ def compute_tail_aggregation_metrics(
     tail_clients: list[int],
     tail_classes: list[int],
 ) -> dict[str, float]:
-    top1_values = []
-    top2_values = []
-    effective_values = []
-    entropy_values = []
-    tail_entropy_values = []
+    all_top1_values = []
+    all_top2_values = []
+    all_effective_values = []
+    all_entropy_values = []
+    specialist_top1_values = []
+    specialist_top2_values = []
+    specialist_effective_values = []
+    specialist_entropy_values = []
     num_clients = client_class_counts.shape[0]
+    tail_client_array = np.asarray(tail_clients, dtype=np.int64)
+
     for class_id in tail_classes:
-        counts = client_class_counts[:, class_id].astype(np.float64)
-        total = float(counts.sum())
+        all_counts = client_class_counts[:, class_id].astype(np.float64)
+        total = float(all_counts.sum())
         if total <= 0:
             continue
-        sorted_counts = np.sort(counts)[::-1]
-        top1_values.append(float(sorted_counts[0] / total))
-        top2_values.append(float(sorted_counts[:2].sum() / total))
-        denom = float((counts ** 2).sum())
-        effective_values.append(float((total ** 2) / denom) if denom > 0 else float("nan"))
-        entropy_values.append(entropy_from_counts(counts, num_clients))
-        tail_entropy_values.append(entropy_from_counts(counts[np.asarray(tail_clients, dtype=np.int64)], len(tail_clients)))
+        sorted_all = np.sort(all_counts)[::-1]
+        all_top1_values.append(float(sorted_all[0] / total))
+        all_top2_values.append(float(sorted_all[:2].sum() / total))
+        all_denom = float((all_counts ** 2).sum())
+        all_effective_values.append(float((total ** 2) / all_denom) if all_denom > 0 else float("nan"))
+        all_entropy_values.append(entropy_from_counts(all_counts, num_clients))
+
+        specialist_counts = all_counts[tail_client_array]
+        specialist_total = float(specialist_counts.sum())
+        if specialist_total <= 0:
+            continue
+        sorted_specialist = np.sort(specialist_counts)[::-1]
+        specialist_top1_values.append(float(sorted_specialist[0] / specialist_total))
+        specialist_top2_values.append(float(sorted_specialist[:2].sum() / specialist_total))
+        specialist_denom = float((specialist_counts ** 2).sum())
+        specialist_effective_values.append(
+            float((specialist_total ** 2) / specialist_denom) if specialist_denom > 0 else float("nan")
+        )
+        specialist_entropy_values.append(entropy_from_counts(specialist_counts, len(tail_clients)))
+
     return {
-        "tail_top1_mass_mean": float(np.nanmean(top1_values)),
-        "tail_top1_mass_std": float(np.nanstd(top1_values)),
-        "tail_top2_mass_mean": float(np.nanmean(top2_values)),
-        "tail_top2_mass_std": float(np.nanstd(top2_values)),
-        "effective_client_number_mean": float(np.nanmean(effective_values)),
-        "effective_client_number_std": float(np.nanstd(effective_values)),
-        "normalized_entropy_mean": float(np.nanmean(entropy_values)),
-        "normalized_entropy_std": float(np.nanstd(entropy_values)),
-        "tail_client_normalized_entropy_mean": float(np.nanmean(tail_entropy_values)),
-        "tail_client_normalized_entropy_std": float(np.nanstd(tail_entropy_values)),
+        "specialist_tail_top1_mass_mean": float(np.nanmean(specialist_top1_values)),
+        "specialist_tail_top1_mass_std": float(np.nanstd(specialist_top1_values)),
+        "specialist_tail_top2_mass_mean": float(np.nanmean(specialist_top2_values)),
+        "specialist_tail_top2_mass_std": float(np.nanstd(specialist_top2_values)),
+        "specialist_effective_client_number_mean": float(np.nanmean(specialist_effective_values)),
+        "specialist_effective_client_number_std": float(np.nanstd(specialist_effective_values)),
+        "specialist_normalized_entropy_mean": float(np.nanmean(specialist_entropy_values)),
+        "specialist_normalized_entropy_std": float(np.nanstd(specialist_entropy_values)),
+        "all_client_tail_top1_mass_mean": float(np.nanmean(all_top1_values)),
+        "all_client_tail_top1_mass_std": float(np.nanstd(all_top1_values)),
+        "all_client_tail_top2_mass_mean": float(np.nanmean(all_top2_values)),
+        "all_client_tail_top2_mass_std": float(np.nanstd(all_top2_values)),
+        "all_client_effective_client_number_mean": float(np.nanmean(all_effective_values)),
+        "all_client_effective_client_number_std": float(np.nanstd(all_effective_values)),
+        "all_client_normalized_entropy_mean": float(np.nanmean(all_entropy_values)),
+        "all_client_normalized_entropy_std": float(np.nanstd(all_entropy_values)),
     }
 
 
 def normalized_tail_mass_matrix(client_class_counts: np.ndarray, tail_classes: list[int]) -> np.ndarray:
     tail_counts = client_class_counts[:, tail_classes].astype(np.float64)
+    totals = tail_counts.sum(axis=0, keepdims=True)
+    totals[totals == 0] = 1.0
+    return tail_counts / totals
+
+
+def normalized_specialist_tail_mass_matrix(
+    client_class_counts: np.ndarray,
+    tail_clients: list[int],
+    tail_classes: list[int],
+) -> np.ndarray:
+    tail_counts = client_class_counts[np.ix_(tail_clients, tail_classes)].astype(np.float64)
     totals = tail_counts.sum(axis=0, keepdims=True)
     totals[totals == 0] = 1.0
     return tail_counts / totals
@@ -527,27 +618,28 @@ def plot_experiment_B_curves(summary_rows: list[dict[str, Any]], output_dir: Pat
     fig, axes = plt.subplots(1, 2, figsize=(9.4, 3.9))
 
     for metric, label, color in [
-        ("tail_top1_mass", "Tail top-1 client mass", "#1f77b4"),
-        ("tail_top2_mass", "Tail top-2 client mass", "#ff7f0e"),
+        ("specialist_tail_top1_mass", "Specialist top-1 tail mass", "#1f77b4"),
+        ("specialist_tail_top2_mass", "Specialist top-2 tail mass", "#ff7f0e"),
     ]:
         y = np.asarray([float(row[f"{metric}_mean_mean"]) for row in summary_rows])
         yerr = np.asarray([float(row[f"{metric}_mean_std"]) for row in summary_rows])
         axes[0].errorbar(x, y, yerr=yerr, marker="o", linewidth=1.8, capsize=3, label=label, color=color)
     axes[0].set_xscale("log")
     axes[0].set_xlabel(r"Tail aggregation alpha $\alpha_T$")
-    axes[0].set_ylabel("Mass")
-    axes[0].set_ylim(-0.03, 1.03)
+    axes[0].set_ylabel("Mass within tail specialists")
+    axes[0].set_ylim(0.63, 1.03)
     axes[0].grid(alpha=0.25)
     axes[0].legend(frameon=False)
 
-    eff = np.asarray([float(row["effective_client_number_mean_mean"]) for row in summary_rows])
-    eff_err = np.asarray([float(row["effective_client_number_mean_std"]) for row in summary_rows])
-    entropy = np.asarray([float(row["normalized_entropy_mean_mean"]) for row in summary_rows])
-    entropy_err = np.asarray([float(row["normalized_entropy_mean_std"]) for row in summary_rows])
-    axes[1].errorbar(x, eff, yerr=eff_err, marker="o", linewidth=1.8, capsize=3, label="Effective client number", color="#2ca02c")
+    eff = np.asarray([float(row["specialist_effective_client_number_mean_mean"]) for row in summary_rows])
+    eff_err = np.asarray([float(row["specialist_effective_client_number_mean_std"]) for row in summary_rows])
+    entropy = np.asarray([float(row["specialist_normalized_entropy_mean_mean"]) for row in summary_rows])
+    entropy_err = np.asarray([float(row["specialist_normalized_entropy_mean_std"]) for row in summary_rows])
+    axes[1].errorbar(x, eff, yerr=eff_err, marker="o", linewidth=1.8, capsize=3, label="Specialist effective count", color="#2ca02c")
     axes[1].set_xscale("log")
     axes[1].set_xlabel(r"Tail aggregation alpha $\alpha_T$")
-    axes[1].set_ylabel("Effective client number")
+    axes[1].set_ylabel("Effective tail-specialist count")
+    axes[1].set_ylim(0.95, None)
     axes[1].grid(alpha=0.25)
 
     ax2 = axes[1].twinx()
@@ -620,23 +712,23 @@ def check_monotonicity(
         "decreasing",
     )
     add_check(
-        "B_tail_top1_mass_vs_alpha",
-        [float(row["tail_top1_mass_mean_mean"]) for row in summary_B],
+        "B_specialist_tail_top1_mass_vs_alpha",
+        [float(row["specialist_tail_top1_mass_mean_mean"]) for row in summary_B],
         "decreasing",
     )
     add_check(
-        "B_tail_top2_mass_vs_alpha",
-        [float(row["tail_top2_mass_mean_mean"]) for row in summary_B],
+        "B_specialist_tail_top2_mass_vs_alpha",
+        [float(row["specialist_tail_top2_mass_mean_mean"]) for row in summary_B],
         "decreasing",
     )
     add_check(
-        "B_effective_client_number_vs_alpha",
-        [float(row["effective_client_number_mean_mean"]) for row in summary_B],
+        "B_specialist_effective_client_number_vs_alpha",
+        [float(row["specialist_effective_client_number_mean_mean"]) for row in summary_B],
         "increasing",
     )
     add_check(
-        "B_normalized_entropy_vs_alpha",
-        [float(row["normalized_entropy_mean_mean"]) for row in summary_B],
+        "B_specialist_normalized_entropy_vs_alpha",
+        [float(row["specialist_normalized_entropy_mean_mean"]) for row in summary_B],
         "increasing",
     )
     return {
@@ -670,6 +762,7 @@ def run_partition(
     head_leakage_scale: float,
 ) -> np.ndarray:
     set_all_seeds(seed)
+    rng = np.random.RandomState(seed)
     net_dataidx_map = partition_fn(
         labels=labels,
         n_parties=num_clients,
@@ -681,6 +774,7 @@ def run_partition(
         specialization_lambda=lambda_T,
         intra_group_alpha=alpha_T,
         head_leakage_scale=head_leakage_scale,
+        rng=rng,
     )
     return build_client_class_count_matrix(labels, net_dataidx_map, num_clients, num_classes)
 
@@ -793,7 +887,7 @@ def main() -> None:
             }
             rows_B.append(row)
             if int(seed) == heatmap_seed:
-                heatmaps_B[float(alpha_T)] = normalized_tail_mass_matrix(counts, tail_classes)
+                heatmaps_B[float(alpha_T)] = normalized_specialist_tail_mass_matrix(counts, tail_clients, tail_classes)
 
     fields_A = [
         "experiment",
@@ -823,19 +917,45 @@ def main() -> None:
         "num_clients",
         "tail_client_ratio",
         "tail_class_ratio",
-        "tail_top1_mass_mean",
-        "tail_top1_mass_std",
-        "tail_top2_mass_mean",
-        "tail_top2_mass_std",
-        "effective_client_number_mean",
-        "effective_client_number_std",
-        "normalized_entropy_mean",
-        "normalized_entropy_std",
-        "tail_client_normalized_entropy_mean",
-        "tail_client_normalized_entropy_std",
+        "specialist_tail_top1_mass_mean",
+        "specialist_tail_top1_mass_std",
+        "specialist_tail_top2_mass_mean",
+        "specialist_tail_top2_mass_std",
+        "specialist_effective_client_number_mean",
+        "specialist_effective_client_number_std",
+        "specialist_normalized_entropy_mean",
+        "specialist_normalized_entropy_std",
+        "all_client_tail_top1_mass_mean",
+        "all_client_tail_top1_mass_std",
+        "all_client_tail_top2_mass_mean",
+        "all_client_tail_top2_mass_std",
+        "all_client_effective_client_number_mean",
+        "all_client_effective_client_number_std",
+        "all_client_normalized_entropy_mean",
+        "all_client_normalized_entropy_std",
     ]
     write_csv(csv_dir / "experiment_A_per_seed.csv", rows_A, fields_A)
     write_csv(csv_dir / "experiment_B_per_seed.csv", rows_B, fields_B)
+
+    integer_bound_rows = experiment_B_integer_bounds(
+        labels,
+        tail_classes,
+        args.tail_client_ratio,
+        args.fixed_lambda,
+        len(tail_clients),
+    )
+    write_csv(
+        csv_dir / "experiment_B_integer_uniform_bounds.csv",
+        integer_bound_rows,
+        [
+            "class_id",
+            "global_tail_class_count",
+            "specialist_budget",
+            "uniform_integer_top2_lower_bound",
+            "uniform_integer_neff_upper_bound",
+            "uniform_integer_entropy_upper_bound",
+        ],
+    )
 
     metrics_A = [
         "tail_client_purity",
@@ -851,16 +971,22 @@ def main() -> None:
         "tail_to_tail_ratio_theory",
     ]
     metrics_B = [
-        "tail_top1_mass_mean",
-        "tail_top1_mass_std",
-        "tail_top2_mass_mean",
-        "tail_top2_mass_std",
-        "effective_client_number_mean",
-        "effective_client_number_std",
-        "normalized_entropy_mean",
-        "normalized_entropy_std",
-        "tail_client_normalized_entropy_mean",
-        "tail_client_normalized_entropy_std",
+        "specialist_tail_top1_mass_mean",
+        "specialist_tail_top1_mass_std",
+        "specialist_tail_top2_mass_mean",
+        "specialist_tail_top2_mass_std",
+        "specialist_effective_client_number_mean",
+        "specialist_effective_client_number_std",
+        "specialist_normalized_entropy_mean",
+        "specialist_normalized_entropy_std",
+        "all_client_tail_top1_mass_mean",
+        "all_client_tail_top1_mass_std",
+        "all_client_tail_top2_mass_mean",
+        "all_client_tail_top2_mass_std",
+        "all_client_effective_client_number_mean",
+        "all_client_effective_client_number_std",
+        "all_client_normalized_entropy_mean",
+        "all_client_normalized_entropy_std",
     ]
     summary_A = summarize_rows(rows_A, "lambda_T", metrics_A)
     summary_B = summarize_rows(rows_B, "alpha_T", metrics_B)
@@ -886,6 +1012,7 @@ def main() -> None:
         "head_class_ratio": head_class_ratio,
         "tail_class_ratio": float(args.tail_class_ratio),
         "seeds": [int(x) for x in args.seeds],
+        "seeds_are_partition_seeds": True,
         "lambda_values": [float(x) for x in args.lambda_values],
         "alpha_values": [float(x) for x in args.alpha_values],
         "fixed_alpha_for_experiment_A": float(args.fixed_alpha),
@@ -897,6 +1024,14 @@ def main() -> None:
             "tail_to_head_ratio": "1 - tail_to_tail_ratio",
             "head_to_tail_ratio": "q_T * (1 - lambda_T)",
             "head_to_head_ratio": "1 - head_to_tail_ratio",
+            "specialist_Neff": "1 / sum_k p_{k,c}^2, computed only over tail specialists for Experiment B",
+            "alpha_T_note": "Dirichlet(alpha_T, ..., alpha_T) has equal expected specialist proportions, but one finite draw is not guaranteed to be uniform or monotonic in alpha_T.",
+        },
+        "experiment_B_integer_uniform_bounds_mean": {
+            "specialist_budget": float(np.mean([row["specialist_budget"] for row in integer_bound_rows])),
+            "top2_lower_bound": float(np.nanmean([row["uniform_integer_top2_lower_bound"] for row in integer_bound_rows])),
+            "neff_upper_bound": float(np.nanmean([row["uniform_integer_neff_upper_bound"] for row in integer_bound_rows])),
+            "entropy_upper_bound": float(np.nanmean([row["uniform_integer_entropy_upper_bound"] for row in integer_bound_rows])),
         },
         "head_clients": {"first": head_clients[0], "last": head_clients[-1], "count": len(head_clients)},
         "tail_clients": {"first": tail_clients[0], "last": tail_clients[-1], "count": len(tail_clients)},

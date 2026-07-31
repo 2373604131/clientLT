@@ -590,7 +590,7 @@ def synthetic_run(output_dir: Path):
 
 def real_run(args):
     started = time.time()
-    dump_dir = args.run_dir / "experiment_d" / "oracle_cusp" / f"round_{args.communication_round:03d}"
+    dump_dir = args.run_dir / "oracle_cusp" / f"round_{args.communication_round:03d}"
     payload, metadata, train_cache = load_verified_dump(dump_dir)
     metadata_out = {
         "schema_version": "cusp_round1_v1",
