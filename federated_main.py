@@ -21,8 +21,7 @@ from utils.experiment_d import (
     run_experiment_d_round,
     should_log_experiment_d,
 )
-from utils.cusp_oracle_dump import save_oracle_round_dump, trainable_state_dict_to_cpu
-from utils.oracle_cusp import sha256_json
+from utils.cusp_minimal import save_cusp_minimal_dump, sha256_json, trainable_state_dict_to_cpu
 from loss.prompt_loss import PromptLoss, update_class_priors
 
 from trainers.capt import MABScheduler
@@ -2922,16 +2921,18 @@ def setup_cfg(args):
 
 def main(args):
     cfg = setup_cfg(args)
-    oracle_cusp_minimal = bool(args.oracle_cusp_enable)
-    if bool(args.oracle_cusp_enable):
+    cusp_minimal = bool(args.cusp_minimal_enable)
+    if cusp_minimal:
         if args.trainer != "PromptFL" or args.model != "fedavg" or abs(float(args.frac) - 1.0) > 1e-12:
-            raise ValueError("Oracle CUSP Round-1 requires trainer=PromptFL, model=fedavg, and frac=1.0")
+            raise ValueError("CUSP minimal requires trainer=PromptFL, model=fedavg, and frac=1.0")
         if not getattr(args, "client_schedule_file", ""):
-            raise ValueError("Oracle CUSP minimal pilot requires an explicit --client_schedule_file")
-        if int(args.oracle_cusp_round) != int(args.round):
-            raise ValueError("Oracle CUSP minimal pilot requires --oracle_cusp_round to equal the final --round")
+            raise ValueError("CUSP minimal requires an explicit --client_schedule_file")
+        if int(args.cusp_minimal_round) != int(args.round):
+            raise ValueError("CUSP minimal requires --cusp_minimal_round to equal the final --round")
         if not bool(cfg.TRAINER.PROMPTFL.CSC):
-            raise ValueError("Oracle CUSP Round-1 requires CSC=True so all PromptFL trainable states are explicit")
+            raise ValueError("CUSP minimal requires CSC=True so all PromptFL trainable states are explicit")
+        if bool(args.experimentD_enable):
+            raise ValueError("CUSP minimal must run with --experimentD_enable False")
     print(f"Resolved local epochs per selected client: {cfg.OPTIM.MAX_EPOCH}")
     if cfg.SEED >= 0:
         # print("Setting fixed seed: {}".format(cfg.SEED))
@@ -2945,7 +2946,7 @@ def main(args):
     # print("Collecting env info ...")
     # print("** System info **\n{}\n".format(collect_env_info()))
     global_trainer = None
-    if args.model != "local" and not oracle_cusp_minimal:
+    if args.model != "local" and not cusp_minimal:
         global_trainer = build_trainer(cfg)
         global_trainer.prompt_loss = PromptLoss(
             num_classes=cfg.DATASET.NUM_CLASSES,
@@ -2979,7 +2980,7 @@ def main(args):
     local_trainer.fed_before_train()
     validate_federated_train_loaders(local_trainer, args.num_users)
 
-    if oracle_cusp_minimal:
+    if cusp_minimal:
         global_trainer = local_trainer
         global_weights = trainable_state_dict_to_cpu(local_trainer.model)
 
@@ -3224,7 +3225,7 @@ def main(args):
 
     for epoch in range(start_epoch, max_epoch):
         run_global_eval = should_run_global_eval(epoch, max_epoch, args.global_eval_interval)
-        if oracle_cusp_minimal:
+        if cusp_minimal:
             run_global_eval = False
 
         if args.trainer == 'CLIP':
@@ -3502,7 +3503,7 @@ def main(args):
                             f"local_optimizer_step_count={optimizer_step_count}"
                         )
 
-                    if oracle_cusp_minimal:
+                    if cusp_minimal:
                         local_weights[idx] = trainable_state_dict_to_cpu(local_trainer.model)
                     else:
                         local_weight = local_trainer.model.state_dict()
@@ -3524,7 +3525,7 @@ def main(args):
                     )
                 # update global weights
                 global_weights = average_weights(local_weights, idxs_users, datanumber_client)
-                global_trainer.model.load_state_dict(global_weights, strict=not oracle_cusp_minimal)  # hsh
+                global_trainer.model.load_state_dict(global_weights, strict=not cusp_minimal)  # hsh
 
                 experimentD_diagnostic_seconds = 0.0
                 if bool(args.experimentD_enable):
@@ -3557,10 +3558,10 @@ def main(args):
                     experimentD_diagnostic_seconds = time.time() - experimentD_start
 
                 if (
-                    bool(args.oracle_cusp_enable)
-                    and int(epoch) + 1 == int(args.oracle_cusp_round)
+                    cusp_minimal
+                    and int(epoch) + 1 == int(args.cusp_minimal_round)
                 ):
-                    save_oracle_round_dump(
+                    save_cusp_minimal_dump(
                         output_dir=args.output_dir,
                         args=args,
                         cfg=cfg,
@@ -3574,7 +3575,7 @@ def main(args):
                         global_class_counts=global_class_counts,
                         trainer=local_trainer,
                     )
-                    print("Oracle CUSP minimal dump saved; ending training before any global test access.")
+                    print("CUSP minimal dump saved; ending training before any global test access.")
                     if args.trainer != 'CLIP':
                         local_trainer.fed_after_train()
                     if args.model != 'local' and global_trainer is not local_trainer:
@@ -4593,10 +4594,8 @@ if __name__ == "__main__":
     parser.add_argument('--experimentD_require_full_participation', type=str2bool, default=True, help='require frac=1.0 and all clients selected for Experiment D diagnostics')
     parser.add_argument('--experimentD_verify_fedavg', type=str2bool, default=True, help='verify reconstructed full FedAvg state matches average_weights output')
     parser.add_argument('--experimentD_eval_mode', type=str, default='class_filtered', choices=['class_filtered', 'full'], help='evaluation loader mode for Experiment D counterfactual diagnostics')
-    parser.add_argument('--oracle_cusp_enable', type=str2bool, default=False, help='save a centralized offline Oracle CUSP dump; default leaves PromptFL/FedAvg unchanged')
-    parser.add_argument('--oracle_cusp_round', type=int, default=10, help='1-based communication round to save for Oracle CUSP')
-    parser.add_argument('--oracle_cusp_cache_train_features', type=str2bool, default=True, help='cache frozen training image features for offline Oracle utility')
-    parser.add_argument('--oracle_cusp_max_train_samples_per_class', type=int, default=0, help='0 caches every training sample; otherwise cap each class')
+    parser.add_argument('--cusp_minimal_enable', type=str2bool, default=False, help='save a small round dump for the simplified offline CUSP minimal experiment')
+    parser.add_argument('--cusp_minimal_round', type=int, default=10, help='1-based communication round to save for the CUSP minimal experiment')
     parser.add_argument('--experimentD_log_classwise_agg', type=str2bool, default=None, help=argparse.SUPPRESS)
     parser.add_argument('--experimentD_interval', type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument('--experimentD_param_key', type=str, default=None, help=argparse.SUPPRESS)
