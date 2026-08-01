@@ -3,6 +3,7 @@ set -euo pipefail
 
 ARGS=(--stage "${STAGE:-all}")
 ARGS+=(--output-root "${OUTPUT_ROOT:-output/cusp_minimal_seed42}")
+ARGS+=(--topology "${TOPOLOGY:-clientlt}")
 ARGS+=(--data "${DATA:-DATA}")
 ARGS+=(--python-bin "${PYTHON_BIN:-python}")
 

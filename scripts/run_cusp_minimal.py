@@ -46,24 +46,44 @@ def bool_from_env(name: str, default: bool) -> bool:
     return value.lower() in {"1", "true", "yes", "y"}
 
 
-def build_paths(output_root: Path) -> dict[str, Path]:
-    train_dir = output_root / "client-longtail_seed42_round10"
+def topology_name(topology: str) -> str:
+    return "client-longtail_seed42_round10" if topology == "clientlt" else "dirichlet_beta0.5_seed42_round10"
+
+
+def build_paths(output_root: Path, topology: str = "clientlt") -> dict[str, Path]:
+    run_name = topology_name(topology)
+    train_dir = output_root / run_name
     return {
         "output_root": output_root,
         "train_dir": train_dir,
-        "eval_dir": output_root / "cusp_eval_client-longtail_seed42_round10",
-        "schedule_file": output_root / "shared_client_schedule_seed42_round10.json",
+        "eval_dir": output_root / f"cusp_eval_{run_name}",
+        "schedule_file": output_root / f"shared_client_schedule_{topology}_seed42_round10.json",
         "dump_dir": train_dir / "cusp_minimal" / "round_010",
     }
 
 
-def build_train_command(python_bin: str, data_root: str, paths: dict[str, Path]) -> list[str]:
-    return [
+def build_train_command(python_bin: str, data_root: str, paths: dict[str, Path], topology: str = "clientlt") -> list[str]:
+    if topology == "clientlt":
+        partition_args = [
+            "--partition", "client-longtail",
+            "--beta", "0.05",
+            "--specialization_lambda", "0.75",
+            "--intra_group_alpha", "0.5",
+            "--head_leakage_scale", "3.0",
+        ]
+    else:
+        partition_args = [
+            "--partition", "noniid-labeldir-fine",
+            "--beta", "0.5",
+            "--specialization_lambda", "0.75",
+            "--intra_group_alpha", "0.5",
+            "--head_leakage_scale", "3.0",
+        ]
+    command = [
         python_bin, "federated_main.py",
         "--model", "fedavg",
         "--trainer", "PromptFL",
         "--dataset", "cifar100_LT",
-        "--partition", "client-longtail",
         "--config-file", "configs/trainers/PromptFL/vit_b16.yaml",
         "--dataset-config-file", "configs/datasets/cifar100_LT.yaml",
         "--root", data_root,
@@ -85,9 +105,6 @@ def build_train_command(python_bin: str, data_root: str, paths: dict[str, Path])
         "--tail_client_ratio", "0.1",
         "--head_class_ratio", "0.8",
         "--tail_class_ratio", "0.2",
-        "--specialization_lambda", "0.75",
-        "--intra_group_alpha", "0.5",
-        "--head_leakage_scale", "3.0",
         "--n_ctx", "4",
         "--num_prompt", "1",
         "--avg_prompt", "1",
@@ -100,6 +117,7 @@ def build_train_command(python_bin: str, data_root: str, paths: dict[str, Path])
         "--cusp_minimal_enable", "True",
         "--cusp_minimal_round", "10",
     ]
+    return command[:8] + partition_args + command[8:]
 
 
 def run_command(command: list[str], env: dict[str, str]) -> None:
@@ -311,6 +329,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage", choices=["all", "train", "eval", "synthetic"], default=os.environ.get("STAGE", "all"))
     parser.add_argument("--output-root", type=Path, default=Path(os.environ.get("OUTPUT_ROOT", "output/cusp_minimal_seed42")))
+    parser.add_argument("--topology", choices=["clientlt", "dirichlet"], default=os.environ.get("TOPOLOGY", "clientlt"))
     parser.add_argument("--data", default=os.environ.get("DATA", "DATA"))
     parser.add_argument("--python-bin", default=os.environ.get("PYTHON_BIN", sys.executable))
     parser.add_argument("--cuda-visible-devices", default=os.environ.get("CUDA_VISIBLE_DEVICES"))
@@ -322,8 +341,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     dry_run = args.dry_run or (not args.run and bool_from_env("DRY_RUN", True))
-    paths = build_paths(args.output_root)
-    train_command = build_train_command(args.python_bin, args.data, paths)
+    paths = build_paths(args.output_root, args.topology)
+    train_command = build_train_command(args.python_bin, args.data, paths, args.topology)
     env = os.environ.copy()
     if args.cuda_visible_devices is not None:
         env["CUDA_VISIBLE_DEVICES"] = str(args.cuda_visible_devices)
@@ -331,6 +350,7 @@ def main() -> None:
     print("CUSP minimal refactor")
     print(f"Stage: {args.stage}")
     print(f"Dry run: {dry_run}")
+    print(f"Topology: {args.topology}")
     print(f"Output root: {args.output_root}")
 
     if dry_run:
