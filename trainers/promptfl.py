@@ -1,6 +1,7 @@
-import os.path as osp
 import os
+import os.path as osp
 import time
+from contextlib import contextmanager
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -232,6 +233,14 @@ class CustomCLIP(nn.Module):
 
         # 创建一个单独的 tokenized general prompt
         self.general_tokenized_prompt = self.create_general_tokenized_prompt(clip_model)
+        zero_shot_prompts = [f"a photo of a {name.replace('_', ' ')}." for name in classnames]
+        zero_shot_tokens = torch.cat([clip.tokenize(prompt) for prompt in zero_shot_prompts])
+        with torch.no_grad():
+            zero_shot_features = clip_model.encode_text(zero_shot_tokens)
+            zero_shot_features = zero_shot_features / zero_shot_features.norm(dim=-1, keepdim=True).clamp_min(1e-12)
+        # This fixed audit-only prototype must follow the model device but must
+        # not enter a FedAvg state_dict or communication payload.
+        self.register_buffer("zero_shot_text_features", zero_shot_features, persistent=False)
 
     def create_general_tokenized_prompt(self, clip_model):
         # 创建一个只包含 [SOS] + general_ctx + [EOS] 的 prompt
@@ -284,6 +293,108 @@ class CustomCLIP(nn.Module):
         text_features = self.text_encoder(prompts, tokenized_prompts)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         return self.logit_scale.exp() * image_features @ text_features.t(), text_features
+
+    @contextmanager
+    def _patched_trainable_state(self, trainable_state):
+        """Temporarily load a trainable Prompt snapshot and restore it safely."""
+        was_training = self.training
+        original_state = {}
+        if trainable_state:
+            current = self.state_dict()
+            for key, value in trainable_state.items():
+                if key not in current:
+                    raise KeyError(f"Unknown PromptFL trainable key: {key}")
+                original_state[key] = current[key].detach().clone()
+            patched = self.state_dict()
+            for key, value in trainable_state.items():
+                patched[key] = value.detach().to(device=patched[key].device, dtype=patched[key].dtype)
+            self.load_state_dict(patched, strict=False)
+        try:
+            self.eval()
+            yield
+        finally:
+            if original_state:
+                restored = self.state_dict()
+                for key, value in original_state.items():
+                    restored[key] = value
+                self.load_state_dict(restored, strict=False)
+            self.train(was_training)
+
+    def encode_audit_images(self, images):
+        """Encode a deterministic audit view without changing training state."""
+        was_training = self.training
+        try:
+            self.eval()
+            features = self.image_encoder(images.type(self.dtype))
+            return features / features.norm(dim=-1, keepdim=True).clamp_min(1e-12)
+        finally:
+            self.train(was_training)
+
+    def zero_shot_logits_from_cached_features(self, image_features):
+        features = image_features.to(device=self.logit_scale.device, dtype=self.dtype)
+        features = features / features.norm(dim=-1, keepdim=True).clamp_min(1e-12)
+        text_features = self.zero_shot_text_features.to(device=features.device, dtype=features.dtype)
+        return self.logit_scale.exp() * features @ text_features.t()
+
+    def compute_fixed_hard_negatives_from_cached_features(self, image_features, labels, trainable_state=None, *, batch_size=2048):
+        """Freeze Top-2 PromptFL and Top-1 zero-shot false labels per sample."""
+        labels = labels.detach().long().cpu()
+        prompt_logits, zero_shot_logits = [], []
+        with torch.no_grad():
+            for start in range(0, int(image_features.shape[0]), int(batch_size)):
+                chunk = image_features[start:start + batch_size]
+                prompt_logits.append(self.logits_from_cached_features(chunk, trainable_state).detach().cpu())
+                zero_shot_logits.append(self.zero_shot_logits_from_cached_features(chunk).detach().cpu())
+        prompt_logits = torch.cat(prompt_logits, dim=0)
+        zero_shot_logits = torch.cat(zero_shot_logits, dim=0)
+        rows = []
+        for index, label in enumerate(labels.tolist()):
+            prompt_order = torch.argsort(prompt_logits[index], descending=True).tolist()
+            zero_order = torch.argsort(zero_shot_logits[index], descending=True).tolist()
+            chosen = []
+            for candidate in prompt_order:
+                if candidate != label and candidate not in chosen:
+                    chosen.append(candidate)
+                if len(chosen) == 2:
+                    break
+            for candidate in zero_order:
+                if candidate != label and candidate not in chosen:
+                    chosen.append(candidate)
+                if len(chosen) == 3:
+                    break
+            rows.append(chosen + [-1] * (3 - len(chosen)))
+        return torch.tensor(rows, dtype=torch.long)
+
+    def text_features_from_trainable_state(self, trainable_state=None):
+        """Return normalized class text prototypes for audit geometry checks."""
+        with self._patched_trainable_state(trainable_state):
+            with torch.no_grad():
+                prompts = self.prompt_learner()
+                features = self.text_encoder(prompts, self.tokenized_prompts)
+                return (features / features.norm(dim=-1, keepdim=True).clamp_min(1e-12)).detach().cpu()
+
+    def edge_gradient_from_cached_features(self, image_features, labels, negatives, trainable_state, trainable_keys):
+        """Differentiate a fixed-pair mean margin in the shared Prompt space."""
+        labels = labels.detach().long()
+        negatives = negatives.detach().long()
+        with self._patched_trainable_state(trainable_state):
+            features = image_features.to(device=self.logit_scale.device, dtype=self.dtype)
+            features = features / features.norm(dim=-1, keepdim=True).clamp_min(1e-12)
+            labels = labels.to(device=features.device)
+            negatives = negatives.to(device=features.device)
+            logits, _ = self._logits_from_normalized_features(features)
+            rows = torch.arange(labels.numel(), device=features.device)
+            margin = (logits[rows, labels] - logits[rows, negatives]).mean()
+            parameters = dict(self.named_parameters())
+            missing = [key for key in trainable_keys if key not in parameters]
+            if missing:
+                raise KeyError(f"Unknown trainable Prompt keys: {missing}")
+            grads = torch.autograd.grad(margin, [parameters[key] for key in trainable_keys], allow_unused=True)
+            output = {
+                key: (torch.zeros_like(parameters[key]) if grad is None else grad.detach()).cpu()
+                for key, grad in zip(trainable_keys, grads)
+            }
+            return float(margin.detach().cpu().item()), output
 
     def forward(self, image, return_features=False, return_prob=False):
         image_features = self.image_encoder(image.type(self.dtype))
@@ -340,31 +451,11 @@ class CustomCLIP(nn.Module):
         image encoder and restores the original PromptFL trainable state and
         train/eval mode before returning.
         """
-        was_training = self.training
-        original_state = {}
-        try:
-            if trainable_state:
-                current = self.state_dict()
-                for key, value in trainable_state.items():
-                    if key not in current:
-                        raise KeyError(f"Unknown PromptFL trainable key: {key}")
-                    original_state[key] = current[key].detach().clone()
-                patched = self.state_dict()
-                for key, value in trainable_state.items():
-                    patched[key] = value.detach().to(device=patched[key].device, dtype=patched[key].dtype)
-                self.load_state_dict(patched, strict=False)
-            self.eval()
+        with self._patched_trainable_state(trainable_state):
             features = image_features.to(device=self.logit_scale.device, dtype=self.dtype)
             features = features / features.norm(dim=-1, keepdim=True).clamp_min(1e-12)
             logits, _ = self._logits_from_normalized_features(features)
             return logits
-        finally:
-            if original_state:
-                restored = self.state_dict()
-                for key, value in original_state.items():
-                    restored[key] = value
-                self.load_state_dict(restored, strict=False)
-            self.train(was_training)
 
 
 # @TRAINER_REGISTRY.register("PromptFL")

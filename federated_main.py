@@ -21,7 +21,19 @@ from utils.experiment_d import (
     run_experiment_d_round,
     should_log_experiment_d,
 )
-from utils.cusp_minimal import save_cusp_minimal_dump, sha256_json, trainable_state_dict_to_cpu
+from utils.cusp_minimal import (
+    save_cusp_minimal_dump,
+    sha256_json,
+    trainable_state_dict_to_cpu,
+    write_csv,
+    write_json,
+)
+from utils.boundary_audit import (
+    attach_audit_cache_to_round_dump,
+    load_boundary_round_dump,
+    save_boundary_round_dump,
+)
+from utils.boundary_gate import BoundaryGateConfig, build_boundary_candidates
 from loss.prompt_loss import PromptLoss, update_class_priors
 
 from trainers.capt import MABScheduler
@@ -2922,17 +2934,26 @@ def setup_cfg(args):
 def main(args):
     cfg = setup_cfg(args)
     cusp_minimal = bool(args.cusp_minimal_enable)
-    if cusp_minimal:
+    boundary_gate_dump = bool(args.boundary_gate_dump_enable)
+    boundary_gate_online_repair = bool(args.boundary_gate_online_repair_enable)
+    trainable_only_gate = cusp_minimal or boundary_gate_dump or boundary_gate_online_repair
+    if sum((cusp_minimal, boundary_gate_dump, boundary_gate_online_repair)) > 1:
+        raise ValueError("CUSP dump, Boundary Gate dump, and Boundary online repair are separate controls; enable only one")
+    if trainable_only_gate:
         if args.trainer != "PromptFL" or args.model != "fedavg" or abs(float(args.frac) - 1.0) > 1e-12:
-            raise ValueError("CUSP minimal requires trainer=PromptFL, model=fedavg, and frac=1.0")
+            raise ValueError("diagnostic dumps require trainer=PromptFL, model=fedavg, and frac=1.0")
         if not getattr(args, "client_schedule_file", ""):
-            raise ValueError("CUSP minimal requires an explicit --client_schedule_file")
-        if int(args.cusp_minimal_round) != int(args.round):
-            raise ValueError("CUSP minimal requires --cusp_minimal_round to equal the final --round")
+            raise ValueError("diagnostic dumps require an explicit --client_schedule_file")
+        if cusp_minimal and int(args.cusp_minimal_round) != int(args.round):
+            raise ValueError("--cusp_minimal_round must equal the final --round to prevent prior test access")
+        if boundary_gate_dump and int(args.boundary_gate_dump_round) != int(args.round):
+            raise ValueError("--boundary_gate_dump_round must equal the final --round to prevent prior test access")
+        if boundary_gate_online_repair and not (1 <= int(args.boundary_gate_online_repair_round) < int(args.round)):
+            raise ValueError("Boundary online repair must occur on a non-final communication round")
         if not bool(cfg.TRAINER.PROMPTFL.CSC):
-            raise ValueError("CUSP minimal requires CSC=True so all PromptFL trainable states are explicit")
+            raise ValueError("diagnostic dumps require CSC=True so all PromptFL trainable states are explicit")
         if bool(args.experimentD_enable):
-            raise ValueError("CUSP minimal must run with --experimentD_enable False")
+            raise ValueError("diagnostic dumps must run with --experimentD_enable False")
     print(f"Resolved local epochs per selected client: {cfg.OPTIM.MAX_EPOCH}")
     if cfg.SEED >= 0:
         # print("Setting fixed seed: {}".format(cfg.SEED))
@@ -2946,7 +2967,7 @@ def main(args):
     # print("Collecting env info ...")
     # print("** System info **\n{}\n".format(collect_env_info()))
     global_trainer = None
-    if args.model != "local" and not cusp_minimal:
+    if args.model != "local" and not trainable_only_gate:
         global_trainer = build_trainer(cfg)
         global_trainer.prompt_loss = PromptLoss(
             num_classes=cfg.DATASET.NUM_CLASSES,
@@ -2980,7 +3001,7 @@ def main(args):
     local_trainer.fed_before_train()
     validate_federated_train_loaders(local_trainer, args.num_users)
 
-    if cusp_minimal:
+    if trainable_only_gate:
         global_trainer = local_trainer
         global_weights = trainable_state_dict_to_cpu(local_trainer.model)
 
@@ -3225,7 +3246,9 @@ def main(args):
 
     for epoch in range(start_epoch, max_epoch):
         run_global_eval = should_run_global_eval(epoch, max_epoch, args.global_eval_interval)
-        if cusp_minimal:
+        if cusp_minimal or boundary_gate_dump:
+            run_global_eval = False
+        elif boundary_gate_online_repair and int(epoch) + 1 <= int(args.boundary_gate_online_repair_round):
             run_global_eval = False
 
         if args.trainer == 'CLIP':
@@ -3503,7 +3526,7 @@ def main(args):
                             f"local_optimizer_step_count={optimizer_step_count}"
                         )
 
-                    if cusp_minimal:
+                    if trainable_only_gate:
                         local_weights[idx] = trainable_state_dict_to_cpu(local_trainer.model)
                     else:
                         local_weight = local_trainer.model.state_dict()
@@ -3525,7 +3548,7 @@ def main(args):
                     )
                 # update global weights
                 global_weights = average_weights(local_weights, idxs_users, datanumber_client)
-                global_trainer.model.load_state_dict(global_weights, strict=not cusp_minimal)  # hsh
+                global_trainer.model.load_state_dict(global_weights, strict=not trainable_only_gate)  # hsh
 
                 experimentD_diagnostic_seconds = 0.0
                 if bool(args.experimentD_enable):
@@ -3581,6 +3604,110 @@ def main(args):
                     if args.model != 'local' and global_trainer is not local_trainer:
                         global_trainer.fed_after_train()
                     return
+
+                if (
+                    boundary_gate_dump
+                    and int(epoch) + 1 == int(args.boundary_gate_dump_round)
+                ):
+                    dump_dir = save_boundary_round_dump(
+                        output_dir=args.output_dir,
+                        args=args,
+                        cfg=cfg,
+                        epoch=epoch,
+                        global_before=pre_global_weights,
+                        global_after=global_weights,
+                        local_weights=local_weights,
+                        selected_clients=idxs_users,
+                        datanumber_client=datanumber_client,
+                        client_class_counts=client_class_counts,
+                        global_class_counts=global_class_counts,
+                        trainable_keys=get_trainable_state_keys(local_trainer.model),
+                    )
+                    attach_audit_cache_to_round_dump(
+                        cfg,
+                        local_trainer,
+                        dump_dir,
+                        max_edges_per_class=args.boundary_gate_max_edges_per_class,
+                        batch_size=args.boundary_gate_dump_batch_size,
+                    )
+                    print("Boundary Gate dump saved; ending training before any global test access.")
+                    if args.trainer != 'CLIP':
+                        local_trainer.fed_after_train()
+                    if args.model != 'local' and global_trainer is not local_trainer:
+                        global_trainer.fed_after_train()
+                    return
+
+                if (
+                    boundary_gate_online_repair
+                    and int(epoch) + 1 == int(args.boundary_gate_online_repair_round)
+                ):
+                    dump_dir = save_boundary_round_dump(
+                        output_dir=args.output_dir,
+                        args=args,
+                        cfg=cfg,
+                        epoch=epoch,
+                        global_before=pre_global_weights,
+                        global_after=global_weights,
+                        local_weights=local_weights,
+                        selected_clients=idxs_users,
+                        datanumber_client=datanumber_client,
+                        client_class_counts=client_class_counts,
+                        global_class_counts=global_class_counts,
+                        trainable_keys=get_trainable_state_keys(local_trainer.model),
+                        artifact_root="boundary_gate_online",
+                    )
+                    audit_cache, _ = attach_audit_cache_to_round_dump(
+                        cfg,
+                        local_trainer,
+                        dump_dir,
+                        max_edges_per_class=args.boundary_gate_max_edges_per_class,
+                        batch_size=args.boundary_gate_dump_batch_size,
+                    )
+                    round_payload, round_metadata = load_boundary_round_dump(dump_dir)
+                    repair_config = BoundaryGateConfig(
+                        gamma=args.boundary_gate_gamma,
+                        tau=args.boundary_gate_tau,
+                        min_support_clients=args.boundary_gate_min_support_clients,
+                        max_edges_per_class=args.boundary_gate_max_edges_per_class,
+                        max_total_edges=args.boundary_gate_max_total_edges,
+                        repair_ratio=args.boundary_gate_repair_ratio,
+                        min_deficit_closure=args.boundary_gate_min_deficit_closure,
+                        substantive_deficit_closure=args.boundary_gate_substantive_deficit_closure,
+                        max_non_target_margin_drop=args.boundary_gate_max_non_target_margin_drop,
+                        max_semantic_repair_drift=args.boundary_gate_max_semantic_repair_drift,
+                        gradient_batch_size=args.boundary_gate_eval_batch_size,
+                        solver_max_iterations=args.boundary_gate_solver_max_iterations,
+                        solver_tolerance=args.boundary_gate_solver_tolerance,
+                        solver_ridge=args.boundary_gate_solver_ridge,
+                        random_seed=args.boundary_gate_random_seed,
+                        tail_class_ratio=args.tail_class_ratio,
+                    )
+                    candidate_states, candidate_rows, edge_rows, repair_context = build_boundary_candidates(
+                        local_trainer.model,
+                        round_payload,
+                        round_metadata,
+                        audit_cache,
+                        repair_config,
+                    )
+                    for row in edge_rows:
+                        row.update({
+                            "partition": args.partition,
+                            "seed": args.seed,
+                            "round": int(epoch) + 1,
+                        })
+                    torch.save(candidate_states, os.path.join(dump_dir, "candidate_states.pt"))
+                    write_csv(os.path.join(dump_dir, "candidate_manifest.csv"), candidate_rows)
+                    write_csv(os.path.join(dump_dir, "edge_diagnostics.csv"), edge_rows)
+                    write_json(os.path.join(dump_dir, "online_repair.json"), {
+                        "applied_candidate": "edge_level_boundary_repair",
+                        "repair_accepted": bool(repair_context["repair_choice"].get("accepted", False)),
+                        "repair_choice": repair_context["repair_choice"],
+                        "hyperparameters": repair_context["config"],
+                        "test_accessed_before_or_during_repair": False,
+                    })
+                    global_weights = candidate_states["edge_level_boundary_repair"]
+                    global_trainer.model.load_state_dict(global_weights, strict=False)
+                    print("Boundary online repair applied; continuing to the next communication round.")
 
                 if not run_global_eval:
                     print_skip_global_eval(epoch, args.global_eval_interval)
@@ -4567,7 +4694,7 @@ def main(args):
     if args.trainer != 'CLIP':
         for idx in idxs_users:
             local_trainer.fed_after_train()
-    if args.model != 'local':
+    if args.model != 'local' and global_trainer is not local_trainer:
         global_trainer.fed_after_train()
 
 
@@ -4596,6 +4723,26 @@ if __name__ == "__main__":
     parser.add_argument('--experimentD_eval_mode', type=str, default='class_filtered', choices=['class_filtered', 'full'], help='evaluation loader mode for Experiment D counterfactual diagnostics')
     parser.add_argument('--cusp_minimal_enable', type=str2bool, default=False, help='save a small round dump for the simplified offline CUSP minimal experiment')
     parser.add_argument('--cusp_minimal_round', type=int, default=10, help='1-based communication round to save for the CUSP minimal experiment')
+    parser.add_argument('--boundary_gate_dump_enable', type=str2bool, default=False, help='save a train-only Boundary Gate dump and audit cache at the final round')
+    parser.add_argument('--boundary_gate_dump_round', type=int, default=10, help='1-based final communication round for the Boundary Gate dump')
+    parser.add_argument('--boundary_gate_dump_batch_size', type=int, default=256, help='batch size used only to encode deterministic Boundary Gate audit views')
+    parser.add_argument('--boundary_gate_max_edges_per_class', type=int, default=3, help='maximum frozen audit edges per class recorded in a Boundary Gate dump')
+    parser.add_argument('--boundary_gate_online_repair_enable', type=str2bool, default=False, help='apply one train-only Boundary Repair on a non-final round, then continue training')
+    parser.add_argument('--boundary_gate_online_repair_round', type=int, default=5, help='1-based non-final communication round for the Boundary online smoke repair')
+    parser.add_argument('--boundary_gate_gamma', type=float, default=0.5, help='frozen local-to-FedAvg visibility target multiplier for Boundary Repair')
+    parser.add_argument('--boundary_gate_tau', type=float, default=0.0, help='frozen Boundary Repair visibility slack')
+    parser.add_argument('--boundary_gate_min_support_clients', type=int, default=2, help='minimum supporting clients required to repair a frozen edge')
+    parser.add_argument('--boundary_gate_max_total_edges', type=int, default=60, help='maximum fragile edges passed to the Boundary Repair solver')
+    parser.add_argument('--boundary_gate_repair_ratio', type=float, default=0.25, help='repair trust-region ratio relative to the FedAvg update norm')
+    parser.add_argument('--boundary_gate_min_deficit_closure', type=float, default=0.0, help='minimum exact post-matching deficit closure required by online backtracking')
+    parser.add_argument('--boundary_gate_substantive_deficit_closure', type=float, default=0.1, help='closure threshold reported as a substantive repair; it does not alter safety acceptance')
+    parser.add_argument('--boundary_gate_max_non_target_margin_drop', type=float, default=0.05, help='maximum allowed mean/worst non-target audit-margin drop after repair')
+    parser.add_argument('--boundary_gate_max_semantic_repair_drift', type=float, default=0.01, help='maximum allowed additional class-text geometry drift after repair')
+    parser.add_argument('--boundary_gate_eval_batch_size', type=int, default=2048, help='offline cached-feature batch size for Boundary Repair diagnostics')
+    parser.add_argument('--boundary_gate_solver_max_iterations', type=int, default=500, help='maximum projected-dual iterations for Boundary Repair')
+    parser.add_argument('--boundary_gate_solver_tolerance', type=float, default=1e-8, help='projected-dual convergence tolerance for Boundary Repair')
+    parser.add_argument('--boundary_gate_solver_ridge', type=float, default=1e-10, help='Gram ridge for Boundary Repair')
+    parser.add_argument('--boundary_gate_random_seed', type=int, default=2026, help='frozen random-repair control seed')
     parser.add_argument('--experimentD_log_classwise_agg', type=str2bool, default=None, help=argparse.SUPPRESS)
     parser.add_argument('--experimentD_interval', type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument('--experimentD_param_key', type=str, default=None, help=argparse.SUPPRESS)
