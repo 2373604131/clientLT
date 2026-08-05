@@ -17,6 +17,7 @@ import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Mapping
 
 import torch
 
@@ -27,6 +28,35 @@ if str(REPO_ROOT) not in sys.path:
 from utils.boundary_audit import build_audit_cache, load_boundary_round_dump, sha256_file, validate_audit_cache
 from utils.boundary_gate import BoundaryGateConfig, build_boundary_candidates
 from utils.cusp_minimal import jsonable, write_csv, write_json
+
+
+# ``build_boundary_candidates`` returns a mixed context: some entries are
+# compact diagnostics intended for the report, while others are runtime-only
+# tensors/objects used to construct and evaluate candidates.  Keep this list
+# explicit so a future runtime object cannot silently produce a huge JSON file
+# (or fail serialization, as ``FlatSpec`` does).
+DIAGNOSTIC_CONTEXT_FIELDS = (
+    "fragile_edge_ids",
+    "edge_catalog",
+    "head_class_ids",
+    "tail_class_ids",
+    "norm_budget",
+    "config",
+    "gradient_rows",
+    "solver_report",
+    "cap_report",
+    "repair_choice",
+    "accepted_candidate_edge_nonregression_rate",
+    "substantive_repair_edge_rate",
+    "substantive_repair_all_fragile_edges",
+    "boundary_reversal_rate",
+    "support_counterfactuals_norm_matched",
+)
+
+
+def diagnostic_context_for_json(context: Mapping) -> dict:
+    """Return the bounded, report-only portion of the Gate context."""
+    return {field: context[field] for field in DIAGNOSTIC_CONTEXT_FIELDS if field in context}
 
 
 def now_stamp() -> str:
@@ -211,7 +241,10 @@ def run_gate(args: argparse.Namespace) -> None:
             "round": metadata.get("communication_round", ""),
         })
     write_csv(args.output_dir / "edge_diagnostics.csv", diagnostics)
-    write_json(args.output_dir / "edge_diagnostics.json", {"rows": diagnostics, "context": context})
+    write_json(
+        args.output_dir / "edge_diagnostics.json",
+        {"rows": diagnostics, "context": diagnostic_context_for_json(context)},
+    )
     manifest = freeze_candidates(args.output_dir, states, candidate_rows, {
         "schema_version": "visual_semantic_boundary_v1",
         "dump_hash": sha256_file(args.dump_dir / "round_state.pt"),

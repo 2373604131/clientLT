@@ -34,6 +34,7 @@ from utils.boundary_audit import (
     save_boundary_round_dump,
 )
 from utils.boundary_gate import BoundaryGateConfig, build_boundary_candidates
+from utils.aggregation_crush import append_aggregation_crush, should_log_aggregation_crush
 from loss.prompt_loss import PromptLoss, update_class_priors
 
 from trainers.capt import MABScheduler
@@ -3550,6 +3551,23 @@ def main(args):
                 global_weights = average_weights(local_weights, idxs_users, datanumber_client)
                 global_trainer.model.load_state_dict(global_weights, strict=not trainable_only_gate)  # hsh
 
+                if should_log_aggregation_crush(args, epoch, run_global_eval):
+                    append_aggregation_crush(
+                        args.output_dir,
+                        args,
+                        epoch,
+                        global_trainer,
+                        pre_global_weights,
+                        local_weights,
+                        global_weights,
+                        idxs_users,
+                        datanumber_client,
+                        client_class_counts,
+                        n_cls,
+                        tail_class_ratio=args.tail_class_ratio,
+                        strict_load=not trainable_only_gate,
+                    )
+
                 experimentD_diagnostic_seconds = 0.0
                 if bool(args.experimentD_enable):
                     experimentD_start = time.time()
@@ -4743,6 +4761,8 @@ if __name__ == "__main__":
     parser.add_argument('--boundary_gate_solver_tolerance', type=float, default=1e-8, help='projected-dual convergence tolerance for Boundary Repair')
     parser.add_argument('--boundary_gate_solver_ridge', type=float, default=1e-10, help='Gram ridge for Boundary Repair')
     parser.add_argument('--boundary_gate_random_seed', type=int, default=2026, help='frozen random-repair control seed')
+    parser.add_argument('--agg_crush_enable', type=str2bool, default=False, help='log the aggregation-crush diagnostic (per tail class: pre-agg local acc vs post-agg global acc, aligned to support-mass share)')
+    parser.add_argument('--agg_crush_rounds', type=str, default='', help='comma-separated 1-based rounds to run the aggregation-crush diagnostic, e.g. 5,20,50; empty = every global_eval_interval round')
     parser.add_argument('--experimentD_log_classwise_agg', type=str2bool, default=None, help=argparse.SUPPRESS)
     parser.add_argument('--experimentD_interval', type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument('--experimentD_param_key', type=str, default=None, help=argparse.SUPPRESS)
