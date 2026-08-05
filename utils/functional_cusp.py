@@ -56,7 +56,14 @@ def fedavg_delta_from_payload(payload: Mapping, spec: FlatSpec | None = None) ->
     local_vectors = torch.stack([flatten_state(state, spec) for state in payload["local_trainable_states"]], dim=0)
     weights = torch.as_tensor(payload["fedavg_weights"], dtype=torch.float64).reshape(-1)
     client_deltas = local_vectors - theta_t.unsqueeze(0)
-    delta_avg = (client_deltas * weights[:, None]).sum(dim=0)
+    if "fedavg_candidate_trainable" in payload:
+        # Boundary dumps preserve the authoritative server state produced by
+        # the repository's ordered FP32 average_weights implementation.  Use
+        # it directly instead of introducing a second aggregation rounding.
+        theta_after = flatten_state(payload["fedavg_candidate_trainable"], spec)
+        delta_avg = theta_after - theta_t
+    else:
+        delta_avg = (client_deltas * weights[:, None]).sum(dim=0)
     return theta_t, local_vectors, client_deltas, delta_avg
 
 

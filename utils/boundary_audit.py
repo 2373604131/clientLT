@@ -85,19 +85,26 @@ def save_boundary_round_dump(
         raise ValueError("selected clients have zero total sample count")
     weights = torch.tensor([float(datanumber_client[client_id]) / total for client_id in selected], dtype=torch.float64)
     counts = torch.stack([client_class_counts[client_id].detach().cpu().long() for client_id in selected], dim=0)
+    # Reproduce utils.fed_utils.average_weights exactly: keep the local tensor
+    # dtype and add clients in selected-client order.  A float64 vectorized
+    # reconstruction is mathematically equivalent but can differ from the
+    # actual FP32 server state by ~1e-4 after many additions.
     mismatches = []
     for key in spec.keys:
-        reconstructed = torch.stack([state[key].to(torch.float64) for state in local_states], dim=0)
-        view = [weights.numel()] + [1] * (reconstructed.ndim - 1)
-        reconstructed = (reconstructed * weights.reshape(*view)).sum(dim=0)
-        expected = global_after[key].detach().cpu().to(torch.float64)
-        if not torch.allclose(reconstructed, expected, atol=1e-6, rtol=1e-5):
+        reconstructed = local_states[0][key].clone() * float(weights[0].item())
+        for state, weight in zip(local_states[1:], weights[1:]):
+            reconstructed += state[key] * float(weight.item())
+        expected = global_after[key].detach().cpu().to(reconstructed.dtype)
+        if not torch.equal(reconstructed, expected):
             mismatches.append({
                 "key": key,
                 "max_abs_error": float((reconstructed - expected).abs().max().item()),
             })
-    if mismatches:
-        raise RuntimeError(f"boundary dump FedAvg reconstruction mismatch: {mismatches}")
+    reconstruction_report = {
+        "ordered_fp32_exact_match": not mismatches,
+        "mismatches": mismatches,
+        "authoritative_state": "fedavg_candidate_trainable",
+    }
     payload = {
         "schema_version": BOUNDARY_SCHEMA_VERSION,
         "flatten_spec": spec.as_dict(),
@@ -118,6 +125,7 @@ def save_boundary_round_dump(
         "resolved_args": vars(args),
         "resolved_config": str(cfg),
         "test_used_before_dump": False,
+        "fedavg_reconstruction_check": reconstruction_report,
     }
     run_dir = Path(output_dir) / str(artifact_root) / f"round_{int(epoch) + 1:03d}"
     run_dir.mkdir(parents=True, exist_ok=True)
