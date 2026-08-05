@@ -135,15 +135,45 @@ def main() -> None:
     fig.savefig(out.with_suffix(".pdf"), bbox_inches="tight")
     plt.close(fig)
 
-    # A tiny text summary so the mechanism is legible without opening the figure.
-    finite = np.isfinite(mass) & np.isfinite(gap)
-    if finite.sum() >= 2:
-        corr = float(np.corrcoef(mass[finite], gap[finite])[0, 1])
-    else:
-        corr = math.nan
-    print(f"rows={len(rows)}  mean_crush_gap={np.nanmean(gap):.2f}%  "
-          f"corr(mass_share, crush_gap)={corr:.3f}  (expect < 0: smaller mass -> bigger crush)")
-    print(f"saved: {out}  and  {out.with_suffix('.pdf')}")
+    def _corr(x: np.ndarray, y: np.ndarray) -> float:
+        m = np.isfinite(x) & np.isfinite(y)
+        if m.sum() < 2 or np.nanstd(x[m]) == 0 or np.nanstd(y[m]) == 0:
+            return math.nan
+        return float(np.corrcoef(x[m], y[m])[0, 1])
+
+    # Pooled summary (all partitions/rounds together).
+    print(f"[POOLED] rows={len(rows)}  mean_crush_gap={np.nanmean(gap):.2f}%  "
+          f"corr(mass_share, crush_gap)={_corr(mass, gap):.3f}  (expect < 0)")
+
+    # The decisive breakdown: per partition, and per (partition, epoch).
+    # The paper's claim is a *between-partition contrast*, not a pooled corr:
+    # client-longtail should crush the tail harder than Dirichlet at matched
+    # global class frequency. Pooling the two hides exactly that contrast.
+    partitions = sorted({str(r.get("partition", "")) for r in rows})
+    print("\n[BY PARTITION]  (this is the contrast that matters)")
+    for part in partitions:
+        idx = np.asarray([str(r.get("partition", "")) == part for r in rows])
+        if not idx.any():
+            continue
+        print(f"  partition={part or '(blank)'}  n={int(idx.sum())}  "
+              f"mean_local={np.nanmean(local_best[idx]):.1f}%  "
+              f"mean_global={np.nanmean(global_post[idx]):.1f}%  "
+              f"mean_crush_gap={np.nanmean(gap[idx]):.2f}%  "
+              f"corr(mass,gap)={_corr(mass[idx], gap[idx]):.3f}")
+
+    epochs = sorted({int(_f(r.get("epoch", "nan"))) for r in rows if math.isfinite(_f(r.get("epoch", "nan")))})
+    if len(partitions) > 1 and len(epochs) > 1:
+        print("\n[BY PARTITION x EPOCH]  (does the crush deepen over rounds?)")
+        ep_arr = np.asarray([_f(r.get("epoch", "nan")) for r in rows])
+        for part in partitions:
+            for ep in epochs:
+                idx = np.asarray([str(r.get("partition", "")) == part for r in rows]) & (ep_arr == ep)
+                if not idx.any():
+                    continue
+                print(f"  {part or '(blank)':<24} epoch={ep:<3} "
+                      f"mean_crush_gap={np.nanmean(gap[idx]):.2f}%  n={int(idx.sum())}")
+
+    print(f"\nsaved: {out}  and  {out.with_suffix('.pdf')}")
 
 
 if __name__ == "__main__":
