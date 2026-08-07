@@ -182,16 +182,23 @@ class LinearLoRA(nn.Linear, LoRALayer):
 
         
     def forward(self, x: torch.Tensor, **kwargs):
-        
+
         if self.dropout is None: # do as before
             if self.r > 0 and not self.merged:
-                self.merge_lora_param()
+                # Additive LoRA path: keep the base weight untouched (stays a
+                # registered nn.Parameter, so it survives in state_dict for
+                # FedAvg) and add the low-rank adjustment to the output. This is
+                # numerically identical to the old merge/sub trick but avoids the
+                # delattr/setattr that silently demoted `weight` to a plain tensor
+                # and dropped it from state_dict (breaking federated aggregation).
                 result = nn.Linear.forward(self, x, **kwargs)
-                self.sub_lora_data()
+                result = result + torch.matmul(
+                    x, self.merge_BA('weight').transpose(0, 1)
+                ) * self.scaling
                 return result
             else:
                 return nn.Linear.forward(self, x, **kwargs)
-            
+
         # Compute the original linear transformation
         original_output = nn.Linear.forward(self, x)
 
