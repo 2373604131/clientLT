@@ -4024,6 +4024,7 @@ def main(args):
                 idxs_users = select_round_clients(args, epoch, client_schedule)
                 print("idxs_users", idxs_users)
                 print("------------local train start epoch:", epoch, "-------------")
+                pre_global_weights = copy.deepcopy(global_weights)
                 for idx in idxs_users:
                     local_trainer.model.load_state_dict(global_weights, strict=False)
                     local_trainer.train(idx=idx, global_epoch=epoch, is_fed=True)
@@ -4033,6 +4034,36 @@ def main(args):
                 # update global weights
                 global_weights = average_weights(local_weights, idxs_users, datanumber_client)
                 global_trainer.model.load_state_dict(global_weights)
+
+                # Experiment D counterfactual diagnostics on the LoRA substrate.
+                # Reuses the trainer-agnostic full-state-dict machinery; frozen
+                # CLIP params carry zero delta so only LoRA updates are aggregated.
+                if bool(args.experimentD_enable):
+                    if bool(args.experimentD_log_update_norm):
+                        append_client_update_norms(
+                            args.output_dir,
+                            args,
+                            epoch,
+                            pre_global_weights,
+                            local_weights,
+                            idxs_users,
+                            datanumber_client,
+                            get_trainable_state_keys(global_trainer.model),
+                        )
+                    if should_log_experiment_d(args, epoch):
+                        run_experiment_d_round(
+                            args.output_dir,
+                            args,
+                            epoch,
+                            global_trainer,
+                            pre_global_weights,
+                            global_weights,
+                            local_weights,
+                            idxs_users,
+                            datanumber_client,
+                            client_class_counts,
+                            n_cls,
+                        )
 
                 if not run_global_eval:
                     print_skip_global_eval(epoch, args.global_eval_interval)
