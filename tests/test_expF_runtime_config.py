@@ -73,7 +73,13 @@ stub_capt = types.ModuleType("trainers.capt")
 stub_capt.MABScheduler = object
 sys.modules.setdefault("trainers.capt", stub_capt)
 
-from federated_main import add_expF_runtime_arguments, apply_federated_runtime_overrides, save_partition_summary
+from federated_main import (
+    add_expF_runtime_arguments,
+    apply_federated_runtime_overrides,
+    fedavg_lora_keys,
+    run_promptfl_local_train_with_scheduler_policy,
+    save_partition_summary,
+)
 from utils.datasplit import _allocate_class_budgets, partition_client_longtail
 
 cifar100_lt_spec = importlib.util.spec_from_file_location(
@@ -191,6 +197,103 @@ def test_local_epochs_override_validation_and_order():
         apply_federated_runtime_overrides(cfg, SimpleNamespace(local_epochs=0, split_seed=1))
     with pytest.raises(ValueError):
         apply_federated_runtime_overrides(cfg, SimpleNamespace(local_epochs=-1, split_seed=1))
+
+
+def test_cliplora_runtime_uses_constant_lr_without_warmup():
+    cfg = SimpleNamespace(
+        DATASET=SimpleNamespace(SPLIT_SEED=99),
+        OPTIM=SimpleNamespace(
+            MAX_EPOCH=3,
+            LR_SCHEDULER="cosine",
+            STEPSIZE=(-1,),
+            GAMMA=0.1,
+            WARMUP_EPOCH=1,
+        ),
+    )
+    args = SimpleNamespace(
+        trainer="ClipLora",
+        cliplora_lr_policy="constant",
+        local_epochs=3,
+        split_seed=42,
+    )
+
+    apply_federated_runtime_overrides(cfg, args)
+
+    assert cfg.OPTIM.MAX_EPOCH == 3
+    assert cfg.OPTIM.LR_SCHEDULER == "single_step"
+    assert cfg.OPTIM.STEPSIZE == 3
+    assert cfg.OPTIM.GAMMA == 1.0
+    assert cfg.OPTIM.WARMUP_EPOCH == -1
+
+
+def test_fedavg_lora_keys_only_updates_lora_in_float32():
+    global_state = {
+        "image_encoder.weight": torch.tensor([7.0], dtype=torch.float16),
+        "image_encoder.attn.w_lora_A": torch.tensor([0.0], dtype=torch.float16),
+    }
+    local_states = [
+        {
+            "image_encoder.weight": torch.tensor([100.0], dtype=torch.float16),
+            "image_encoder.attn.w_lora_A": torch.tensor([1.0], dtype=torch.float16),
+        },
+        {
+            "image_encoder.weight": torch.tensor([-100.0], dtype=torch.float16),
+            "image_encoder.attn.w_lora_A": torch.tensor([3.0], dtype=torch.float16),
+        },
+    ]
+
+    aggregated = fedavg_lora_keys(
+        global_state,
+        local_states,
+        [0, 1],
+        [1, 3],
+        {"image_encoder.attn.w_lora_A"},
+    )
+
+    assert torch.equal(aggregated["image_encoder.weight"], global_state["image_encoder.weight"])
+    assert aggregated["image_encoder.attn.w_lora_A"].item() == pytest.approx(2.5)
+    assert aggregated["image_encoder.attn.w_lora_A"].dtype == torch.float16
+
+
+def test_federated_scheduler_policy_counts_one_step_per_local_epoch():
+    parameter = torch.nn.Parameter(torch.tensor(1.0))
+    optimizer = torch.optim.SGD([parameter], lr=0.1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=1.0)
+
+    class FakeTrainer:
+        def __init__(self):
+            self.optim = optimizer
+            self.sched = scheduler
+            self._optims = {"lora": optimizer}
+            self._scheds = {"lora": scheduler}
+            self._skip_scheduler_step_at_epoch_start = False
+
+        def train(self, **kwargs):
+            for _ in range(3):
+                if not self._skip_scheduler_step_at_epoch_start:
+                    self.sched.step()
+                self.optim.zero_grad()
+                parameter.grad = torch.ones_like(parameter)
+                self.optim.step()
+                # ClipLora updates the scheduler at its final local batch.
+                self.sched.step()
+
+    trainer = FakeTrainer()
+    args = SimpleNamespace(federated_single_scheduler_step=True)
+
+    before, after, scheduler_steps, optimizer_steps = (
+        run_promptfl_local_train_with_scheduler_policy(
+            trainer,
+            idx=0,
+            epoch=0,
+            args=args,
+            local_epochs=3,
+        )
+    )
+
+    assert after - before == 3
+    assert scheduler_steps == 3
+    assert optimizer_steps == 3
 
 
 def test_split_seed_reaches_cifar100lt_wrapper(monkeypatch):

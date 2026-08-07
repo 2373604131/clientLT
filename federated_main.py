@@ -338,14 +338,25 @@ def add_expF_runtime_arguments(parser):
 def apply_federated_runtime_overrides(cfg, args):
     cfg.DATASET.SPLIT_SEED = int(args.split_seed)
 
-    if args.local_epochs is None:
-        return
+    if args.local_epochs is not None:
+        local_epochs = int(args.local_epochs)
+        if local_epochs <= 0:
+            raise ValueError(f"--local_epochs must be > 0, got {args.local_epochs}")
+        cfg.OPTIM.MAX_EPOCH = local_epochs
 
-    local_epochs = int(args.local_epochs)
-    if local_epochs <= 0:
-        raise ValueError(f"--local_epochs must be > 0, got {args.local_epochs}")
-
-    cfg.OPTIM.MAX_EPOCH = local_epochs
+    if getattr(args, "trainer", None) == "ClipLora":
+        cliplora_lr_policy = getattr(args, "cliplora_lr_policy", "constant")
+        if cliplora_lr_policy == "constant":
+            cfg.OPTIM.LR_SCHEDULER = "single_step"
+            cfg.OPTIM.STEPSIZE = int(cfg.OPTIM.MAX_EPOCH)
+            cfg.OPTIM.GAMMA = 1.0
+        elif cliplora_lr_policy == "cosine":
+            cfg.OPTIM.LR_SCHEDULER = "cosine"
+        else:
+            raise ValueError(f"Unknown ClipLora LR policy: {cliplora_lr_policy}")
+        # A one-epoch warmup dominates a three-epoch local update. Keep the
+        # mechanism experiment's per-client LR policy explicit and symmetric.
+        cfg.OPTIM.WARMUP_EPOCH = -1
 
 
 def get_optimizer_state_entries(trainer):
@@ -584,6 +595,8 @@ def install_optimizer_step_counter(trainer):
             counter["steps"] += 1
             return _original_step(*args, **kwargs)
 
+        if getattr(original_step, "_wrapped_by_lr_sched", False):
+            counted_step._wrapped_by_lr_sched = True
         optim.step = counted_step
         originals.append((optim, original_step))
 
@@ -1623,6 +1636,34 @@ def fedavg_keys(global_weights, local_weights, idxs_users, datanumber_client, ke
             temp += (datanumber_client[int(client_idx)] / total_weight) * local_weights[int(client_idx)][key]
         global_weights[key] = temp
     return global_weights
+
+
+def fedavg_lora_keys(global_weights, local_weights, idxs_users, datanumber_client, keys):
+    """Sample-weighted FedAvg over LoRA tensors while preserving frozen CLIP."""
+    selected = [int(idx) for idx in idxs_users]
+    total_weight = sum(float(datanumber_client[idx]) for idx in selected)
+    if total_weight <= 0:
+        raise ValueError("Cannot aggregate LoRA from clients with zero total samples")
+
+    aggregated = copy.deepcopy(global_weights)
+    for key in sorted(keys):
+        if "lora_" not in key:
+            raise ValueError(f"ClipLora aggregation received a non-LoRA key: {key}")
+        if key not in aggregated:
+            raise KeyError(f"Global ClipLora state is missing trainable key: {key}")
+
+        reference = aggregated[key]
+        accumulator = torch.zeros_like(reference, dtype=torch.float32)
+        for client_idx in selected:
+            if key not in local_weights[client_idx]:
+                raise KeyError(f"Client {client_idx} ClipLora state is missing key: {key}")
+            client_value = local_weights[client_idx][key].detach().to(
+                device=reference.device,
+                dtype=torch.float32,
+            )
+            accumulator.add_(client_value, alpha=float(datanumber_client[client_idx]) / total_weight)
+        aggregated[key] = accumulator.to(dtype=reference.dtype)
+    return aggregated
 
 
 def fedtef_v2_tailagg(
@@ -2831,14 +2872,24 @@ def extend_cfg(cfg, args):
     cfg.TRAINER.CLIPLORA.lr = 2e-4
     cfg.TRAINER.CLIPLORA.n_iters = 500
     cfg.TRAINER.CLIPLORA.CTX_INIT = "a photo of a"
-    cfg.TRAINER.CLIPLORA.position = args.fedtef_lora_position
+    cfg.TRAINER.CLIPLORA.position = (
+        args.cliplora_position if args.trainer == "ClipLora" else args.fedtef_lora_position
+    )
     cfg.TRAINER.CLIPLORA.encoder = (
         args.fedtef_lora_encoder if args.trainer == "FedTEF" else args.encoder
     )
-    cfg.TRAINER.CLIPLORA.r = args.fedtef_lora_rank
-    cfg.TRAINER.CLIPLORA.alpha = args.fedtef_lora_alpha
-    cfg.TRAINER.CLIPLORA.dropout_rate = args.fedtef_lora_dropout_rate
-    cfg.TRAINER.CLIPLORA.params = args.fedtef_lora_params
+    cfg.TRAINER.CLIPLORA.r = (
+        args.cliplora_rank if args.trainer == "ClipLora" else args.fedtef_lora_rank
+    )
+    cfg.TRAINER.CLIPLORA.alpha = (
+        args.cliplora_alpha if args.trainer == "ClipLora" else args.fedtef_lora_alpha
+    )
+    cfg.TRAINER.CLIPLORA.dropout_rate = (
+        args.cliplora_dropout_rate if args.trainer == "ClipLora" else args.fedtef_lora_dropout_rate
+    )
+    cfg.TRAINER.CLIPLORA.params = (
+        args.cliplora_params if args.trainer == "ClipLora" else args.fedtef_lora_params
+    )
 
 
     cfg.TRAINER.GLP_OT = CN()
@@ -2855,7 +2906,9 @@ def extend_cfg(cfg, args):
     cfg.TRAINER.COOP.CSC = False  # class-specific context
     cfg.TRAINER.COOP.CTX_INIT = False  # initialization words
     cfg.TRAINER.COOP.W = 1.0
-    cfg.TRAINER.COOP.PREC = "fp16"  # fp16, fp32, amp
+    cfg.TRAINER.COOP.PREC = (
+        args.cliplora_precision if args.trainer == "ClipLora" else "fp16"
+    )  # fp16, fp32, amp
     cfg.TRAINER.COOP.CLASS_TOKEN_POSITION = "end"  # 'middle' or 'end' or 'front'
 
     cfg.TRAINER.COCOOP = CN()
@@ -4020,20 +4073,93 @@ def main(args):
 
             elif args.trainer == "ClipLora":
                 print("use model == fedavg and trainer == ClipLoRa")
+                if args.encoder != "vision":
+                    raise ValueError(
+                        "Experiment 2(a) is defined as vision-only ClipLora; "
+                        "use --encoder vision"
+                    )
+                if not args.isolate_local_optimizer_state:
+                    raise ValueError(
+                        "Standard federated ClipLora requires "
+                        "--isolate_local_optimizer_state True"
+                    )
+                if not args.federated_single_scheduler_step:
+                    raise ValueError(
+                        "Standard federated ClipLora requires "
+                        "--federated_single_scheduler_step True"
+                    )
                 m = max(int(args.frac * args.num_users), 1)
                 idxs_users = select_round_clients(args, epoch, client_schedule)
                 print("idxs_users", idxs_users)
+
+                if epoch == 0:
+                    print("------------zero-shot test start (before local training)-------------")
+                    global_trainer.model.load_state_dict(global_weights, strict=True)
+                    zero_shot_result = global_trainer.global_test(is_global=True, current_epoch=-1)
+                    zero_shot_class_accuracy = zero_shot_result[3]
+                    zero_shot_head, _, zero_shot_tail, zero_shot_macro = calculate_accuracy_tail20_compat(
+                        zero_shot_class_accuracy,
+                        local_trainer,
+                        args.tail_class_ratio,
+                    )
+                    append_round_metrics(
+                        args.output_dir,
+                        args,
+                        -1,
+                        zero_shot_result,
+                        zero_shot_head,
+                        zero_shot_tail,
+                        zero_shot_macro,
+                        zero_shot_class_accuracy,
+                    )
+                    print("------------zero-shot test finish-------------")
+
                 print("------------local train start epoch:", epoch, "-------------")
                 pre_global_weights = copy.deepcopy(global_weights)
+                lora_keys = get_trainable_state_keys(global_trainer.model)
+                non_lora_trainable = sorted(key for key in lora_keys if "lora_" not in key)
+                if non_lora_trainable:
+                    raise RuntimeError(
+                        f"ClipLora exposed non-LoRA trainable state: {non_lora_trainable}"
+                    )
+                non_visual_lora = sorted(key for key in lora_keys if "image_encoder." not in key)
+                if non_visual_lora:
+                    raise RuntimeError(
+                        f"Vision-only ClipLora exposed non-visual LoRA state: {non_visual_lora}"
+                    )
                 for idx in idxs_users:
-                    local_trainer.model.load_state_dict(global_weights, strict=False)
-                    local_trainer.train(idx=idx, global_epoch=epoch, is_fed=True)
+                    local_trainer.model.load_state_dict(global_weights, strict=True)
+                    local_trainer.reset_optimizer_and_scheduler()
+                    before_last_epoch, after_last_epoch, scheduler_step_delta, optimizer_step_count = (
+                        run_promptfl_local_train_with_scheduler_policy(
+                            local_trainer,
+                            idx,
+                            epoch,
+                            args,
+                            cfg.OPTIM.MAX_EPOCH,
+                        )
+                    )
+                    print(
+                        f"ClipLora client {idx} lifecycle: "
+                        f"optimizer_state_entries={get_optimizer_state_entries(local_trainer)} "
+                        f"scheduler_before={before_last_epoch} "
+                        f"scheduler_after={after_last_epoch} "
+                        f"scheduler_steps={scheduler_step_delta} "
+                        f"optimizer_steps={optimizer_step_count}"
+                    )
                     local_weight = local_trainer.model.state_dict()
                     local_weights[idx] = copy.deepcopy(local_weight)
                 print("------------local train finish epoch:", epoch, "-------------")
-                # update global weights
-                global_weights = average_weights(local_weights, idxs_users, datanumber_client)
-                global_trainer.model.load_state_dict(global_weights)
+                # Standard federated LoRA: only A/B tensors are aggregated;
+                # the frozen pretrained CLIP state remains the server anchor.
+                global_weights = fedavg_lora_keys(
+                    pre_global_weights,
+                    local_weights,
+                    idxs_users,
+                    datanumber_client,
+                    lora_keys,
+                )
+                global_trainer.model.load_state_dict(global_weights, strict=True)
 
                 # Experiment D counterfactual diagnostics on the LoRA substrate.
                 # Reuses the trainer-agnostic full-state-dict machinery; frozen
@@ -4048,7 +4174,7 @@ def main(args):
                             local_weights,
                             idxs_users,
                             datanumber_client,
-                            get_trainable_state_keys(global_trainer.model),
+                            lora_keys,
                         )
                     if should_log_experiment_d(args, epoch):
                         run_experiment_d_round(
@@ -5038,8 +5164,16 @@ if __name__ == "__main__":
     parser.add_argument('--n_disclusters', type=int, default=4, help="number of text encoder of text prompts")
     parser.add_argument('--n_simclusters', type=int, default=4, help="number of text encoder of text prompts")
     parser.add_argument('--prompt_depth', type=int, default=9)
-    # LoRA arguments
-    parser.add_argument('--encoder', type=str, choices=['text', 'vision', 'both'], default='both')
+    # Standalone ClipLora mechanism experiment. Keep these separate from
+    # FedTEF's optional shared-LoRA arguments so the effective config is clear.
+    parser.add_argument('--encoder', type=str, choices=['text', 'vision', 'both'], default='vision')
+    parser.add_argument('--cliplora_position', type=str, default='top3', choices=['top', 'top1', 'top2', 'top3', 'bottom', 'mid', 'up', 'half-up', 'half-bottom', 'all'])
+    parser.add_argument('--cliplora_rank', type=int, default=2)
+    parser.add_argument('--cliplora_alpha', type=int, default=1)
+    parser.add_argument('--cliplora_dropout_rate', type=float, default=0.0)
+    parser.add_argument('--cliplora_params', type=str, nargs='+', default=['q', 'v'], choices=['q', 'k', 'v', 'o'])
+    parser.add_argument('--cliplora_lr_policy', type=str, default='constant', choices=['constant', 'cosine'])
+    parser.add_argument('--cliplora_precision', type=str, default='amp', choices=['amp', 'fp32', 'fp16'])
 
     args = parser.parse_args()
     if (

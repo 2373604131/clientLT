@@ -186,6 +186,25 @@ class ClipLora(TrainerX):
             else:
                 param.requires_grad = False
 
+        trainable = [(name, param) for name, param in self.model.named_parameters() if param.requires_grad]
+        if not trainable:
+            raise RuntimeError("ClipLora has no trainable LoRA parameters")
+        if cfg.TRAINER.CLIPLORA.encoder == "vision":
+            text_lora = [name for name, _ in trainable if name.startswith("text_encoder.")]
+            if text_lora:
+                raise RuntimeError(f"Vision-only ClipLora unexpectedly exposed text LoRA parameters: {text_lora}")
+        print(
+            "ClipLora effective config: "
+            f"encoder={cfg.TRAINER.CLIPLORA.encoder} "
+            f"position={cfg.TRAINER.CLIPLORA.position} "
+            f"rank={cfg.TRAINER.CLIPLORA.r} "
+            f"alpha={cfg.TRAINER.CLIPLORA.alpha} "
+            f"params={list(cfg.TRAINER.CLIPLORA.params)} "
+            f"dropout={cfg.TRAINER.CLIPLORA.dropout_rate} "
+            f"precision={cfg.TRAINER.COOP.PREC} "
+            f"trainable_params={sum(param.numel() for _, param in trainable)}"
+        )
+
         if cfg.MODEL.INIT_WEIGHTS:
             load_pretrained_weights(self.model.prompt_learner, cfg.MODEL.INIT_WEIGHTS)
 
@@ -204,6 +223,16 @@ class ClipLora(TrainerX):
         if device_count > 1:
             print(f"Multiple GPUs detected (n_gpus={device_count}), use all of them!")
             self.model = nn.DataParallel(self.model)
+
+    def reset_optimizer_and_scheduler(self):
+        """Start every FedAvg client from an independent local optimizer."""
+        new_optim = build_optimizer(get_lora_parameters(self.model), self.cfg.OPTIM)
+        new_sched = build_lr_scheduler(new_optim, self.cfg.OPTIM)
+        self.optim = new_optim
+        self.sched = new_sched
+        self._optims["lora"] = new_optim
+        self._scheds["lora"] = new_sched
+        self.scaler = GradScaler() if self.cfg.TRAINER.COOP.PREC == "amp" else None
 
     def forward_backward(self, batch):
         image, label = self.parse_batch_train(batch)
@@ -282,4 +311,3 @@ class ClipLora(TrainerX):
             print("Loading weights to {} " 'from "{}" (epoch = {})'.format(name, model_path, epoch))
             # set strict=False
             self._models[name].load_state_dict(state_dict, strict=False)
-

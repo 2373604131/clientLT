@@ -177,40 +177,24 @@ class LinearLoRA(nn.Linear, LoRALayer):
             self.dropout = None
 
     def train(self, mode: bool = True):
-        super().train(mode)     
-        self.lora_train(mode)
+        # Linear LoRA always uses the explicit additive path below.  Do not
+        # merge BA into the frozen base weight in eval mode: ``merged`` is not
+        # part of state_dict, so merge-on-eval is unsafe when a federated
+        # server repeatedly loads counterfactual/global LoRA states.
+        super().train(mode)
+        self.merged = False
 
         
     def forward(self, x: torch.Tensor, **kwargs):
+        original_output = nn.Linear.forward(self, x, **kwargs)
+        if self.r <= 0:
+            return original_output
 
-        if self.dropout is None: # do as before
-            if self.r > 0 and not self.merged:
-                # Additive LoRA path: keep the base weight untouched (stays a
-                # registered nn.Parameter, so it survives in state_dict for
-                # FedAvg) and add the low-rank adjustment to the output. This is
-                # numerically identical to the old merge/sub trick but avoids the
-                # delattr/setattr that silently demoted `weight` to a plain tensor
-                # and dropped it from state_dict (breaking federated aggregation).
-                result = nn.Linear.forward(self, x, **kwargs)
-                result = result + torch.matmul(
-                    x, self.merge_BA('weight').transpose(0, 1)
-                ) * self.scaling
-                return result
-            else:
-                return nn.Linear.forward(self, x, **kwargs)
-
-        # Compute the original linear transformation
-        original_output = nn.Linear.forward(self, x)
-
-        if self.training and self.dropout.p > 0:
-            x = self.dropout(x)
-        
-        if self.r > 0 and not self.merged:
-            lora_adjustment = torch.matmul(x,self.merge_BA('weight').transpose(0, 1)) * self.scaling 
-            result = original_output + lora_adjustment
-        else:
-            result = original_output
-        return result
+        lora_input = self.dropout(x) if self.dropout is not None and self.training else x
+        lora_adjustment = torch.matmul(
+            lora_input, self.merge_BA('weight').transpose(0, 1)
+        ) * self.scaling
+        return original_output + lora_adjustment
 
 class Conv1d(nn.Conv1d, LoRALayer):
     # LoRA implemented in a Conv1d layer

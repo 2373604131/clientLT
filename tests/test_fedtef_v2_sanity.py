@@ -29,7 +29,7 @@ from trainers.fedtef_v2_utils import (
     is_shared_stream_key,
     is_tail_stream_key,
 )
-from utils.loralib.layers import PlainMultiheadAttentionLoRA
+from utils.loralib.layers import LinearLoRA, PlainMultiheadAttentionLoRA
 from utils.loralib.utils import apply_lora
 
 
@@ -738,6 +738,38 @@ def test_lora_attention_replacement_starts_equivalent_to_base_attention():
     base_output, _ = base_attention(features, features, features, need_weights=False)
     lora_output, _ = lora_attention(features, features, features, need_weights=False)
     assert torch.allclose(lora_output, base_output, atol=1e-6)
+
+
+def test_linear_lora_eval_and_state_load_are_additive_and_repeatable():
+    torch.manual_seed(11)
+    layer = LinearLoRA(
+        nn.Linear(4, 3),
+        r=2,
+        lora_alpha=1,
+        dropout_rate=0.0,
+    )
+    with torch.no_grad():
+        layer.w_lora_B.fill_(0.25)
+
+    inputs = torch.randn(5, 4)
+    state = {key: value.detach().clone() for key, value in layer.state_dict().items()}
+    frozen_weight = layer.weight.detach().clone()
+
+    layer.eval()
+    first_eval = layer(inputs).detach().clone()
+    assert layer.merged is False
+    assert torch.equal(layer.weight.detach(), frozen_weight)
+
+    layer.load_state_dict(state)
+    layer.eval()
+    second_eval = layer(inputs).detach().clone()
+    layer.train()
+    train_output = layer(inputs).detach().clone()
+
+    assert layer.merged is False
+    assert torch.equal(layer.weight.detach(), frozen_weight)
+    assert torch.allclose(first_eval, second_eval, atol=0.0, rtol=0.0)
+    assert torch.allclose(first_eval, train_output, atol=0.0, rtol=0.0)
 
 
 if __name__ == "__main__":

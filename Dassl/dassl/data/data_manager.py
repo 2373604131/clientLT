@@ -24,9 +24,13 @@ def build_data_loader(
     tfm=None,
     is_train=True,
     dataset_wrapper=None,
-    class_names=None
+    class_names=None,
+    drop_last=None,
 ):
     # Build sampler
+    if drop_last is None:
+        drop_last = is_train and len(data_source) >= batch_size
+
     if is_train and cfg.TRAINER.NAME == "ProText":
         data_source = DatasetWrapper_TextOnly(cfg, class_names)
 
@@ -56,7 +60,7 @@ def build_data_loader(
             batch_size=batch_size,
             sampler=sampler,
             num_workers=cfg.DATALOADER.NUM_WORKERS,
-            drop_last=is_train and len(data_source) >= batch_size,
+            drop_last=drop_last,
             pin_memory=(torch.cuda.is_available() and cfg.USE_CUDA)
         )
     else:
@@ -66,7 +70,7 @@ def build_data_loader(
             batch_size=batch_size,
             sampler=sampler,
             num_workers=cfg.DATALOADER.NUM_WORKERS,
-            drop_last=is_train and len(data_source) >= batch_size,
+            drop_last=drop_last,
             pin_memory=(torch.cuda.is_available() and cfg.USE_CUDA)
         )
     # Build data loader
@@ -132,7 +136,10 @@ class DataManager:
                     tfm=tfm_train,
                     is_train=True,
                     dataset_wrapper=dataset_wrapper,
-                    class_names=dataset.classnames
+                    class_names=dataset.classnames,
+                    # Rare-client evidence is part of the experimental signal;
+                    # never discard its final incomplete federated batch.
+                    drop_last=False,
                 )
                 fed_train_loader_x_dict[idx] = fed_train_loader_x
 
