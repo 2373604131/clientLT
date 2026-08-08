@@ -75,6 +75,7 @@ sys.modules.setdefault("trainers.capt", stub_capt)
 
 from federated_main import (
     add_expF_runtime_arguments,
+    append_round_metrics,
     apply_federated_runtime_overrides,
     fedavg_lora_keys,
     run_promptfl_local_train_with_scheduler_policy,
@@ -179,6 +180,32 @@ def test_save_partition_summary_writes_panelC_topology_and_budget_fields(tmp_pat
     assert summary["tail_effective_client_number_mean"] == pytest.approx((1.8 + 1.0) / 2)
 
 
+def test_round_metrics_records_cliplora_aggregation_mode(tmp_path):
+    args = SimpleNamespace(
+        trainer="ClipLora",
+        partition="client-longtail",
+        cliplora_aggregation="support_normalized",
+        seed=42,
+        tail_class_ratio=0.2,
+    )
+    append_round_metrics(
+        tmp_path,
+        args,
+        epoch=0,
+        result=(65.0, 35.0, 64.0),
+        non_tail_acc=66.0,
+        tail_acc=61.0,
+        macro_acc=65.0,
+        per_class_acc={0: 65.0},
+    )
+
+    with (tmp_path / "round_metrics.csv").open(
+        newline="", encoding="utf-8"
+    ) as handle:
+        row = next(csv.DictReader(handle))
+    assert row["aggregation"] == "support_normalized"
+
+
 def test_local_epochs_override_validation_and_order():
     cfg = SimpleNamespace(
         DATASET=SimpleNamespace(SPLIT_SEED=99),
@@ -204,6 +231,7 @@ def test_cliplora_runtime_uses_constant_lr_without_warmup():
         DATASET=SimpleNamespace(SPLIT_SEED=99),
         OPTIM=SimpleNamespace(
             MAX_EPOCH=3,
+            LR=0.002,
             LR_SCHEDULER="cosine",
             STEPSIZE=(-1,),
             GAMMA=0.1,
@@ -213,6 +241,7 @@ def test_cliplora_runtime_uses_constant_lr_without_warmup():
     args = SimpleNamespace(
         trainer="ClipLora",
         cliplora_lr_policy="constant",
+        lr=0.001,
         local_epochs=3,
         split_seed=42,
     )
@@ -220,6 +249,7 @@ def test_cliplora_runtime_uses_constant_lr_without_warmup():
     apply_federated_runtime_overrides(cfg, args)
 
     assert cfg.OPTIM.MAX_EPOCH == 3
+    assert cfg.OPTIM.LR == pytest.approx(0.001)
     assert cfg.OPTIM.LR_SCHEDULER == "single_step"
     assert cfg.OPTIM.STEPSIZE == 3
     assert cfg.OPTIM.GAMMA == 1.0

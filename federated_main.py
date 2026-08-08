@@ -21,6 +21,13 @@ from utils.experiment_d import (
     run_experiment_d_round,
     should_log_experiment_d,
 )
+from utils.lora_aggregation import (
+    LORA_AGGREGATION_MODES,
+    aggregate_lora_state,
+    append_lora_aggregation_diagnostics,
+    compute_lora_aggregation_weights,
+    sample_weighted_client_weights,
+)
 from utils.cusp_minimal import (
     save_cusp_minimal_dump,
     sha256_json,
@@ -345,6 +352,10 @@ def apply_federated_runtime_overrides(cfg, args):
         cfg.OPTIM.MAX_EPOCH = local_epochs
 
     if getattr(args, "trainer", None) == "ClipLora":
+        # Method YAML files are merged after extend_cfg(), so restore the
+        # explicit command-line LR here. Otherwise --lr is silently ignored.
+        if hasattr(args, "lr"):
+            cfg.OPTIM.LR = float(args.lr)
         cliplora_lr_policy = getattr(args, "cliplora_lr_policy", "constant")
         if cliplora_lr_policy == "constant":
             cfg.OPTIM.LR_SCHEDULER = "single_step"
@@ -815,6 +826,7 @@ def save_partition_summary(output_dir, client_class_counts, args, num_users, num
         "tail_to_tail_budget": tail_samples_in_tail_clients,
         "non_tail_to_tail_budget": non_tail_samples_in_tail_clients,
         "actual_tail_client_purity": actual_tail_client_purity,
+        "cliplora_aggregation": getattr(args, "cliplora_aggregation", None),
     }
     with open(os.path.join(output_dir, "partition_summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
@@ -864,6 +876,7 @@ def append_round_metrics(output_dir, args, epoch, result, non_tail_acc, tail_acc
         "epoch",
         "method",
         "partition",
+        "aggregation",
         "overall_acc",
         "non_tail_acc",
         "bottom20_tail_acc",
@@ -884,6 +897,11 @@ def append_round_metrics(output_dir, args, epoch, result, non_tail_acc, tail_acc
             "epoch": epoch,
             "method": "FedTEF" if args.trainer == "FedTEF" else args.trainer,
             "partition": args.partition,
+            "aggregation": (
+                getattr(args, "cliplora_aggregation", "")
+                if args.trainer == "ClipLora"
+                else ""
+            ),
             "overall_acc": float(result[0]),
             "non_tail_acc": float(non_tail_acc),
             "bottom20_tail_acc": float(tail_acc),
@@ -1640,30 +1658,14 @@ def fedavg_keys(global_weights, local_weights, idxs_users, datanumber_client, ke
 
 def fedavg_lora_keys(global_weights, local_weights, idxs_users, datanumber_client, keys):
     """Sample-weighted FedAvg over LoRA tensors while preserving frozen CLIP."""
-    selected = [int(idx) for idx in idxs_users]
-    total_weight = sum(float(datanumber_client[idx]) for idx in selected)
-    if total_weight <= 0:
-        raise ValueError("Cannot aggregate LoRA from clients with zero total samples")
-
-    aggregated = copy.deepcopy(global_weights)
-    for key in sorted(keys):
-        if "lora_" not in key:
-            raise ValueError(f"ClipLora aggregation received a non-LoRA key: {key}")
-        if key not in aggregated:
-            raise KeyError(f"Global ClipLora state is missing trainable key: {key}")
-
-        reference = aggregated[key]
-        accumulator = torch.zeros_like(reference, dtype=torch.float32)
-        for client_idx in selected:
-            if key not in local_weights[client_idx]:
-                raise KeyError(f"Client {client_idx} ClipLora state is missing key: {key}")
-            client_value = local_weights[client_idx][key].detach().to(
-                device=reference.device,
-                dtype=torch.float32,
-            )
-            accumulator.add_(client_value, alpha=float(datanumber_client[client_idx]) / total_weight)
-        aggregated[key] = accumulator.to(dtype=reference.dtype)
-    return aggregated
+    weights = sample_weighted_client_weights(idxs_users, datanumber_client)
+    return aggregate_lora_state(
+        global_weights,
+        local_weights,
+        idxs_users,
+        keys,
+        weights,
+    )
 
 
 def fedtef_v2_tailagg(
@@ -2987,6 +2989,14 @@ def setup_cfg(args):
 
 def main(args):
     cfg = setup_cfg(args)
+    if args.trainer == "ClipLora":
+        args.cliplora_aggregation = str(args.cliplora_aggregation).lower()
+        if args.cliplora_aggregation != "fedavg" and bool(args.experimentD_enable):
+            raise ValueError(
+                "Experiment D diagnoses ordinary FedAvg and cannot verify a "
+                "support-normalized training round. Run the end-to-end baseline "
+                "with --experimentD_enable False."
+            )
     cusp_minimal = bool(args.cusp_minimal_enable)
     boundary_gate_dump = bool(args.boundary_gate_dump_enable)
     boundary_gate_online_repair = bool(args.boundary_gate_online_repair_enable)
@@ -4088,6 +4098,12 @@ def main(args):
                         "Standard federated ClipLora requires "
                         "--federated_single_scheduler_step True"
                     )
+                if epoch == 0:
+                    print(
+                        "ClipLora server aggregation: "
+                        f"mode={args.cliplora_aggregation} "
+                        f"tail_class_ratio={args.tail_class_ratio}"
+                    )
                 m = max(int(args.frac * args.num_users), 1)
                 idxs_users = select_round_clients(args, epoch, client_schedule)
                 print("idxs_users", idxs_users)
@@ -4150,14 +4166,43 @@ def main(args):
                     local_weight = local_trainer.model.state_dict()
                     local_weights[idx] = copy.deepcopy(local_weight)
                 print("------------local train finish epoch:", epoch, "-------------")
-                # Standard federated LoRA: only A/B tensors are aggregated;
-                # the frozen pretrained CLIP state remains the server anchor.
-                global_weights = fedavg_lora_keys(
+                tail_class_ids = get_lt_class_splits_from_counts(
+                    global_class_counts,
+                    args.tail_class_ratio,
+                )["tail"]
+                aggregation_weights, aggregation_details = compute_lora_aggregation_weights(
+                    args.cliplora_aggregation,
+                    idxs_users,
+                    datanumber_client,
+                    client_class_counts=client_class_counts,
+                    tail_class_ids=tail_class_ids,
+                )
+                # Only LoRA A/B tensors move. The frozen pretrained CLIP state
+                # remains the common server anchor for every aggregation mode.
+                global_weights = aggregate_lora_state(
                     pre_global_weights,
                     local_weights,
                     idxs_users,
-                    datanumber_client,
                     lora_keys,
+                    aggregation_weights,
+                )
+                append_lora_aggregation_diagnostics(
+                    args.output_dir,
+                    epoch=epoch,
+                    partition=args.partition,
+                    mode=args.cliplora_aggregation,
+                    selected_clients=idxs_users,
+                    datanumber_client=datanumber_client,
+                    client_weights=aggregation_weights,
+                    details=aggregation_details,
+                )
+                print(
+                    "ClipLora aggregation audit: "
+                    f"weight_sum={sum(aggregation_weights.values()):.6f} "
+                    f"active_clients={sum(weight > 0 for weight in aggregation_weights.values())}/"
+                    f"{len(aggregation_weights)} "
+                    f"tail_coverage={aggregation_details['covered_tail_class_count']}/"
+                    f"{aggregation_details['tail_class_count']}"
                 )
                 global_trainer.model.load_state_dict(global_weights, strict=True)
 
@@ -5174,6 +5219,17 @@ if __name__ == "__main__":
     parser.add_argument('--cliplora_params', type=str, nargs='+', default=['q', 'v'], choices=['q', 'k', 'v', 'o'])
     parser.add_argument('--cliplora_lr_policy', type=str, default='constant', choices=['constant', 'cosine'])
     parser.add_argument('--cliplora_precision', type=str, default='amp', choices=['amp', 'fp32', 'fp16'])
+    parser.add_argument(
+        '--cliplora_aggregation',
+        type=str,
+        default='fedavg',
+        choices=LORA_AGGREGATION_MODES,
+        help=(
+            'Server aggregation for standalone ClipLora. support_normalized is an '
+            'oracle end-to-end baseline: normalize clients within each tail-class '
+            'support set, then average the class-wise weight distributions.'
+        ),
+    )
 
     args = parser.parse_args()
     if (
