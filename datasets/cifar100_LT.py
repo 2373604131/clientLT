@@ -35,6 +35,9 @@ class Cifar100_LT():
             specialization_lambda=cfg.DATASET.SPECIALIZATION_LAMBDA,
             intra_group_alpha=cfg.DATASET.INTRA_GROUP_ALPHA,
             head_leakage_scale=cfg.DATASET.HEAD_LEAKAGE_SCALE,
+            controlled_tail_min_purity=getattr(
+                cfg.DATASET, "CONTROLLED_TAIL_MIN_PURITY", 0.8
+            ),
             split_seed=cfg.DATASET.SPLIT_SEED)
 
 

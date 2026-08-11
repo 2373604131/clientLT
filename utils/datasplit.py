@@ -5,9 +5,41 @@ import time
 import math
 from collections import defaultdict
 from collections import defaultdict, Counter   # 文件顶部
-from utils.dataloader import load_mnist_data, load_fmnist_data, load_fmnist_LT_data, load_cifar10_data, load_cifar100_data, load_cifar10_LT_data, load_cifar100_LT_data, load_svhn_data, load_celeba_data, load_femnist_data
-from utils.dataset import mkdirs
 import torch
+import os
+
+
+def _data_loaders():
+    """Import torchvision-backed loaders only when image data is requested.
+
+    Keeping the pure partition helpers importable lets the P0/V1 audit run in
+    lightweight environments without changing the training path.
+    """
+    from utils.dataloader import (
+        load_mnist_data,
+        load_fmnist_data,
+        load_fmnist_LT_data,
+        load_cifar10_data,
+        load_cifar100_data,
+        load_cifar10_LT_data,
+        load_cifar100_LT_data,
+        load_svhn_data,
+        load_celeba_data,
+        load_femnist_data,
+    )
+
+    return {
+        "mnist": load_mnist_data,
+        "fmnist": load_fmnist_data,
+        "fmnist_LT": load_fmnist_LT_data,
+        "cifar10": load_cifar10_data,
+        "cifar100": load_cifar100_data,
+        "cifar10_LT": load_cifar10_LT_data,
+        "cifar100_LT": load_cifar100_LT_data,
+        "svhn": load_svhn_data,
+        "celeba": load_celeba_data,
+        "femnist": load_femnist_data,
+    }
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -137,6 +169,235 @@ def _append_dirichlet(subset, group_ids, net_map, alpha, rng):
         if len(chunk) == 0:
             continue
         net_map[client_id] = np.append(net_map[client_id], chunk.astype(np.int64))
+
+
+def _bottom_classes_from_counts(labels, num_classes, tail_class_ratio):
+    """Return the least frequent class ids with a deterministic id tie-break."""
+    labels = np.asarray(labels, dtype=np.int64)
+    tail_count = max(1, int(round(int(num_classes) * float(tail_class_ratio))))
+    tail_count = min(tail_count, int(num_classes))
+    class_counts = {
+        class_id: int(np.sum(labels == class_id))
+        for class_id in range(int(num_classes))
+    }
+    return sorted(class_counts, key=lambda class_id: (class_counts[class_id], class_id))[
+        :tail_count
+    ]
+
+
+def _append_dirichlet_with_capacities(
+    subset,
+    group_ids,
+    net_map,
+    capacities,
+    alpha,
+    rng,
+):
+    """Append ``subset`` using Dirichlet preferences without exceeding capacities."""
+    subset = np.asarray(subset, dtype=np.int64)
+    group_ids = [int(client_id) for client_id in group_ids]
+    if len(subset) == 0:
+        return
+    if len(subset) > sum(int(capacities[client_id]) for client_id in group_ids):
+        raise ValueError("Subset exceeds the remaining client capacities")
+
+    preferences = rng.dirichlet(np.repeat(float(alpha), len(group_ids)))
+    assigned = {client_id: [] for client_id in group_ids}
+    for sample_index in subset.tolist():
+        available_positions = [
+            position
+            for position, client_id in enumerate(group_ids)
+            if int(capacities[client_id]) > 0
+        ]
+        if not available_positions:
+            raise RuntimeError("Ran out of controlled Client-LT companion capacity")
+        probabilities = preferences[available_positions].astype(np.float64)
+        probabilities /= probabilities.sum()
+        selected_position = int(rng.choice(available_positions, p=probabilities))
+        client_id = group_ids[selected_position]
+        assigned[client_id].append(int(sample_index))
+        capacities[client_id] = int(capacities[client_id]) - 1
+
+    for client_id, indices in assigned.items():
+        if indices:
+            net_map[client_id] = np.append(
+                net_map[client_id], np.asarray(indices, dtype=np.int64)
+            )
+
+
+def partition_client_longtail_controlled(
+    labels,
+    n_parties,
+    num_classes,
+    head_client_ratio=0.9,
+    tail_client_ratio=0.1,
+    tail_class_ratio=0.2,
+    *,
+    intra_group_alpha,
+    tail_client_min_purity=0.8,
+    tail_class_ids=None,
+    rng=None,
+):
+    """Build the controlled Client-LT diagnostic split.
+
+    Every sample from a train-derived tail class is assigned to the designated
+    tail-client group. Non-tail samples may enter that group only up to each
+    client's integer purity capacity ``floor(T_k * (1-purity) / purity)``.
+    The legacy :func:`partition_client_longtail` behavior is intentionally
+    unchanged.
+    """
+    if rng is None:
+        rng = np.random.RandomState(1)
+    _validate_ratio_pair(
+        "head_client_ratio", head_client_ratio, "tail_client_ratio", tail_client_ratio
+    )
+    if not 0.0 < float(tail_client_min_purity) <= 1.0:
+        raise ValueError(
+            "tail_client_min_purity must be in (0, 1], got "
+            f"{tail_client_min_purity}"
+        )
+    if intra_group_alpha is None or float(intra_group_alpha) <= 0:
+        raise ValueError(f"intra_group_alpha must be > 0, got {intra_group_alpha}")
+
+    head_client_count = int(int(n_parties) * float(head_client_ratio))
+    tail_client_count = int(n_parties) - head_client_count
+    if head_client_count <= 0 or tail_client_count <= 0:
+        raise ValueError("controlled Client-LT requires head and tail clients")
+    head_clients = list(range(head_client_count))
+    tail_clients = list(range(head_client_count, int(n_parties)))
+
+    labels = np.asarray(labels, dtype=np.int64)
+    if tail_class_ids is None:
+        tail_class_ids = _bottom_classes_from_counts(
+            labels, num_classes, tail_class_ratio
+        )
+    tail_classes = sorted({int(class_id) for class_id in tail_class_ids})
+    expected_tail_count = max(
+        1, int(round(int(num_classes) * float(tail_class_ratio)))
+    )
+    if len(tail_classes) != expected_tail_count:
+        raise ValueError(
+            f"Expected {expected_tail_count} tail classes, got {len(tail_classes)}"
+        )
+    if any(class_id < 0 or class_id >= int(num_classes) for class_id in tail_classes):
+        raise ValueError(f"Invalid tail class ids: {tail_classes}")
+    tail_set = set(tail_classes)
+    non_tail_classes = [
+        class_id for class_id in range(int(num_classes)) if class_id not in tail_set
+    ]
+
+    net_dataidx_map = {
+        client_id: np.asarray([], dtype=np.int64)
+        for client_id in range(int(n_parties))
+    }
+
+    # First place every tail sample inside the specialist group.
+    for class_id in tail_classes:
+        class_indices = np.where(labels == class_id)[0].astype(np.int64)
+        rng.shuffle(class_indices)
+        _append_dirichlet(
+            class_indices,
+            tail_clients,
+            net_dataidx_map,
+            float(intra_group_alpha),
+            rng,
+        )
+
+    tail_counts_by_client = {
+        client_id: int(len(net_dataidx_map[client_id])) for client_id in tail_clients
+    }
+    if any(count <= 0 for count in tail_counts_by_client.values()):
+        raise RuntimeError(
+            "Controlled Client-LT produced an empty tail client before companion "
+            f"allocation: {tail_counts_by_client}"
+        )
+
+    companion_ratio = (1.0 - float(tail_client_min_purity)) / float(
+        tail_client_min_purity
+    )
+    capacities = {
+        client_id: int(math.floor(count * companion_ratio + 1e-12))
+        for client_id, count in tail_counts_by_client.items()
+    }
+    companion_budget = sum(capacities.values())
+    non_tail_indices = np.where(~np.isin(labels, tail_classes))[0].astype(np.int64)
+    companion_budget = min(companion_budget, len(non_tail_indices))
+    # Select individual images uniformly from the real non-tail pool. This is
+    # frequency-proportional in expectation and, unlike a class-budget largest
+    # remainder rule, does not mechanically maximize companion-class breadth.
+    rng.shuffle(non_tail_indices)
+    selected_companions = set(non_tail_indices[:companion_budget].tolist())
+
+    # Select non-tail companions without consulting semantic similarity, then
+    # distribute them under the per-client purity capacities.
+    for class_id in non_tail_classes:
+        class_indices = np.where(labels == class_id)[0].astype(np.int64)
+        rng.shuffle(class_indices)
+        to_tail_indices = np.asarray(
+            [index for index in class_indices if int(index) in selected_companions],
+            dtype=np.int64,
+        )
+        to_head_indices = np.asarray(
+            [index for index in class_indices if int(index) not in selected_companions],
+            dtype=np.int64,
+        )
+        _append_dirichlet_with_capacities(
+            to_tail_indices,
+            tail_clients,
+            net_dataidx_map,
+            capacities,
+            float(intra_group_alpha),
+            rng,
+        )
+        _append_dirichlet(
+            to_head_indices,
+            head_clients,
+            net_dataidx_map,
+            float(intra_group_alpha),
+            rng,
+        )
+
+    _validate_partition_map(
+        labels,
+        net_dataidx_map,
+        int(n_parties),
+        int(num_classes),
+        "client-longtail-controlled",
+    )
+
+    actual_tail_counts = {}
+    actual_companion_counts = {}
+    for client_id in tail_clients:
+        client_labels = labels[np.asarray(net_dataidx_map[client_id], dtype=np.int64)]
+        actual_tail = int(np.isin(client_labels, tail_classes).sum())
+        actual_companion = int(len(client_labels) - actual_tail)
+        actual_tail_counts[client_id] = actual_tail
+        actual_companion_counts[client_id] = actual_companion
+        denominator = actual_tail + actual_companion
+        purity = actual_tail / denominator if denominator else 0.0
+        if purity + 1e-12 < float(tail_client_min_purity):
+            raise RuntimeError(
+                f"Tail client {client_id} purity {purity:.6f} is below "
+                f"{tail_client_min_purity:.6f}"
+            )
+
+    head_indices = np.concatenate(
+        [np.asarray(net_dataidx_map[client_id], dtype=np.int64) for client_id in head_clients]
+    )
+    if np.isin(labels[head_indices], tail_classes).any():
+        raise RuntimeError("Controlled Client-LT leaked tail samples to head clients")
+
+    logger.info(
+        "Controlled ClientLT: tail_classes=%s tail_samples=%d "
+        "companion_samples=%d min_purity=%.6f tail_counts=%s companion_counts=%s",
+        tail_classes,
+        sum(actual_tail_counts.values()),
+        sum(actual_companion_counts.values()),
+        float(tail_client_min_purity),
+        actual_tail_counts,
+        actual_companion_counts,
+    )
+    return net_dataidx_map
 
 
 # ClientLT uses separate controls for tail specialization, within-group
@@ -451,25 +712,26 @@ def partition_data(
     # np.random.seed(2020)
     # torch.manual_seed(2020)
 
+    loaders = _data_loaders()
     if dataset == 'mnist':
-        X_train, y_train, X_test, y_test = load_mnist_data(datadir)
+        X_train, y_train, X_test, y_test = loaders["mnist"](datadir)
     elif dataset == 'fmnist':
-        X_train, y_train, X_test, y_test, data_train, data_test, lab2cname, classnames = load_fmnist_data(datadir)
+        X_train, y_train, X_test, y_test, data_train, data_test, lab2cname, classnames = loaders["fmnist"](datadir)
         y = np.concatenate([y_train, y_test], axis=0)
     elif dataset == 'cifar10':
-        X_train, y_train, X_test, y_test, data_train, data_test, lab2cname, classnames = load_cifar10_data(datadir)
+        X_train, y_train, X_test, y_test, data_train, data_test, lab2cname, classnames = loaders["cifar10"](datadir)
         y = np.concatenate([y_train, y_test], axis=0)
     elif dataset == 'cifar100':
         # X_train, y_train, X_test, y_test = load_cifar100_data(datadir)
-        X_train, y_train, X_test, y_test, data_train, data_test, lab2cname, classnames = load_cifar100_data(datadir)
+        X_train, y_train, X_test, y_test, data_train, data_test, lab2cname, classnames = loaders["cifar100"](datadir)
         y = np.concatenate([y_train, y_test], axis=0)
 
     elif dataset == 'svhn':
-        X_train, y_train, X_test, y_test = load_svhn_data(datadir)
+        X_train, y_train, X_test, y_test = loaders["svhn"](datadir)
     elif dataset == 'celeba':
-        X_train, y_train, X_test, y_test = load_celeba_data(datadir)
+        X_train, y_train, X_test, y_test = loaders["celeba"](datadir)
     elif dataset == 'femnist':
-        X_train, y_train, u_train, X_test, y_test, u_test = load_femnist_data(datadir)
+        X_train, y_train, u_train, X_test, y_test, u_test = loaders["femnist"](datadir)
     elif dataset == 'generated':
         X_train, y_train = [], []
         for loc in range(4):
@@ -504,7 +766,7 @@ def partition_data(
         idxs = np.linspace(0 ,3999 ,4000 ,dtype=np.int64)
         batch_idxs = np.array_split(idxs, n_parties)
         net_dataidx_map = {i: batch_idxs[i] for i in range(n_parties)}
-        mkdirs("data/generated/")
+        os.makedirs("data/generated/", exist_ok=True)
         np.save("data/generated/X_train.npy" ,X_train)
         np.save("data/generated/X_test.npy" ,X_test)
         np.save("data/generated/y_train.npy" ,y_train)
@@ -891,16 +1153,18 @@ def partition_data_LT(
     specialization_lambda,
     intra_group_alpha,
     head_leakage_scale,
+    controlled_tail_min_purity=0.8,
     split_seed=1,
 ):
+    loaders = _data_loaders()
     if dataset == 'cifar10_LT':
-        X_train, y_train, X_test, y_test, data_train, data_test, lab2cname, classnames = load_cifar10_LT_data(datadir, imb_factor, imb_type)
+        X_train, y_train, X_test, y_test, data_train, data_test, lab2cname, classnames = loaders["cifar10_LT"](datadir, imb_factor, imb_type)
         y = np.concatenate([y_train, y_test], axis=0)
     elif dataset == 'cifar100_LT':
-        X_train, y_train, X_test, y_test, data_train, data_test, lab2cname, classnames = load_cifar100_LT_data(datadir, imb_factor, imb_type)
+        X_train, y_train, X_test, y_test, data_train, data_test, lab2cname, classnames = loaders["cifar100_LT"](datadir, imb_factor, imb_type)
         y = np.concatenate([y_train, y_test], axis=0)
     elif dataset == 'fmnist_LT':
-        X_train, y_train, X_test, y_test, data_train, data_test, lab2cname, classnames = load_fmnist_LT_data(datadir, imb_factor, imb_type)
+        X_train, y_train, X_test, y_test, data_train, data_test, lab2cname, classnames = loaders["fmnist_LT"](datadir, imb_factor, imb_type)
         y = np.concatenate([y_train, y_test], axis=0)
 
 
@@ -1251,6 +1515,41 @@ def partition_data_LT(
             specialization_lambda=specialization_lambda,
             intra_group_alpha=intra_group_alpha,
             head_leakage_scale=head_leakage_scale,
+            rng=test_rng,
+        )
+
+    elif partition == "client-longtail-controlled":
+        num_classes = _get_num_classes(dataset, y_train, y_test)
+        train_tail_class_ids = _bottom_classes_from_counts(
+            y_train, num_classes, tail_class_ratio
+        )
+        train_rng = np.random.RandomState(int(split_seed))
+        test_rng = np.random.RandomState(int(split_seed) + 1)
+        net_dataidx_map_train = partition_client_longtail_controlled(
+            y_train,
+            n_parties,
+            num_classes,
+            head_client_ratio=head_client_ratio,
+            tail_client_ratio=tail_client_ratio,
+            tail_class_ratio=tail_class_ratio,
+            intra_group_alpha=intra_group_alpha,
+            tail_client_min_purity=controlled_tail_min_purity,
+            tail_class_ids=train_tail_class_ids,
+            rng=train_rng,
+        )
+        # The test set is balanced, so reuse the train-derived tail ids. The
+        # purity ratio is applied to its own sample count; the train budget 38
+        # is never hard-coded into test allocation.
+        net_dataidx_map_test = partition_client_longtail_controlled(
+            y_test,
+            n_parties,
+            num_classes,
+            head_client_ratio=head_client_ratio,
+            tail_client_ratio=tail_client_ratio,
+            tail_class_ratio=tail_class_ratio,
+            intra_group_alpha=intra_group_alpha,
+            tail_client_min_purity=controlled_tail_min_purity,
+            tail_class_ids=train_tail_class_ids,
             rng=test_rng,
         )
 

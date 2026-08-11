@@ -778,6 +778,20 @@ def save_partition_summary(output_dir, client_class_counts, args, num_users, num
     actual_tail_client_purity = (
         tail_samples_in_tail_clients / tail_client_total if tail_client_total > 0 else 0.0
     )
+    role_metrics_applicable = str(args.partition) in {
+        "client-longtail",
+        "client-longtail-controlled",
+    }
+    per_tail_client_purity = {}
+    per_tail_client_tail_samples = {}
+    per_tail_client_companion_samples = {}
+    for client_id in tail_client_ids:
+        tail_count = float(counts[client_id, tail_classes].sum().item()) if tail_classes else 0.0
+        companion_count = float(counts[client_id, head_classes].sum().item()) if head_classes else 0.0
+        total_count = tail_count + companion_count
+        per_tail_client_tail_samples[str(client_id)] = tail_count
+        per_tail_client_companion_samples[str(client_id)] = companion_count
+        per_tail_client_purity[str(client_id)] = tail_count / total_count if total_count > 0 else 0.0
 
     summary = {
         "partition": args.partition,
@@ -816,6 +830,12 @@ def save_partition_summary(output_dir, client_class_counts, args, num_users, num
         "head_leakage_scale": (
             float(args.head_leakage_scale) if hasattr(args, "head_leakage_scale") else None
         ),
+        "controlled_tail_min_purity": (
+            float(args.controlled_tail_min_purity)
+            if hasattr(args, "controlled_tail_min_purity")
+            else None
+        ),
+        "role_metrics_applicable": role_metrics_applicable,
         "num_tail_clients": num_tail_clients,
         "tail_client_ids": tail_client_ids,
         "head_client_ids": head_client_ids,
@@ -826,6 +846,9 @@ def save_partition_summary(output_dir, client_class_counts, args, num_users, num
         "tail_to_tail_budget": tail_samples_in_tail_clients,
         "non_tail_to_tail_budget": non_tail_samples_in_tail_clients,
         "actual_tail_client_purity": actual_tail_client_purity,
+        "per_tail_client_tail_samples": per_tail_client_tail_samples,
+        "per_tail_client_companion_samples": per_tail_client_companion_samples,
+        "per_tail_client_purity": per_tail_client_purity,
         "cliplora_aggregation": getattr(args, "cliplora_aggregation", None),
     }
     with open(os.path.join(output_dir, "partition_summary.json"), "w", encoding="utf-8") as f:
@@ -2944,6 +2967,7 @@ def extend_cfg(cfg, args):
     cfg.DATASET.SPECIALIZATION_LAMBDA = args.specialization_lambda
     cfg.DATASET.INTRA_GROUP_ALPHA = args.intra_group_alpha
     cfg.DATASET.HEAD_LEAKAGE_SCALE = args.head_leakage_scale
+    cfg.DATASET.CONTROLLED_TAIL_MIN_PURITY = args.controlled_tail_min_purity
     cfg.DATASET.SPLIT_SEED = int(args.split_seed)
     cfg.DATASET.LOGIT_ADJUST = args.logit_adjust
     cfg.DATASET.LOGIT_ADJUST_TAU = args.logit_adjust_tau
@@ -4998,6 +5022,16 @@ if __name__ == "__main__":
         type=float,
         default=0.0,
         help='Client-LT scale for non-tail samples entering tail clients, relative to tail sample volume.',
+    )
+    parser.add_argument(
+        '--controlled_tail_min_purity',
+        type=float,
+        default=0.8,
+        help=(
+            'Minimum per-client tail purity for partition=client-longtail-controlled. '
+            'All tail samples remain in tail clients; this parameter independently '
+            'caps non-tail companion samples.'
+        ),
     )
     parser.add_argument('--client_headtail_concentration', type=float, default=None, help='deprecated compatibility option')
     parser.add_argument('--logit_adjust', action='store_true', help='compatibility flag for experiment scripts')
