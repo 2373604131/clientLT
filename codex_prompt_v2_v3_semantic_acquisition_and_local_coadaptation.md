@@ -1,8 +1,10 @@
 # Codex 实现任务书（修订版）：V2 语义增量形成与 V3 同客户端局部路径效应
 
-你需要在当前联邦 CLIP/LoRA 仓库中实现两组相互衔接、但证据边界不同的机制实验：
+你需要在当前联邦 CLIP/LoRA 仓库中实现一条由直接现象、受控机制和位置效应组成的证据链：
 
-- **V2：Isolated Semantic Acquisition Test**——验证在相同尾类样本、训练预算和 LoRA 起点下，CLIP 文本语义相关的 non-tail 视觉更新是否比频次匹配的无关更新带来更大的尾类增量收益，并区分“正迁移”与“只是伤害更小”。
+- **V2-A：Frozen Topology Acquisition Replay**——从同一 `theta_0` 出发，分别按冻结的 Dirichlet 与 ClientLT-controlled 30-client 分区进行一轮、3 local epochs、sample-weighted FedAvg，直接检验 Client-LT 是否形成更弱的尾部知识。
+- **V2-B：Semantic Substitution**——固定尾类样本、剂量和训练预算，只把 related non-tail 替换为 frequency-matched unrelated，检验语义相关性本身是否具有因果优势。
+- **V2-C：Semantic Rescue**——比较 related 与 tail-only masked，检验补入 related 视觉梯度是否产生相对无 companion 梯度的正增益，而不只是比 unrelated 伤害更小。
 - **V3：Equal-weight Local Placement Test**——在 episode-level global sample multiset 完全相同、两个客户端大小和 FedAvg 权重完全相同的条件下，验证 related 样本与尾类共同经历多步本地优化是否产生额外位置优势，并严格区分“共置更有利”和“共置是必要条件”。
 
 这不是新方法实现，也不是完整 30-client/100-round 主实验。优先保证因果比较、公平性审计、可复现样本清单和原始结果完整。不要在看到结果后改变类别、预算、匹配、seed、主指标或判定门槛。
@@ -29,7 +31,7 @@
 - related 更新必须与尾类同客户端才有效；
 - non-support 客户端覆盖了已有尾部知识。
 
-V2 只验证隔离式、功能性的知识增量形成。V3 只验证受控单轮双客户端中的局部优化路径/位置效应。V2/V3 都不是知识保存实验，也不能直接解释完整 100 轮 Client-LT 性能差距。
+V2-A 直接验证一轮真实 topology formation gap，但该总效应同时包含支持分散、客户端大小、batch 路径、局部非线性和语境差异，不能单独归因于语义。V2-B/C 隔离语义 companion 的功能作用。只有 V2-A 与 V2-B/C 同时成立，才允许给出 `FORMATION_CHAIN_SUPPORTED`；逐类相关性和符号共现只作 bridge diagnostic，不称为正式因果中介分析。V3 只验证受控单轮双客户端中的局部优化路径/位置效应。V2/V3 都不是知识保存实验，也不能直接解释完整 100 轮 Client-LT 性能差距。实验不能保证预期方向；反向或零结果必须按冻结门槛如实报告。
 
 ---
 
@@ -64,7 +66,7 @@ V2 只验证隔离式、功能性的知识增量形成。V3 只验证受控单�
 - Dassl 默认 momentum：0.9；
 - Dassl 默认 weight decay：`5e-4`；
 - `cliplora_lr_policy=constant` 时，当前代码会使用不衰减的 single-step policy，并关闭 warmup；
-- precision 候选：AMP；
+- 主线联邦候选 precision：AMP；V2/V3 三步机制实验固定使用 FP32。第一次实现 smoke 发现每条件 1--3 次且不一致的 GradScaler overflow，导致真实成功 optimizer step 为 0--2；该比较已按门槛判为 `INVALID_COMPARISON`，未形成任何有效效应结论。为去除数值 skipped-step 混淆，机制实验在任何正式结果产生前预注册 FP32 数值控制；这不修改联邦 baseline 的 AMP；
 - loss：100 类 `F.cross_entropy`，不得使用 local-class mask。
 
 上述只是当前代码的候选值。Phase A 必须从最终 merge 后的 resolved config 和 launcher 复核并写入 contract；若真实主实验参数不同，以真实 resolved 值为准，不得静默使用 YAML 候选值。
@@ -111,8 +113,8 @@ tail_class_count = 20
 1. 实际模型/数据/训练/evaluation 调用链；
 2. LoRA 创建、初始化、trainable key、state-dict key、加载与保存；
 3. 全局 100 类 logits 和 CE；
-4. resolved optimizer、momentum、weight decay、LR、scheduler、warmup、AMP、gradient clipping；
-5. 每客户端 optimizer/scheduler/GradScaler 生命周期；
+4. resolved optimizer、momentum、weight decay、LR、scheduler、warmup、主线 AMP 与机制实验 FP32、gradient clipping；
+5. 每客户端 optimizer/scheduler 生命周期，以及主线 GradScaler 生命周期；机制实验 FP32 不创建 GradScaler；
 6. 当前 transforms 中 `random_resized_crop`、`random_flip` 等随机增强如何接收显式 seed；
 7. batch size 32、`drop_last`、sampler、local epochs=3 对应的真实 optimizer steps；
 8. sample-weighted FedAvg 的权重和 LoRA-only 聚合范围；
@@ -140,7 +142,7 @@ tail_class_count = 20
 - 若没有初始化 artifact，只允许使用一个显式 `model_init_seed` 构建一次，立即序列化，之后所有 run 只加载该文件；
 - 同时保存 frozen CLIP/full non-trainable state hash、LoRA state hash、trainable key list 和 flatten spec hash；
 - 每个 run 训练前检查 logits hash 和 `theta_0` hash；
-- 每个 episode 独立重建 optimizer、scheduler 和 GradScaler，不跨条件保留状态。
+- 每个 episode 独立重建 optimizer 和 scheduler，不跨条件保留状态；主机制实验为 FP32，不创建 GradScaler。若后续另做 AMP sensitivity，则每个 episode 独立重建 GradScaler，并作为单独分析，不与 FP32 主结果混合。
 
 ### 3.2 固定跨 seed companion 预算
 
@@ -220,15 +222,64 @@ execution_schedule_hash
 
 ---
 
-## 4. V2：Isolated Semantic Acquisition Test
+## 4A. V2-A：Frozen Topology Acquisition Replay
 
-### 4.1 研究问题和实验边界
+### 4A.1 研究问题和处理定义
+
+V2-A 直接回答：在全局训练样本集合、每样本 epoch 暴露、LoRA 起点、模型、优化器、precision 和 FedAvg 规则相同时，冻结的 Dirichlet 与 ClientLT-controlled 分区经过一轮联邦训练后，哪一种形成更强的尾类知识？
+
+对 seed 42/2026，必须从 `partition_indices.npz` 读取全部 30 个客户端，不得重划分或抽样。两种 topology 都使用完整 10,847 个 LT 训练样本；每个真实 sample 每 epoch 恰好出现一次，共 3 次。ClientLT-controlled 必须重新断言：153 个尾类样本全部且仅位于客户端 27/28/29、这三个客户端合计 companion 不超过 38、每个专科客户端尾类纯度均不低于 0.8；任一不满足立即失败。augmentation seed 绑定 `(data_seed, epoch, base_sample_id)`，不得包含 topology/client，使同一图片在两 topology 中获得完全相同的增强 tensor。
+
+客户端大小、尾类支持分散、batch 组成、每客户端 optimizer step 数和 sample-weighted FedAvg 权重是 topology treatment 的组成部分，不要求跨 topology 相等，但必须完整记录。每客户端从同一 `theta_0` 开始，独立创建 optimizer/scheduler，运行 3 local epochs，最后使用真实 `aggregate_lora_state` 和 `n_k/sum n_k` 聚合。机制 precision 固定 FP32，每一个预期 step 必须成功。
+
+### 4A.2 指标与直接效应
+
+在 epoch 1/2/3 保存聚合 LoRA state；主指标固定 epoch 3：
+
+```text
+G_topology(c,s,P) = M_c(theta_after(P,s)) - M_c(theta_0)
+
+Delta_topology(c,s)
+  = G_topology(c,s,Dirichlet)
+  - G_topology(c,s,ClientLT-controlled)
+```
+
+同时报告 NLL、accuracy、correct/hard-negative logit、overall/non-tail accuracy、尾类 macro accuracy、客户端和全局 update norm、逐客户端实际 batch/step 数。先分别报告两个 seed，再以 class ID 为 cluster bootstrap；沿用 10,000 draws、seed 20260811 和每 seed 至少 12/20 类同向规则。
+
+V2-A verdict：
+
+- `DIRICHLET_FORMATION_ADVANTAGE`：两个 seed 的 `Delta_topology` 均值为正，合并 CI 下界大于 0，每 seed 至少 12/20 类为正，NLL 无稳定反向；
+- `HETEROGENEOUS_TOPOLOGY_FORMATION_EFFECT`：合并效应为正但 seed/类别普遍性不满足；
+- `NO_STABLE_TOPOLOGY_FORMATION_GAP`：无稳定正差距；
+- `INVALID_COMPARISON`：global multiset、sample-bound augmentation、theta、successful steps、FedAvg 或评估配对失败。
+
+该 panel 是 topology 总效应，不得单独表述为“由语义语境导致”。
+
+### 4A.3 与语义干预的联合判定
+
+将 V2-A 的 `Delta_topology`、V2-B 的 `Delta_sem`、V2-C 的 `Delta_pos` 与 V1 的 semantic-specific shrinkage 按 `seed × tail_class` 一对一 join。符号四者均正的类数和 Spearman 相关只作描述性 bridge diagnostic，不作为因果中介证明。
+
+联合 verdict：
+
+- `FORMATION_CHAIN_SUPPORTED`：V2-A=`DIRICHLET_FORMATION_ADVANTAGE` 且 V2-B/C=`POSITIVE_SEMANTIC_TRANSFER`；
+- `TOPOLOGY_GAP_SEMANTIC_COMPATIBILITY_ONLY`：有直接 topology gap，但语义干预只支持相对兼容而非正 rescue；
+- `TOPOLOGY_GAP_WITHOUT_SEMANTIC_ATTRIBUTION`：有直接 gap，但受控语义干预不成立；
+- `SEMANTIC_MECHANISM_WITHOUT_TOPOLOGY_GAP`：受控语义作用成立，但真实 topology replay 没有稳定 gap；
+- `FORMATION_CHAIN_NOT_SUPPORTED` 或 `INVALID_COMPARISON`：其余情况。
+
+只有 `FORMATION_CHAIN_SUPPORTED` 才允许自动开放 V3 full。
+
+---
+
+## 4B. V2-B/C：Isolated Semantic Substitution and Rescue
+
+### 4B.1 研究问题和实验边界
 
 V2 回答：在隔离的单目标类本地 adaptation episode 中，related non-tail 更新是否比 frequency-matched unrelated 更新更有利，并且是否优于没有 companion 梯度？
 
 V2 不重建真实专科客户端中的其他 19 个尾类，因此不得直接称为“完整 Client-LT acquisition”。报告中必须写明：这是隔离式功能机制实验；它验证语义 companion 的因果作用，不直接估计完整 Client-LT 的准确率差。
 
-### 4.2 条件
+### 4B.2 条件
 
 对每个 `(data_seed, tail_class)` 构造：
 
@@ -246,7 +297,7 @@ N_episode(c) = |T_c| + B_c
 
 当前底部类样本数与 (B_c) 下，episode size 预期小于 batch size 32，因此每个 epoch 预期一个 full episode batch，3 local epochs 预期 3 个 optimizer steps。实现必须从实际 dataloader 计算并断言；若不是 3，停止并报告真实原因，不得静默继续。
 
-### 4.3 Tail-only masked loss
+### 4B.3 Tail-only masked loss
 
 复用 `ClipLora` 的 100 类 logits，只增加可选的逐样本 loss mask：
 
@@ -260,11 +311,11 @@ loss = sum_i(loss_weight_i * ce_i) / actual_batch_size
 - 分母始终是 padding removal 后的真实 batch slot 数；
 - tail slot 的 CE 系数跨所有条件完全相同；
 - tail-only 不能缩短 dataset、减少 steps 或改变 scheduler；
-- 记录 AMP scale 和 skipped-step/overflow；若不同条件出现不一致 overflow，判为公平性失败。
+- 主机制实验固定 FP32，必须成功执行 3/3 optimizer steps；attempted step 不得冒充 successful step。`amp_scale/overflow` 字段标为 FP32 下不适用并记录原因。若另做 AMP sensitivity，则记录 scale 和 skipped-step/overflow；任何 overflow 或成功 step 不足 3 均判为公平性失败。
 
 必须审计模型是否含 BatchNorm、memory bank、跨样本归一化或其他让 zero-loss companion 改变 tail forward/state 的模块。CLIP LayerNorm 是逐样本操作，但仍需用真实模型做梯度不变性测试：替换 masked companion 内容后，tail-only LoRA gradient 必须在预注册 dtype tolerance 内不变。
 
-### 4.4 配对公平性
+### 4B.4 配对公平性
 
 同一 `(data_seed, tail_class, draw)` 下，related 与 unrelated 必须相同：
 
@@ -277,7 +328,7 @@ loss = sum_i(loss_weight_i * ce_i) / actual_batch_size
 
 tail-only 额外要求 forward sample 数和 slot plan 与 related 相同。
 
-### 4.5 指标
+### 4B.5 指标
 
 在固定的目标类官方 test images 上以 eval/no-grad 模式评估。官方 test 只作为预注册机制评估集，不得根据 V2 test 结果重新选择 Top-K、预算、匹配或方法超参数。
 
@@ -300,9 +351,9 @@ G_adaptation_tail_loss_c(a)
 
 `G_adaptation_tail_loss` 明确在实际 adaptation tail block `T_c` 上计算，只作训练拟合诊断，不称为 held-out loss。
 
-还要记录：correct-logit change、hardest-negative logit/class change、LoRA update norm、逐层 norm、optimizer steps、sample draws、AMP scale/overflow，以及 overall/non-tail test accuracy safety diagnostic。
+还要记录：correct-logit change、hardest-negative logit/class change、LoRA update norm、逐层 norm、attempted/successful optimizer steps、sample draws、precision 状态，以及 overall/non-tail test accuracy safety diagnostic。AMP scale/overflow 只在 AMP sensitivity 中适用。
 
-### 4.6 梯度兼容性诊断
+### 4B.6 梯度兼容性诊断
 
 不额外切走稀缺尾类训练图像。在 `theta_0` 上直接使用 episode 的实际 block：
 
@@ -318,7 +369,7 @@ cos_grad = dot(g_tail,g_comp) / (||g_tail||*||g_comp|| + eps)
 - 同时记录 companion 在 `theta_0` 上的 CE、zero-shot accuracy/confidence 和 gradient norm，作为类别难度诊断；不得用这些结果重新匹配类别；
 - gradient cosine 不是成立门槛，主结论只来自训练后的 paired `G_margin`。
 
-### 4.7 效应与汇总
+### 4B.7 效应与汇总
 
 先在每个 `seed × class` 内平均 3 个 unrelated draw，再计算：
 
@@ -343,15 +394,15 @@ bootstrap_seed = 20260811
 
 稳定 NLL 反向定义为：对应 paired NLL effect 在两个 seed 均为负，且合并 class-cluster 95% CI 上界低于 0。
 
-### 4.8 V2 verdict
+### 4B.8 V2-B/C verdict
 
 - `POSITIVE_SEMANTIC_TRANSFER`：`Delta_sem` 与 `Delta_pos` 两个 seed 均为正；二者合并 CI 下界均大于 0；每个 seed 两项均至少 12/20 类为正；NLL 无稳定反向。
 - `RELATIVE_COMPATIBILITY_ONLY`：`Delta_sem` 满足上述稳定性，但 `Delta_pos` 不满足；只能说 related 比 unrelated 更兼容或伤害更小。
 - `HETEROGENEOUS_FUNCTIONAL_TRANSFER`：合并均值和 CI 支持正效应，但 seed 均值方向不一致或任一 seed 少于 12/20 类为正。
 - `NO_FUNCTIONAL_SUPPORT`：`Delta_sem` 没有稳定正优势或稳定为负。
-- `INVALID_COMPARISON`：任何关键配对不变量、theta/logits、step、mask、AMP 或样本守恒失败。
+- `INVALID_COMPARISON`：任何关键配对不变量、theta/logits、successful step、mask、precision 数值稳定性或样本守恒失败。
 
-只有 `POSITIVE_SEMANTIC_TRANSFER` 自动开放完整 V3。其他 verdict 只允许完成 V3 代码/fixture/smoke，不得自动运行 V3 full；是否继续由用户单独决定。
+V2-B/C 的 `POSITIVE_SEMANTIC_TRANSFER` 只能证明受控语义机制成立，不能单独开放完整 V3。必须再完成 V2-A，并由联合汇总得到 `FORMATION_CHAIN_SUPPORTED`，才自动开放 V3 full。其他联合 verdict 只允许完成 V3 代码/fixture/smoke，不得自动运行 V3 full；是否继续由用户单独决定。
 
 ---
 
@@ -401,7 +452,7 @@ FedAvg weights = 0.5 / 0.5
 每个 `(data_seed, tail_class, draw, placement)`：
 
 1. S、D 都从相同 `theta_0` 开始；
-2. 独立创建真实主线 optimizer/scheduler/GradScaler；
+2. 独立创建真实主线 optimizer/scheduler；机制实验固定 FP32，因此不创建 GradScaler；
 3. 两端均运行 local epochs=3；
 4. 两端 batch plan、steps、scheduler steps 完全相同；
 5. 每个 epoch 结束保存 S/D LoRA state；
@@ -438,7 +489,7 @@ g_global^P(theta_0)
 - 若 epoch-1 state 已明显不同，标记 `OPTIMIZER_OR_NUMERIC_PLACEMENT_EFFECT_AT_STEP1`，不得把 epoch-3 差异直接归因于多步 co-adaptation；
 - 若 epoch-1 近似相同，而 epoch-2/3 逐渐产生差异，才支持 local nonlinear path/co-adaptation 解释。
 
-若真实 resolved optimizer、batching 或 AMP 使 Oracle C 理论上不应相等，Phase A 必须提前给出数学原因并把 Oracle C 标为诊断而非硬失败；不得在看到结果后修改解释。
+若真实 resolved optimizer、batching 或 precision 使 Oracle C 理论上不应相等，Phase A 必须提前给出数学原因并把 Oracle C 标为诊断而非硬失败；不得在看到有效结果后修改解释。
 
 Oracle A 或 B 超阈值一律 `INVALID_COMPARISON`，不得进入多步主结果。
 
@@ -482,7 +533,7 @@ V3 不能仅凭 `Delta_location>0` 宣称 related 必须同客户端。
 
 先对 3 个 unrelated draw 在 `seed × class` 内取平均，再做与 V2 相同的 class-cluster bootstrap 和 12/20 异质性规则。
 
-- `LOCAL_COADAPTATION_NECESSARY`：V2 为 `POSITIVE_SEMANTIC_TRANSFER`；Oracle A/B 通过且 Oracle C 无未解释的一步位置差；`Delta_location_e3` 两 seed 均为正、CI 下界大于 0、每 seed 至少 12/20 类为正；colocated 的 `G_margin` 稳定为正；remote placement 的 `G_margin` 两 seed 均不为正且合并 CI 上界不高于 0；`Delta_support_local` 方向一致；NLL 无稳定反向。
+- `LOCAL_COADAPTATION_NECESSARY`：V2 联合证据为 `FORMATION_CHAIN_SUPPORTED`；Oracle A/B 通过且 Oracle C 无未解释的一步位置差；`Delta_location_e3` 两 seed 均为正、CI 下界大于 0、每 seed 至少 12/20 类为正；colocated 的 `G_margin` 稳定为正；remote placement 的 `G_margin` 两 seed 均不为正且合并 CI 上界不高于 0；`Delta_support_local` 方向一致；NLL 无稳定反向。
 - `LOCAL_COADAPTATION_ADVANTAGE`：上述稳定 `Delta_location` 条件成立，colocated acquisition 为正，但 remote placement 也保留稳定正 acquisition。只能说共置额外有利，不能说必要。
 - `LOCAL_PLACEMENT_COMPATIBILITY_ONLY`：`Delta_location` 稳定为正，但 colocated 相对 `theta_0` 的 acquisition 仍不稳定为正；只能说伤害更小。
 - `HETEROGENEOUS_LOCATION_EFFECT`：合并均值/CI 支持正效应，但 seed 方向不一致或任一 seed 少于 12/20 类为正。
@@ -504,7 +555,7 @@ V3 不能仅凭 `Delta_location>0` 宣称 related 必须同客户端。
 - bottom-20、Top-10、Top-30 和五分位；
 - `companion_budgets.json` path/hash；
 - theta/full CLIP/LoRA/flatten hashes；
-- resolved optimizer/scheduler/AMP/transforms；
+- resolved optimizer/scheduler/precision/transforms，并区分主线 AMP 与机制 FP32；
 - model-init/data/augmentation/bootstrap seed；
 - matching和 filler规则；
 - git commit、dirty diff、命令行和环境版本。
@@ -540,17 +591,26 @@ amp_overflow_equal,client_sizes_equal,fedavg_weights_equal,
 train_test_disjoint,pass,reason
 ```
 
-不适用于 V2 的 client/FedAvg 字段用 `null + reason`，不得伪造为 true。
+不适用于 V2-B/C 的 client/FedAvg 字段用 `null + reason`，不得伪造为 true。V2-A 必须填写真实 client size、sample-weighted FedAvg weight、batch/step 数和原因字段。
 
 ### 6.2 V2
 
+- `v2_topology_base_manifest.csv`
+- `v2_topology_execution_manifest.csv`
+- `v2_topology_fairness.csv`
+- `v2_topology_metrics.csv`
+- `v2_topology_client_updates.csv`
+- `v2_topology_paired_effects.csv`
+- `v2_topology_summary.json/md`
 - `v2_run_metrics.csv`
 - `v2_gradient_diagnostics.csv`
 - `v2_paired_effects.csv`
 - `v2_summary.json/md`
 - `v2_excluded_units.csv`
+- `v2_joint_bridge_per_class.csv`
+- `v2_joint_summary.json/md`
 
-必须能恢复 theta0/after 的 margin、NLL、accuracy、adaptation-tail loss、logits诊断、update norms、steps/draws、AMP状态以及逐 draw unrelated 结果。
+V2-A 必须能恢复每个 seed/topology/client 的 client size、FedAvg weight、每 epoch local/global state、真实 optimizer/scheduler steps、全体 20 个尾类的 theta0/after 指标以及跨 topology 的实际增强张量集合校验。V2-B/C 必须能恢复 theta0/after 的 margin、NLL、accuracy、adaptation-tail loss、logits诊断、update norms、attempted/successful steps、draws、precision 状态以及逐 draw unrelated 结果。联合汇总必须保留逐 `seed × tail_class` 的 topology effect、semantic intervention effect 和 V1 shrinkage，但相关性只能作为描述性 bridge diagnostic。
 
 ### 6.3 V3
 
@@ -586,7 +646,10 @@ train_test_disjoint,pass,reason
 6. V3 两客户端大小相同、权重严格 0.5/0.5、steps 相同；
 7. filler 在所有 draw/placement 固定且与 T/R/U 不重叠；
 8. V3 同一 sample 的 augmentation seed 随 sample 移动，两个 placement 的 augmented global multiset 相同；
-9. 重跑 manifest byte-identical。
+9. V2-A 每个 seed/topology 均完整且无重复地覆盖同一 10,847 个全局训练样本，每样本恰好在一个客户端，并在 3 epochs 中各出现一次；
+10. V2-A 同一 `seed × sample × epoch` 的 augmentation seed 与实际增强张量跨 topology 一致；
+11. V2-A 的 client size/batch count/FedAvg weight 保留为 topology treatment 属性，聚合权重严格为 `n_k / 10847` 且和为 1；
+12. 重跑 manifest byte-identical。
 
 ### Phase C：模型和数学测试
 
@@ -602,7 +665,9 @@ train_test_disjoint,pass,reason
 8. V3 plain-SGD one-step oracle；
 9. summarizer 先平均 draw、再以 class cluster；
 10. NaN/Inf 明确拒绝或转 null+reason；
-11. baseline 默认训练路径在未启用实验选项时行为不变。
+11. baseline 默认训练路径在未启用实验选项时行为不变；
+12. V2-A sample-weighted LoRA FedAvg 与逐参数手算一致，且不带 mask 时走原始 unweighted CE 路径；
+13. V2-A summarizer 的 Dirichlet-minus-ClientLT 配对方向、NLL 方向、12/20 规则与联合 verdict gate 正确。
 
 任一失败阻止 smoke，不得降低断言阈值。
 
@@ -615,12 +680,12 @@ data_seed = 42
 tail classes = [90 train, 92 tulip]
 unrelated_draws = 1
 conditions = related, matched_unrelated_r0, tail_only_masked
-batch/local epochs/optimizer/LR/scheduler/AMP = 正式 resolved 设置
+batch/local epochs/optimizer/LR/scheduler = 正式 resolved 设置；precision = FP32
 ```
 
 选择已冻结：train 是 V1 semantic-specific 较强且邻居可解释的类；tulip 接近 0。Smoke 只验证实现，不以效果方向作为通过条件。
 
-必须检查：所有 invariants、theta/logits、steps/draws、mask、AMP、可复现状态和 schema。通过后才解锁 V2 full launcher，不自动运行。允许在 smoke 前随代码生成 fail-closed launcher 模板，但它必须读取成功的 V2 smoke summary/marker；没有通过 smoke 时必须拒绝启动 full。
+必须检查：所有 invariants、theta/logits、attempted/successful steps、draws、mask、FP32 数值稳定性、可复现状态和 schema。通过后才解锁 V2-B/C full 和 V2-A full launcher，不自动运行。V2-A 不使用截断客户端/类别的伪 smoke，因为那会改变 topology treatment；它复用已经通过的模型/优化器 V2 smoke 作为实现门，然后完整运行全部 30 客户端。允许在 smoke 前随代码生成 fail-closed launcher 模板，但它必须读取成功的 V2 smoke summary/marker；没有通过 smoke 时必须拒绝启动 full。
 
 ### Phase E：V3 smoke
 
@@ -638,12 +703,18 @@ one micro-federation round
 先运行 Oracle A/B/C；A/B 或公平性失败则禁止多步训练。Smoke 只验证实现。通过后才解锁 V3 full launcher；允许预先生成 fail-closed 模板，但它必须同时读取成功的 V3 smoke summary/marker。V3 full launcher 还必须要求：
 
 ```text
---require-v2-verdict POSITIVE_SEMANTIC_TRANSFER
+--require-v2-verdict FORMATION_CHAIN_SUPPORTED
 ```
 
 ### Phase F：只生成完整矩阵，不自动执行
 
-V2 full：
+V2-A topology replay full：
+
+```text
+2 seeds × 2 frozen topologies × 30 clients × 3 local epochs × 10,847-sample global universe
+```
+
+V2-B/C intervention full：
 
 ```text
 2 seeds × 20 classes ×

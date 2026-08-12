@@ -1,8 +1,10 @@
 import tempfile
 import unittest
+import json
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 from torch.nn import functional as F
 
@@ -22,7 +24,12 @@ from tools.semantic_acquisition.metrics import (
 )
 from utils.cliplora_loss import fixed_denominator_cross_entropy
 from utils.lora_aggregation import aggregate_lora_state
-from tools.semantic_acquisition.summarize import average_v3_draws
+from tools.semantic_acquisition.summarize import (
+    _v2_invalid_reasons,
+    average_v3_draws,
+    summarize_v2_joint,
+    summarize_v2_topology,
+)
 
 
 class ManifestTests(unittest.TestCase):
@@ -87,6 +94,28 @@ class ManifestTests(unittest.TestCase):
             helper.index("from trainers.cliplora import"),
         )
 
+    def test_runtime_requires_successful_not_attempted_steps(self):
+        runtime_source = (Path(__file__).resolve().parents[1] / "tools" / "semantic_acquisition" / "runtime.py").read_text(encoding="utf-8")
+        self.assertIn("if successful != expected_steps or overflow_count != 0", runtime_source)
+        self.assertIn('runtime["optimizer_steps_successful"] == 3', runtime_source)
+        self.assertIn("def _validate_smoke_provenance", runtime_source)
+        self.assertIn("def _implementation_hashes", runtime_source)
+        self.assertIn("tracked_diff_sha256", runtime_source)
+        self.assertIn("v2_topology_base_manifest.csv", runtime_source)
+
+    def test_topology_replay_uses_unweighted_baseline_loss_path(self):
+        runtime_source = (Path(__file__).resolve().parents[1] / "tools" / "semantic_acquisition" / "runtime.py").read_text(encoding="utf-8")
+        self.assertIn('use_loss_weights = "loss_weight" in execution.columns', runtime_source)
+        self.assertIn('weights if use_loss_weights else None', runtime_source)
+        self.assertIn('"baseline_unweighted_ce"', runtime_source)
+
+    def test_mechanism_precision_is_fp32_and_mainline_remains_amp(self):
+        runtime_source = (Path(__file__).resolve().parents[1] / "tools" / "semantic_acquisition" / "runtime.py").read_text(encoding="utf-8")
+        manifest_source = (Path(__file__).resolve().parents[1] / "tools" / "semantic_acquisition" / "manifests.py").read_text(encoding="utf-8")
+        self.assertIn('cfg.TRAINER.COOP.PREC = "fp32"', runtime_source)
+        self.assertIn('"mainline_precision": "amp"', runtime_source)
+        self.assertIn('"precision": "fp32", "mainline_precision": "amp"', manifest_source)
+
     def test_manifest_rebuild_is_identical(self):
         second = build_manifests(DEFAULT_V1, DEFAULT_DATA, [42, 2026], 3)
         self.assertEqual(stable_hash(self.bundle.base_rows), stable_hash(second.base_rows))
@@ -94,8 +123,34 @@ class ManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as first_dir, tempfile.TemporaryDirectory() as second_dir:
             write_bundle(self.bundle, Path(first_dir))
             write_bundle(second, Path(second_dir))
-            for name in ("base_sample_manifest.csv", "execution_slot_manifest.csv", "matching_manifest.csv"):
+            for name in (
+                "base_sample_manifest.csv", "execution_slot_manifest.csv", "matching_manifest.csv",
+                "v2_topology_base_manifest.csv", "v2_topology_execution_manifest.csv",
+            ):
                 self.assertEqual((Path(first_dir) / name).read_bytes(), (Path(second_dir) / name).read_bytes())
+
+    def test_topology_replay_uses_same_complete_universe(self):
+        base = pd.DataFrame(self.bundle.topology_base_rows)
+        execution = pd.DataFrame(self.bundle.topology_execution_rows)
+        fairness = pd.DataFrame(self.bundle.topology_fairness_rows)
+        self.assertEqual(len(base), 4 * 10847)
+        self.assertEqual(len(execution), 4 * 3 * 10847)
+        for _, group in base.groupby(["data_seed", "topology"]):
+            self.assertEqual(len(group), 10847)
+            self.assertEqual(group.base_sample_id.nunique(), 10847)
+            self.assertAlmostEqual(group.groupby("client_id").fedavg_weight.first().sum(), 1.0)
+        for _, group in execution.groupby("data_seed"):
+            for _, epoch_rows in group.groupby("epoch"):
+                signatures = {
+                    topology: sorted(zip(rows.base_sample_id, rows.augmentation_seed))
+                    for topology, rows in epoch_rows.groupby("topology")
+                }
+                self.assertEqual(signatures["Dirichlet"], signatures["ClientLT-controlled"])
+        controlled = fairness[fairness.topology == "ClientLT-controlled"]
+        self.assertTrue(controlled.controlled_tail_constraints.all())
+        self.assertTrue((controlled.controlled_tail_count == 153).all())
+        self.assertTrue((controlled.controlled_companion_count <= 38).all())
+        self.assertTrue((controlled.controlled_min_specialist_purity >= 0.8).all())
 
 
 class MathTests(unittest.TestCase):
@@ -172,6 +227,64 @@ class MathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(ValueError):
                 write_json(Path(directory) / "bad.json", {"value": float("nan")})
+
+    def test_v2_invalid_reason_reports_amp_mismatch(self):
+        import pandas as pd
+        frame = pd.DataFrame([{
+            "data_seed": 42, "tail_class": 90, "draw": -1, "condition": "related",
+            "theta0_hash_equal": True, "pretrain_logits_equal": True,
+            "optimizer_steps_equal": True, "scheduler_steps_equal": True,
+            "masked_gradient_invariant": True, "tail_augmented_tensors_equal": True,
+            "amp_overflow_equal": False, "pass": False, "amp_overflow_count": 1,
+            "amp_scale_signature": "abc", "masked_gradient_relative_l2": 0.0,
+            "masked_gradient_max_abs": 0.0,
+        }])
+        reasons = _v2_invalid_reasons(frame)
+        self.assertEqual(len(reasons), 1)
+        self.assertIn("amp_overflow_equal", reasons[0]["failed_checks"])
+
+    def test_topology_and_joint_verdict_direction(self):
+        with tempfile.TemporaryDirectory() as topology_name, tempfile.TemporaryDirectory() as intervention_name, tempfile.TemporaryDirectory() as v1_name:
+            topology_dir = Path(topology_name)
+            intervention_dir = Path(intervention_name)
+            v1_dir = Path(v1_name)
+            metrics = []
+            for seed in (42, 2026):
+                for class_id in range(80, 100):
+                    for topology, margin, nll, accuracy in (
+                        ("Dirichlet", 1.0, 0.5, 0.8),
+                        ("ClientLT-controlled", 0.0, 0.0, 0.4),
+                    ):
+                        metrics.append({
+                            "data_seed": seed, "tail_class": class_id, "epoch": 3,
+                            "topology": topology, "g_margin": margin, "g_nll": nll,
+                            "after_accuracy": accuracy,
+                        })
+            pd.DataFrame(metrics).to_csv(topology_dir / "v2_topology_metrics.csv", index=False)
+            pd.DataFrame([{"pass": True}]).to_csv(topology_dir / "fairness_invariants.csv", index=False)
+            topology_summary = summarize_v2_topology(topology_dir)
+            self.assertEqual(topology_summary["verdict"], "DIRICHLET_FORMATION_ADVANTAGE")
+
+            (intervention_dir / "v2_summary.json").write_text(json.dumps({
+                "verdict": "POSITIVE_SEMANTIC_TRANSFER", "valid_comparison": True,
+            }), encoding="utf-8")
+            intervention = []
+            v1 = []
+            for seed in (42, 2026):
+                for class_id in range(80, 100):
+                    intervention.append({
+                        "data_seed": seed, "tail_class": class_id,
+                        "delta_sem": 1.0, "delta_pos": 0.5,
+                    })
+                    v1.append({
+                        "seed": seed, "tail_class_id": class_id,
+                        "delta_generic_context_primary": 0.25,
+                        "delta_semantic_specific_tail_mass_weighted": 0.75,
+                    })
+            pd.DataFrame(intervention).to_csv(intervention_dir / "v2_paired_effects.csv", index=False)
+            pd.DataFrame(v1).to_csv(v1_dir / "v1_paired_deltas.csv", index=False)
+            joint = summarize_v2_joint(topology_dir, intervention_dir, v1_dir)
+            self.assertEqual(joint["verdict"], "FORMATION_CHAIN_SUPPORTED")
 
 
 if __name__ == "__main__":

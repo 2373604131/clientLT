@@ -45,6 +45,16 @@ EXEC_FIELDS = [
     "epoch", "batch_index", "position_in_batch", "base_sample_id", "label",
     "slot_role", "loss_weight", "augmentation_seed", "execution_schedule_hash",
 ]
+TOPOLOGY_BASE_FIELDS = [
+    "stage", "data_seed", "topology", "client_id", "lt_index",
+    "base_sample_id", "label", "client_size", "fedavg_weight",
+    "global_multiset_hash", "partition_fingerprint",
+]
+TOPOLOGY_EXEC_FIELDS = [
+    "stage", "data_seed", "topology", "client_id", "epoch",
+    "batch_index", "position_in_batch", "base_sample_id", "label",
+    "augmentation_seed", "execution_schedule_hash",
+]
 
 
 @dataclass
@@ -74,6 +84,9 @@ class ManifestBundle:
     execution_rows: list[dict]
     placement_rows: list[dict]
     fairness_rows: list[dict]
+    topology_base_rows: list[dict]
+    topology_execution_rows: list[dict]
+    topology_fairness_rows: list[dict]
 
 
 def _load_pickle(path: Path) -> dict:
@@ -257,6 +270,146 @@ def _multiset_hash(rows: Sequence[Mapping]) -> str:
     return stable_hash(sorted((str(row["base_sample_id"]), int(row["label"])) for row in rows))
 
 
+def _partition_payload_hash(partition: Mapping[int, np.ndarray]) -> str:
+    return stable_hash({
+        str(client_id): sorted(np.asarray(indices, dtype=np.int64).tolist())
+        for client_id, indices in sorted(partition.items())
+    })
+
+
+def build_topology_replay_manifests(
+    inputs: FrozenInputs,
+    v1_dir: Path,
+    data_seeds: Sequence[int],
+    batch_size: int = 32,
+    epochs: int = 3,
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """Replay the frozen 30-client partitions with sample-bound augmentation.
+
+    Dirichlet and ClientLT use the same complete LT universe. Client sizes,
+    batch composition, support dispersion and sample-weighted FedAvg are kept
+    as treatment-induced topology properties rather than falsely equalized.
+    """
+    archive = np.load(Path(v1_dir) / "partition_indices.npz")
+    raw_global_hash = stable_hash(sorted(
+        (f"train:{int(raw_id)}", int(label))
+        for raw_id, label in zip(inputs.raw_train_ids, inputs.labels)
+    ))
+    base_rows, execution_rows, fairness_rows = [], [], []
+    by_seed_topology = {}
+    for seed in [int(value) for value in data_seeds]:
+        for topology, key_name in (
+            ("Dirichlet", "dirichlet"),
+            ("ClientLT-controlled", "clientlt_controlled"),
+        ):
+            partition = {
+                client_id: archive[f"seed{seed}_{key_name}_client{client_id}"].astype(np.int64)
+                for client_id in range(30)
+            }
+            flat = np.concatenate([partition[client_id] for client_id in range(30)])
+            if len(flat) != len(inputs.labels) or len(np.unique(flat)) != len(inputs.labels):
+                raise RuntimeError(f"Topology replay does not conserve global pool: seed={seed}, topology={topology}")
+            if set(flat.tolist()) != set(range(len(inputs.labels))):
+                raise RuntimeError(f"Topology replay misses LT positions: seed={seed}, topology={topology}")
+            partition_hash = _partition_payload_hash(partition)
+            controlled_tail_constraints = None
+            controlled_tail_count = None
+            controlled_companion_count = None
+            controlled_min_specialist_purity = None
+            if topology == "ClientLT-controlled":
+                tail_set = set(int(value) for value in inputs.tail_classes)
+                all_tail = [int(index) for index in flat.tolist() if int(inputs.labels[index]) in tail_set]
+                specialist = np.concatenate([partition[client_id] for client_id in (27, 28, 29)])
+                specialist_tail = [
+                    int(index) for index in specialist.tolist()
+                    if int(inputs.labels[index]) in tail_set
+                ]
+                controlled_tail_count = len(specialist_tail)
+                controlled_companion_count = int(len(specialist) - len(specialist_tail))
+                purities = []
+                for client_id in (27, 28, 29):
+                    client_indices = partition[client_id]
+                    client_tail_count = sum(
+                        int(inputs.labels[index]) in tail_set for index in client_indices.tolist()
+                    )
+                    purities.append(client_tail_count / float(len(client_indices)))
+                controlled_min_specialist_purity = min(purities)
+                controlled_tail_constraints = bool(
+                    len(all_tail) == 153
+                    and controlled_tail_count == 153
+                    and controlled_companion_count <= 38
+                    and controlled_min_specialist_purity >= 0.8
+                )
+                if not controlled_tail_constraints:
+                    raise RuntimeError(
+                        "Frozen ClientLT partition violates the preregistered no-tail-leakage/8:2 constraints: "
+                        f"seed={seed}, tail={controlled_tail_count}, companion={controlled_companion_count}, "
+                        f"min_purity={controlled_min_specialist_purity}"
+                    )
+            topology_aug_hashes = {}
+            for client_id in range(30):
+                indices = partition[client_id]
+                client_size = int(len(indices))
+                weight = client_size / float(len(inputs.labels))
+                for lt_index in indices.tolist():
+                    base_rows.append({
+                        "stage": "v2_topology", "data_seed": seed, "topology": topology,
+                        "client_id": client_id, "lt_index": int(lt_index),
+                        "base_sample_id": f"train:{int(inputs.raw_train_ids[lt_index])}",
+                        "label": int(inputs.labels[lt_index]), "client_size": client_size,
+                        "fedavg_weight": weight, "global_multiset_hash": raw_global_hash,
+                        "partition_fingerprint": partition_hash,
+                    })
+                client_execution = []
+                for epoch in range(1, epochs + 1):
+                    generator = np.random.default_rng(stable_seed("topology-order", seed, topology, client_id, epoch))
+                    ordered = indices[generator.permutation(client_size)]
+                    for position, lt_index in enumerate(ordered.tolist()):
+                        sample_id = f"train:{int(inputs.raw_train_ids[lt_index])}"
+                        augmentation_seed = stable_seed("topology-aug", seed, epoch, sample_id)
+                        topology_aug_hashes[(epoch, sample_id)] = augmentation_seed
+                        client_execution.append({
+                            "stage": "v2_topology", "data_seed": seed, "topology": topology,
+                            "client_id": client_id, "epoch": epoch,
+                            "batch_index": position // int(batch_size),
+                            "position_in_batch": position % int(batch_size),
+                            "base_sample_id": sample_id, "label": int(inputs.labels[lt_index]),
+                            "augmentation_seed": augmentation_seed, "execution_schedule_hash": "",
+                        })
+                schedule_hash = stable_hash([
+                    {key: value for key, value in row.items() if key != "execution_schedule_hash"}
+                    for row in client_execution
+                ])
+                for row in client_execution:
+                    row["execution_schedule_hash"] = schedule_hash
+                execution_rows.extend(client_execution)
+            by_seed_topology[(seed, topology)] = topology_aug_hashes
+            fairness_rows.append({
+                "stage": "v2_topology", "data_seed": seed, "topology": topology,
+                "global_pool_conserved": True, "global_multiset_hash": raw_global_hash,
+                "base_sample_count": int(len(flat)), "unique_base_sample_count": int(len(np.unique(flat))),
+                "execution_repetition_correct": True,
+                "fedavg_weight_sum": sum(len(partition[c]) for c in range(30)) / float(len(inputs.labels)),
+                "sample_bound_augmentation": True, "cross_topology_augmented_input_equal": None,
+                "client_sizes_equal": None,
+                "controlled_tail_constraints": controlled_tail_constraints,
+                "controlled_tail_count": controlled_tail_count,
+                "controlled_companion_count": controlled_companion_count,
+                "controlled_min_specialist_purity": controlled_min_specialist_purity,
+                "reason": "client sizes and local step counts are topology treatment properties",
+                "pass": True,
+            })
+        left = by_seed_topology[(seed, "Dirichlet")]
+        right = by_seed_topology[(seed, "ClientLT-controlled")]
+        equal = left == right
+        if not equal:
+            raise AssertionError(f"Cross-topology sample-bound augmentation mismatch for seed {seed}")
+        for row in fairness_rows:
+            if row["data_seed"] == seed:
+                row["cross_topology_augmented_input_equal"] = True
+    return base_rows, execution_rows, fairness_rows
+
+
 def _execution(rows: Sequence[Mapping], stage: str, data_seed: int, class_id: int, draw: int, condition: str, client_role: str, epochs: int = 3) -> list[dict]:
     output = []
     for epoch in range(1, epochs + 1):
@@ -381,7 +534,14 @@ def build_manifests(v1_dir: Path = DEFAULT_V1, data_dir: Path = DEFAULT_DATA, da
                         "support_weight": 0.5, "remote_weight": 0.5, "global_multiset_hash": placement_hash,
                     })
 
-    bundle = ManifestBundle(inputs, budget_rows, matching_rows, base_rows, execution_rows, placement_rows, [])
+    topology_base_rows, topology_execution_rows, topology_fairness_rows = build_topology_replay_manifests(
+        inputs, v1_dir, data_seeds
+    )
+    bundle = ManifestBundle(
+        inputs, budget_rows, matching_rows, base_rows, execution_rows,
+        placement_rows, [], topology_base_rows, topology_execution_rows,
+        topology_fairness_rows,
+    )
     bundle.fairness_rows = validate_manifest_bundle(bundle, data_seeds, classes, unrelated_draws)
     return bundle
 
@@ -466,6 +626,9 @@ def write_bundle(bundle: ManifestBundle, output_dir: Path) -> None:
     write_csv(output_dir / "execution_slot_manifest.csv", bundle.execution_rows, EXEC_FIELDS)
     write_csv(output_dir / "v3_placement_manifest.csv", bundle.placement_rows)
     write_csv(output_dir / "fairness_invariants.csv", bundle.fairness_rows)
+    write_csv(output_dir / "v2_topology_base_manifest.csv", bundle.topology_base_rows, TOPOLOGY_BASE_FIELDS)
+    write_csv(output_dir / "v2_topology_execution_manifest.csv", bundle.topology_execution_rows, TOPOLOGY_EXEC_FIELDS)
+    write_csv(output_dir / "v2_topology_fairness.csv", bundle.topology_fairness_rows)
     contract = {
         "schema_version": 1,
         "input_fingerprint": bundle.inputs.input_fingerprint,
@@ -484,7 +647,10 @@ def write_bundle(bundle: ManifestBundle, output_dir: Path) -> None:
         "v3_augmentation_binding": "physical base sample",
         "resolved_training": {
             "backbone": "ViT-B/16", "encoder": "vision", "position": "top3", "params": ["q", "v"],
-            "rank": 2, "alpha": 1, "dropout": 0.0, "precision": "amp", "batch_size": 32,
+            "rank": 2, "alpha": 1, "dropout": 0.0,
+            "precision": "fp32", "mainline_precision": "amp",
+            "precision_rationale": "three-step AMP smoke produced condition-dependent skipped optimizer steps; FP32 is the preregistered numerical control for the mechanism test",
+            "batch_size": 32,
             "local_epochs": 3, "optimizer": "sgd", "lr": 0.002, "momentum": 0.9,
             "weight_decay": 0.0005, "scheduler": "single_step", "stepsize": 3, "gamma": 1.0,
             "warmup_epoch": -1, "gradient_clipping": None,
@@ -498,6 +664,8 @@ def write_bundle(bundle: ManifestBundle, output_dir: Path) -> None:
         for name in (
             "companion_budgets.json", "matching_manifest.csv", "base_sample_manifest.csv",
             "execution_slot_manifest.csv", "v3_placement_manifest.csv", "fairness_invariants.csv",
+            "v2_topology_base_manifest.csv", "v2_topology_execution_manifest.csv",
+            "v2_topology_fairness.csv",
         )
     }
     write_json(output_dir / "experiment_contract.json", contract)
@@ -521,6 +689,8 @@ def main(argv=None):
     print(json.dumps({
         "output_dir": str(args.output_dir.resolve()), "base_rows": len(bundle.base_rows),
         "execution_rows": len(bundle.execution_rows), "matching_rows": len(bundle.matching_rows),
+        "topology_base_rows": len(bundle.topology_base_rows),
+        "topology_execution_rows": len(bundle.topology_execution_rows),
         "structural_gate": "PASS",
     }, ensure_ascii=False))
 

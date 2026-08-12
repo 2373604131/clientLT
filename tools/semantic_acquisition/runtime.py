@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import math
 import os
 import pickle
 import platform
@@ -80,7 +81,11 @@ def build_experiment_cfg(output_dir: Path):
     cfg.TRAINER.COOP.CSC = False
     cfg.TRAINER.COOP.CTX_INIT = False
     cfg.TRAINER.COOP.W = 1.0
-    cfg.TRAINER.COOP.PREC = "amp"
+    # The three-step mechanism episode uses FP32 as a numerical control. The
+    # main federated baseline remains AMP. Default AMP GradScaler initialization
+    # skipped a condition-dependent 1--3 steps in the implementation smoke,
+    # invalidating the causal comparison.
+    cfg.TRAINER.COOP.PREC = "fp32"
     cfg.TRAINER.COOP.CLASS_TOKEN_POSITION = "end"
     cfg.DATASET.NAME = "Cifar100"
     cfg.INPUT.SIZE = (224, 224)
@@ -129,7 +134,8 @@ class CifarRawStore:
     def image(self, sample_id: str) -> Image.Image:
         split, raw = str(sample_id).split(":", 1)
         values = self.train_images if split == "train" else self.test_images
-        return Image.fromarray(values[int(raw)], mode="RGB")
+        # The array is already HWC uint8 with three channels; Pillow infers RGB.
+        return Image.fromarray(values[int(raw)])
 
 
 def _set_determinism(seed: int) -> None:
@@ -192,7 +198,11 @@ def _materialize(rows: pd.DataFrame, store: CifarRawStore, transform, device) ->
     return (
         torch.stack(images).to(device),
         torch.as_tensor(rows.label.to_numpy(), dtype=torch.long, device=device),
-        torch.as_tensor(rows.loss_weight.to_numpy(), dtype=torch.float32, device=device),
+        torch.as_tensor(
+            rows.loss_weight.to_numpy() if "loss_weight" in rows.columns else np.ones(len(rows)),
+            dtype=torch.float32,
+            device=device,
+        ),
         tensor_hashes,
     )
 
@@ -251,35 +261,56 @@ def _train_client(model, cfg, theta0, execution: pd.DataFrame, store, transform)
 
     load_lora_state(model, theta0)
     optimizer, scheduler = build_cliplora_optimizer_and_scheduler(model, cfg)
-    scaler = torch.cuda.amp.GradScaler(enabled=True)
+    precision = str(cfg.TRAINER.COOP.PREC)
+    scaler = torch.cuda.amp.GradScaler() if precision == "amp" else None
     states, attempted, successful, scheduler_steps, overflow_count = {}, 0, 0, 0, 0
     scales = []
     tensor_hashes = {}
+    expected_steps = int(execution.groupby(["epoch", "batch_index"]).ngroups)
+    # V2-B/C needs per-sample masking, while the topology replay must use the
+    # repository's unweighted baseline CE path exactly.  A synthetic all-ones
+    # weight vector is mathematically equivalent but is not the same code path.
+    use_loss_weights = "loss_weight" in execution.columns
     for epoch in (1, 2, 3):
-        rows = execution[execution.epoch == epoch]
-        if rows.batch_index.nunique() != 1:
-            raise RuntimeError("Expected exactly one full episode batch per epoch")
-        images, labels, weights, hashes = _materialize(rows, store, transform, next(model.parameters()).device)
-        tensor_hashes[epoch] = hashes
-        model.train()
-        _, loss, step_info = cliplora_optimizer_step(
-            model, optimizer, scaler, cfg.TRAINER.COOP.PREC, images, labels, weights,
-            reject_nonfinite_amp=True,
-        )
-        old_scale = step_info["amp_scale_before"]
-        new_scale = step_info["amp_scale_after"]
-        attempted += 1
-        if step_info["amp_overflow"]:
-            overflow_count += 1
-        else:
-            successful += 1
+        epoch_rows = execution[execution.epoch == epoch]
+        if epoch_rows.empty:
+            raise RuntimeError(f"Client execution is missing epoch {epoch}")
+        tensor_hashes[epoch] = []
+        for batch_index in sorted(epoch_rows.batch_index.unique().tolist()):
+            rows = epoch_rows[epoch_rows.batch_index == batch_index]
+            images, labels, weights, hashes = _materialize(rows, store, transform, next(model.parameters()).device)
+            tensor_hashes[epoch].extend(hashes)
+            model.train()
+            _, loss, step_info = cliplora_optimizer_step(
+                model, optimizer, scaler, cfg.TRAINER.COOP.PREC, images, labels,
+                weights if use_loss_weights else None,
+                reject_nonfinite_amp=True,
+            )
+            old_scale = step_info["amp_scale_before"]
+            new_scale = step_info["amp_scale_after"]
+            attempted += 1
+            if step_info["amp_overflow"]:
+                overflow_count += 1
+            else:
+                successful += 1
+            scales.append({"epoch": epoch, "batch_index": int(batch_index), "before": old_scale, "after": new_scale})
         scheduler.step()
         scheduler_steps += 1
-        scales.append({"epoch": epoch, "before": old_scale, "after": new_scale})
         states[epoch] = lora_state(model)
-    if attempted != 3 or scheduler_steps != 3:
-        raise RuntimeError("Local step contract was not exactly 3 optimizer attempts / 3 scheduler steps")
+    if attempted != expected_steps or scheduler_steps != 3:
+        raise RuntimeError(
+            f"Local step contract expected {expected_steps} optimizer attempts and 3 scheduler steps, "
+            f"observed {attempted} and {scheduler_steps}"
+        )
+    if successful != expected_steps or overflow_count != 0:
+        raise RuntimeError(
+            f"Local step contract requires {expected_steps} successful optimizer steps, but "
+            f"executed {successful}/{expected_steps} with {overflow_count} skipped overflow steps"
+        )
     return states, {
+        "precision": precision,
+        "loss_path": "sample_weighted_fixed_denominator" if use_loss_weights else "baseline_unweighted_ce",
+        "expected_optimizer_steps": expected_steps,
         "optimizer_steps_attempted": attempted, "optimizer_steps_successful": successful,
         "scheduler_steps": scheduler_steps, "amp_overflow_count": overflow_count,
         "amp_scales": scales, "augmented_tensor_hashes": tensor_hashes,
@@ -322,6 +353,25 @@ def _safety_eval(model, store, transform, tail_classes: set[int]) -> dict:
     }
 
 
+@torch.no_grad()
+def _all_test_metrics(model, store, transform, tail_classes: Sequence[int]) -> tuple[dict[int, dict], dict, str]:
+    ids = [f"test:{index}" for index in range(len(store.test_labels))]
+    logits, labels = _predict_ids(model, store, transform, ids, store.test_labels.tolist())
+    per_class = {}
+    for class_id in [int(value) for value in tail_classes]:
+        mask = labels == class_id
+        per_class[class_id] = classification_metrics(logits[mask], labels[mask], class_id)
+    predictions = logits.argmax(dim=1)
+    tail_set = set(int(value) for value in tail_classes)
+    non_tail = torch.as_tensor([int(value) not in tail_set for value in labels.tolist()], dtype=torch.bool)
+    safety = {
+        "overall_accuracy": float((predictions == labels).float().mean().item()),
+        "non_tail_accuracy": float((predictions[non_tail] == labels[non_tail]).float().mean().item()),
+        "tail_macro_accuracy": float(np.mean([per_class[class_id]["accuracy"] for class_id in per_class])),
+    }
+    return per_class, safety, stable_hash(logits.numpy().tobytes().hex())
+
+
 def _git_metadata() -> dict:
     try:
         commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
@@ -333,6 +383,50 @@ def _git_metadata() -> dict:
         "commit": commit, "dirty": bool(status), "status_lines": status.splitlines(),
         "tracked_diff_sha256": __import__("hashlib").sha256(diff).hexdigest(),
     }
+
+
+def _implementation_hashes() -> dict[str, str]:
+    relative_paths = (
+        "tools/semantic_acquisition/common.py",
+        "tools/semantic_acquisition/manifests.py",
+        "tools/semantic_acquisition/metrics.py",
+        "tools/semantic_acquisition/runtime.py",
+        "tools/semantic_acquisition/summarize.py",
+        "trainers/cliplora.py",
+        "utils/cliplora_loss.py",
+        "utils/lora_aggregation.py",
+    )
+    return {name: file_sha256(ROOT / name) for name in relative_paths}
+
+
+def _validate_smoke_provenance(smoke_summary_path: Path, manifest_dir: Path) -> None:
+    """Reject a smoke artifact produced by different code or manifests."""
+    contract_path = smoke_summary_path.parent / "experiment_contract.json"
+    if not contract_path.is_file():
+        raise RuntimeError(f"Smoke provenance contract is missing: {contract_path}")
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    recorded_git = contract.get("git", {})
+    current_git = _git_metadata()
+    for field in ("commit", "tracked_diff_sha256"):
+        if recorded_git.get(field) != current_git.get(field):
+            raise RuntimeError(
+                f"Smoke provenance differs from current code at {field}; rerun the smoke with this checkout"
+            )
+    recorded_implementation = contract.get("implementation_hashes")
+    if recorded_implementation != _implementation_hashes():
+        raise RuntimeError("Smoke implementation file hashes differ from current code; rerun the smoke")
+    recorded_hashes = contract.get("manifest_snapshot_hashes", {})
+    required = (
+        "base_sample_manifest.csv", "execution_slot_manifest.csv",
+        "v2_topology_base_manifest.csv", "v2_topology_execution_manifest.csv",
+        "v2_topology_fairness.csv",
+    )
+    for name in required:
+        current = manifest_dir / name
+        if name not in recorded_hashes or not current.is_file():
+            raise RuntimeError(f"Smoke provenance lacks the current required manifest: {name}")
+        if recorded_hashes[name] != file_sha256(current):
+            raise RuntimeError(f"Smoke manifest differs from the current manifest: {name}")
 
 
 def _build_runtime(args):
@@ -387,6 +481,9 @@ def _build_runtime(args):
         "fixed_probe_logits_hash": stable_hash(probe_logits.numpy().tobytes().hex()),
         "device": torch.cuda.get_device_name(torch.cuda.current_device()),
         "torch_version": torch.__version__, "python_version": platform.python_version(),
+        "mechanism_precision": str(cfg.TRAINER.COOP.PREC),
+        "mainline_precision": "amp",
+        "precision_rationale": "FP32 prevents condition-dependent GradScaler skipped steps in three-step mechanism episodes",
     }
 
 
@@ -498,6 +595,7 @@ def run_v2(args, cfg, store, model, theta0, train_transform, test_transform, con
         })
         fairness.append({
             "stage": "v2", "data_seed": int(seed), "tail_class": int(class_id), "draw": int(draw), "condition": condition,
+            "precision": str(cfg.TRAINER.COOP.PREC),
             "global_pool_hash_equal": True,
             "theta0_hash_equal": tensor_mapping_hash(theta0) == contract["model_runtime"]["theta0_hash"],
             "pretrain_logits_equal": previous_hash == pre_hash, "pretrain_logits_hash": pre_hash,
@@ -505,7 +603,7 @@ def run_v2(args, cfg, store, model, theta0, train_transform, test_transform, con
             "quota_equal": True, "base_multiset_conserved": True, "execution_repetition_correct": True,
             "v2_paired_slot_augmentation_equal": True, "v3_per_sample_augmentation_equal": None,
             "v3_augmented_multiset_equal": None, "batch_size_equal": True,
-            "optimizer_steps_equal": runtime["optimizer_steps_attempted"] == 3,
+            "optimizer_steps_equal": runtime["optimizer_steps_successful"] == 3,
             "scheduler_steps_equal": runtime["scheduler_steps"] == 3, "amp_overflow_count": runtime["amp_overflow_count"],
             "amp_scale_signature": stable_hash(runtime["amp_scales"]),
             "amp_overflow_equal": None, "loss_denominator_equal": True, "eval_ids_equal": True,
@@ -514,8 +612,8 @@ def run_v2(args, cfg, store, model, theta0, train_transform, test_transform, con
             "masked_gradient_max_abs": masked_comparison["max_abs"],
             "masked_gradient_invariant": masked_comparison["relative_l2"] <= 1e-5 and masked_comparison["max_abs"] <= 1e-5,
             "tail_augmented_tensors_equal": expected_tail_hashes == current_tail_hashes,
-            "pass": tensor_mapping_hash(theta0) == contract["model_runtime"]["theta0_hash"] and previous_hash == pre_hash and runtime["optimizer_steps_attempted"] == 3 and runtime["scheduler_steps"] == 3 and masked_comparison["relative_l2"] <= 1e-5 and masked_comparison["max_abs"] <= 1e-5 and expected_tail_hashes == current_tail_hashes,
-            "reason": "V3 client/FedAvg fields are not applicable to V2",
+            "pass": tensor_mapping_hash(theta0) == contract["model_runtime"]["theta0_hash"] and previous_hash == pre_hash and runtime["optimizer_steps_successful"] == 3 and runtime["scheduler_steps"] == 3 and masked_comparison["relative_l2"] <= 1e-5 and masked_comparison["max_abs"] <= 1e-5 and expected_tail_hashes == current_tail_hashes,
+            "reason": "precision=fp32; GradScaler fields are not applicable; V3 client/FedAvg fields are not applicable to V2",
         })
         write_csv(Path(args.output_dir) / "v2_run_metrics.csv", run_rows)
         write_csv(Path(args.output_dir) / "v2_gradient_diagnostics.csv", gradient_rows)
@@ -535,6 +633,120 @@ def _aggregate(model, theta0, local_states: Mapping[str, Mapping[str, torch.Tens
     keyed = {0: local_states["S"], 1: local_states["D"]}
     aggregated = aggregate_lora_state(full, keyed, [0, 1], sorted(theta0), {0: 0.5, 1: 0.5})
     return {name: aggregated[name].detach().cpu().clone() for name in sorted(theta0)}
+
+
+def _aggregate_weighted(model, theta0, local_states: Mapping[int, Mapping[str, torch.Tensor]], weights: Mapping[int, float]):
+    from utils.lora_aggregation import aggregate_lora_state
+    load_lora_state(model, theta0)
+    full = copy.deepcopy(model.state_dict())
+    clients = sorted(int(value) for value in local_states)
+    aggregated = aggregate_lora_state(full, local_states, clients, sorted(theta0), weights)
+    return {name: aggregated[name].detach().cpu().clone() for name in sorted(theta0)}
+
+
+def run_v2_topology(args, cfg, store, model, theta0, train_transform, test_transform, contract):
+    """One-round replay of the frozen Dirichlet and ClientLT partitions."""
+    base = pd.read_csv(Path(args.manifest_dir) / "v2_topology_base_manifest.csv")
+    execution = pd.read_csv(Path(args.manifest_dir) / "v2_topology_execution_manifest.csv")
+    structural = pd.read_csv(Path(args.manifest_dir) / "v2_topology_fairness.csv")
+    if not all(str(value).strip().lower() in ("true", "1") for value in structural["pass"]):
+        raise RuntimeError("V2 topology structural fairness gate failed")
+    if args.mode == "smoke":
+        raise RuntimeError("V2 topology replay has no partial-data smoke; use the passed V2 mechanism smoke to unlock full replay")
+
+    load_lora_state(model, theta0)
+    before_by_class, before_safety, before_logits_hash = _all_test_metrics(
+        model, store, test_transform, contract["tail_classes"]
+    )
+    metric_rows, client_rows, fairness_rows = [], [], []
+    augmented_hashes = {}
+    for (seed, topology), topology_base in base.groupby(["data_seed", "topology"], sort=True):
+        topology_exec = execution[(execution.data_seed == seed) & (execution.topology == topology)]
+        local_states, local_runtime = {}, {}
+        weights = {}
+        for client_id in range(30):
+            client_base = topology_base[topology_base.client_id == client_id]
+            client_exec = topology_exec[topology_exec.client_id == client_id]
+            if client_base.empty or client_exec.empty:
+                raise RuntimeError(f"Empty topology replay client {(seed, topology, client_id)}")
+            weights[client_id] = float(client_base.fedavg_weight.iloc[0])
+            states, runtime = _train_client(model, cfg, theta0, client_exec, store, train_transform)
+            local_states[client_id] = states
+            local_runtime[client_id] = runtime
+            client_rows.append({
+                "data_seed": int(seed), "topology": topology, "client_id": client_id,
+                "client_size": int(len(client_base)), "fedavg_weight": weights[client_id],
+                "expected_optimizer_steps": runtime["expected_optimizer_steps"],
+                "optimizer_steps_successful": runtime["optimizer_steps_successful"],
+                "scheduler_steps": runtime["scheduler_steps"],
+                "epoch3_update_norm": update_norm(theta0, states[3]),
+                "precision": runtime["precision"],
+            })
+        if not math.isclose(sum(weights.values()), 1.0, rel_tol=1e-12, abs_tol=1e-12):
+            raise RuntimeError(f"Topology FedAvg weights do not sum to one: {(seed, topology, sum(weights.values()))}")
+        global_states = {}
+        for epoch in (1, 2, 3):
+            epoch_locals = {client_id: local_states[client_id][epoch] for client_id in range(30)}
+            global_states[epoch] = _aggregate_weighted(model, theta0, epoch_locals, weights)
+            load_lora_state(model, global_states[epoch])
+            after_by_class, safety, _ = _all_test_metrics(model, store, test_transform, contract["tail_classes"])
+            for class_id in [int(value) for value in contract["tail_classes"]]:
+                metric_rows.append({
+                    "data_seed": int(seed), "topology": topology, "epoch": epoch,
+                    "tail_class": class_id,
+                    **{f"theta0_{key}": value for key, value in before_by_class[class_id].items()},
+                    **{f"after_{key}": value for key, value in after_by_class[class_id].items()},
+                    **metric_gain(before_by_class[class_id], after_by_class[class_id]),
+                    **safety, "global_update_norm": update_norm(theta0, global_states[epoch]),
+                    "pretrain_logits_hash": before_logits_hash,
+                })
+        for epoch in (1, 2, 3):
+            hashes = []
+            for client_id in range(30):
+                hashes.extend(local_runtime[client_id]["augmented_tensor_hashes"][epoch])
+            augmented_hashes[(int(seed), topology, epoch)] = stable_hash(sorted(hashes))
+        fairness_rows.append({
+            "stage": "v2_topology", "data_seed": int(seed), "topology": topology,
+            "precision": str(cfg.TRAINER.COOP.PREC), "theta0_hash_equal": True,
+            "pretrain_logits_equal": True, "global_pool_conserved": True,
+            "execution_repetition_correct": True,
+            "all_optimizer_steps_successful": all(
+                runtime["optimizer_steps_successful"] == runtime["expected_optimizer_steps"]
+                for runtime in local_runtime.values()
+            ),
+            "all_scheduler_steps_equal_three": all(runtime["scheduler_steps"] == 3 for runtime in local_runtime.values()),
+            "fedavg_weight_sum": sum(weights.values()),
+            "cross_topology_augmented_input_equal": None,
+            "pass": True,
+            "reason": "client sizes, batch counts and local paths are topology treatment properties",
+        })
+        state_dir = Path(args.output_dir) / "states"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        torch.save({
+            "theta0_hash": tensor_mapping_hash(theta0), "local_states": local_states,
+            "global_states": global_states, "client_weights": weights,
+        }, state_dir / f"v2_topology_seed{int(seed)}_{str(topology).replace('-', '_')}.pt")
+        write_csv(Path(args.output_dir) / "v2_topology_metrics.csv", metric_rows)
+        write_csv(Path(args.output_dir) / "v2_topology_client_updates.csv", client_rows)
+    for seed in sorted(base.data_seed.unique().tolist()):
+        equal = all(
+            augmented_hashes[(int(seed), "Dirichlet", epoch)]
+            == augmented_hashes[(int(seed), "ClientLT-controlled", epoch)]
+            for epoch in (1, 2, 3)
+        )
+        if not equal:
+            raise RuntimeError(f"Actual augmented global tensors differ across topologies for seed {seed}")
+        for row in fairness_rows:
+            if row["data_seed"] == int(seed):
+                row["cross_topology_augmented_input_equal"] = True
+                row["pass"] = bool(
+                    row["all_optimizer_steps_successful"]
+                    and row["all_scheduler_steps_equal_three"]
+                    and equal
+                    and math.isclose(row["fedavg_weight_sum"], 1.0, rel_tol=1e-12, abs_tol=1e-12)
+                )
+    write_csv(Path(args.output_dir) / "fairness_invariants.csv", fairness_rows)
+    return metric_rows
 
 
 def _v3_oracles(model, theta0, unit_exec, store, transform, seed, class_id, draw):
@@ -685,7 +897,7 @@ def run_v3(args, cfg, store, model, theta0, train_transform, test_transform, con
                 })
         fairness.append({
             "stage": "v3", "data_seed": int(seed), "tail_class": int(class_id), "draw": int(draw),
-            "condition": "paired_placements", "global_pool_hash_equal": True,
+            "condition": "paired_placements", "precision": str(cfg.TRAINER.COOP.PREC), "global_pool_hash_equal": True,
             "theta0_hash_equal": tensor_mapping_hash(theta0) == contract["model_runtime"]["theta0_hash"],
             "pretrain_logits_equal": True, "tail_ids_equal": True, "tail_slots_equal": True,
             "companion_budget_equal": True, "quota_equal": True,
@@ -700,7 +912,7 @@ def run_v3(args, cfg, store, model, theta0, train_transform, test_transform, con
             "train_test_disjoint": True,
             "oracle_a_b_pass": all(row["pass"] for row in current_oracles),
             "pass": len(set(hashes)) == 1 and len(set(overflow)) == 1 and len(set(amp_scale_signatures)) == 1 and augmented_equal and all(row["pass"] for row in current_oracles),
-            "reason": "V2 paired-slot field is not applicable to V3",
+            "reason": "precision=fp32; GradScaler fields are not applicable; V2 paired-slot field is not applicable to V3",
         })
         state_dir = Path(args.output_dir) / "states"
         state_dir.mkdir(parents=True, exist_ok=True)
@@ -719,7 +931,7 @@ def run_v3(args, cfg, store, model, theta0, train_transform, test_transform, con
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Run preregistered V2/V3 ClipLora mechanism experiments")
-    parser.add_argument("--stage", required=True, choices=["v2", "v3"])
+    parser.add_argument("--stage", required=True, choices=["v2", "v2_topology", "v3"])
     parser.add_argument("--mode", required=True, choices=["smoke", "full"])
     parser.add_argument("--manifest-dir", type=Path, default=DEFAULT_OUTPUT / "manifests")
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA)
@@ -743,26 +955,31 @@ def main(argv=None):
             if args.smoke_summary is None or not args.smoke_summary.is_file():
                 raise RuntimeError(f"{args.stage.upper()} full requires --smoke-summary from a passed implementation smoke")
             smoke = json.loads(args.smoke_summary.read_text(encoding="utf-8"))
-            if smoke.get("stage") != args.stage or smoke.get("mode") != "smoke" or smoke.get("verdict") != "IMPLEMENTATION_SMOKE_ONLY" or not smoke.get("valid_comparison", False):
+            expected_smoke_stage = "v2" if args.stage == "v2_topology" else args.stage
+            if smoke.get("stage") != expected_smoke_stage or smoke.get("mode") != "smoke" or smoke.get("verdict") != "IMPLEMENTATION_SMOKE_ONLY" or not smoke.get("valid_comparison", False):
                 raise RuntimeError(f"{args.stage.upper()} full smoke gate rejected: {smoke}")
+            _validate_smoke_provenance(args.smoke_summary, args.manifest_dir)
         if args.stage == "v3" and args.mode == "smoke":
             if args.v2_summary is None or not args.v2_summary.is_file():
                 raise RuntimeError("V3 smoke requires --v2-summary from a passed V2 smoke")
             v2_smoke = json.loads(args.v2_summary.read_text(encoding="utf-8"))
             if v2_smoke.get("stage") != "v2" or v2_smoke.get("mode") != "smoke" or v2_smoke.get("verdict") != "IMPLEMENTATION_SMOKE_ONLY" or not v2_smoke.get("valid_comparison", False):
                 raise RuntimeError(f"V3 smoke gate rejected V2 smoke: {v2_smoke}")
+            _validate_smoke_provenance(args.v2_summary, args.manifest_dir)
         if args.stage == "v3" and args.mode == "full":
-            if args.require_v2_verdict != "POSITIVE_SEMANTIC_TRANSFER":
-                raise RuntimeError("V3 full requires --require-v2-verdict POSITIVE_SEMANTIC_TRANSFER")
+            if args.require_v2_verdict != "FORMATION_CHAIN_SUPPORTED":
+                raise RuntimeError("V3 full requires --require-v2-verdict FORMATION_CHAIN_SUPPORTED")
             if args.v2_summary is None:
                 raise RuntimeError("V3 full requires --v2-summary")
             summary = json.loads(args.v2_summary.read_text(encoding="utf-8"))
-            if summary.get("verdict") != "POSITIVE_SEMANTIC_TRANSFER":
+            if summary.get("verdict") != "FORMATION_CHAIN_SUPPORTED":
                 raise RuntimeError(f"V3 full gate rejected V2 verdict: {summary.get('verdict')}")
         contract, _, _, _ = _load_manifests(args.manifest_dir)
         snapshot_names = [
             "companion_budgets.json", "matching_manifest.csv", "base_sample_manifest.csv",
             "execution_slot_manifest.csv", "v3_placement_manifest.csv",
+            "v2_topology_base_manifest.csv", "v2_topology_execution_manifest.csv",
+            "v2_topology_fairness.csv",
         ]
         for name in snapshot_names:
             source = args.manifest_dir / name
@@ -785,10 +1002,13 @@ def main(argv=None):
             raise RuntimeError("Runtime class mapping differs from manifest contract")
         contract["model_runtime"] = runtime_meta
         contract["git"] = _git_metadata()
+        contract["implementation_hashes"] = _implementation_hashes()
         contract["command"] = sys.argv
         write_json(args.output_dir / "experiment_contract.json", contract)
         if args.stage == "v2":
             rows = run_v2(args, cfg, store, model, theta0, train_transform, test_transform, contract)
+        elif args.stage == "v2_topology":
+            rows = run_v2_topology(args, cfg, store, model, theta0, train_transform, test_transform, contract)
         else:
             rows = run_v3(args, cfg, store, model, theta0, train_transform, test_transform, contract)
         print(json.dumps({"stage": args.stage, "mode": args.mode, "completed_rows": len(rows), "output_dir": str(args.output_dir.resolve())}, ensure_ascii=False))
@@ -797,7 +1017,7 @@ def main(argv=None):
             "stage": args.stage, "mode": args.mode, "error_type": type(exc).__name__,
             "error": str(exc), "traceback": traceback.format_exc(), "command": sys.argv,
         })
-        excluded_name = "v2_excluded_units.csv" if args.stage == "v2" else "v3_excluded_units.csv"
+        excluded_name = "v3_excluded_units.csv" if args.stage == "v3" else f"{args.stage}_excluded_units.csv"
         write_csv(args.output_dir / excluded_name, [{
             "data_seed": None, "tail_class": None, "draw": None,
             "reason": f"{type(exc).__name__}: {exc}",

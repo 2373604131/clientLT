@@ -2,7 +2,7 @@
 
 Status: **PASS_FOR_IMPLEMENTATION** (static repository and frozen-artifact audit).
 
-This pass authorizes Phases B/C and generation of the GPU runners. It does not claim that the CUDA/AMP smoke gates have run on this Windows CPU environment.
+This pass authorizes Phases B/C and generation of the GPU runners. It does not claim that the revised CUDA/FP32 smoke gates have run on this Windows CPU environment.
 
 ## Active repository path
 
@@ -23,7 +23,8 @@ The mechanism runners explicitly resolve the same current ClipLora settings rath
 |---|---|
 | Backbone | CLIP ViT-B/16 |
 | LoRA | vision, top3, q/v, rank 2, alpha 1, dropout 0 |
-| Precision | AMP on CUDA |
+| Mainline precision | AMP on CUDA |
+| V2/V3 mechanism precision | FP32 numerical control |
 | Optimizer | SGD |
 | LR | 0.002 |
 | Momentum | 0.9 |
@@ -38,9 +39,19 @@ The mechanism runners explicitly resolve the same current ClipLora settings rath
 | `drop_last` | false |
 | Loss | global 100-class CE; optional per-sample weight uses the fixed actual-batch-size denominator |
 
+The first CUDA implementation smoke found 1--3 condition-dependent GradScaler overflows in every three-step episode, leaving only 0--2 successful optimizer steps. That smoke is permanently invalid and produced no interpretable effect result. Before formal execution, V2/V3 were therefore revised to use FP32 while keeping the mainline baseline AMP. The mechanism gate now requires three successful steps, not merely three attempted steps.
+
 The transform builder resolves `random_resized_crop`, `random_flip`, and CIFAR-100 normalization. The experimental wrapper saves/restores Python, NumPy, CPU Torch and CUDA RNG states around every transform and derives an explicit seed per manifested sample/epoch. V2 seeds follow paired slots; V3 seeds follow the physical base sample across placements. Workers are fixed to zero so no hidden worker RNG stream exists.
 
-All current target episodes have `|T_c| + B_c < 32`. With `drop_last=false`, each active V2 episode and each V3 client has exactly one full batch per epoch, hence 3 optimizer and 3 scheduler steps.
+All V2-B/C target episodes have `|T_c| + B_c < 32`. With `drop_last=false`, each active V2-B/C episode and each V3 client has exactly one batch per epoch, hence 3 optimizer and 3 scheduler steps. V2-A is deliberately different: it replays every complete frozen 30-client partition, retains each real client size and resulting batch count as part of the topology treatment, and asserts every attempted step succeeds. Each client's scheduler still advances exactly once per local epoch.
+
+## Revised V2 evidence chain
+
+- V2-A directly replays the frozen Dirichlet and ClientLT-controlled partitions from the same `theta_0`, using the same 10,847-sample global universe, three exposures per sample, sample-bound augmentations, the repository's original unweighted CE path, and sample-weighted LoRA FedAvg. It estimates the one-round total partition/topology effect on tail acquisition.
+- V2-B compares related companions with frequency-matched unrelated companions under identical tail samples, slots and steps.
+- V2-C compares related companions with the same physical companion inputs masked to zero loss, retaining the fixed actual-batch denominator.
+- The joint gate requires both a stable Dirichlet formation advantage in V2-A and positive semantic transfer in V2-B/C. Per-class links to V1 are descriptive bridge diagnostics, not causal mediation estimates.
+- V3 full reads only the joint verdict `FORMATION_CHAIN_SUPPORTED`; it cannot be unlocked by V2-B/C alone.
 
 The CLIP ViT path contains LayerNorm but no BatchNorm, running-stat normalization, queue, or memory bank. LayerNorm is per sample. Therefore zero-loss companion replacement should leave the tail-only LoRA gradient unchanged; Phase C still tests this on the real model within dtype tolerance.
 
@@ -70,4 +81,4 @@ Oracle A uses full-client mean gradients and fixed global accumulation order. Or
 
 The worktree already contains user files and earlier P0/V1 work. V2/V3 implementation is isolated under `tools/semantic_acquisition`, `tests`, and `scripts`, plus a default-off minimal ClipLora loss helper if required. Existing unrelated files must not be overwritten.
 
-Local Phase A prerequisites are satisfied. CUDA/AMP, real CLIP construction, tensor-level augmentation equality, theta/logit reload, and model-gradient gates require the GPU environment and remain explicitly pending until the smoke commands finish successfully.
+Local Phase A prerequisites are satisfied. CUDA/FP32 real CLIP construction, tensor-level augmentation equality, theta/logit reload, and model-gradient gates require the GPU environment and remain explicitly pending until the revised smoke commands finish successfully.

@@ -4,11 +4,11 @@
 
 - Phase A static audit: **PASS_FOR_IMPLEMENTATION**.
 - Phase B deterministic data/manifest gate: **PASS** on the real frozen P0/V1 artifacts.
-- Phase C dependency-light/static/math tests: **PASS (14/14)**.
+- Phase C dependency-light/static/math tests: **PASS (21/21)**.
 - Phase C real CLIP/CUDA assertions: implemented, **pending GPU execution**.
-- Phase D V2 CUDA/AMP smoke: **not passed locally**; the local CPU check stopped as designed before importing/running a substitute model.
+- Phase D V2 CUDA/FP32 smoke: **pending revised GPU run**; the original AMP smoke was correctly classified invalid because it had condition-dependent skipped steps.
 - Phase E V3 smoke: **locked until V2 smoke passes**.
-- Full runs: **not started**. Both full launchers are fail-closed on successful smoke summaries; V3 additionally requires the formal V2 verdict `POSITIVE_SEMANTIC_TRANSFER`.
+- Full runs: **not started in this local environment**. Both V2 full panels are fail-closed on a successful V2 smoke summary; V3 additionally requires the joint V2 verdict `FORMATION_CHAIN_SUPPORTED`.
 
 ## Prompt corrections
 
@@ -17,7 +17,7 @@ The prompt had two execution-order inconsistencies and was revised:
 1. A read-only static Phase A cannot truthfully provide exact runtime LoRA key/shape/offset and fixed-logit hashes before constructing the real model. Phase A now audits the construction path; Phase C must populate and verify those exact runtime fields.
 2. Full launcher files may exist as templates before a smoke run, but they must remain locked. The prompt and launchers now require successful smoke summaries before full execution.
 
-Neither change alters the preregistered classes, budgets, matching, seeds, metrics, verdict thresholds, or scientific interpretation.
+A third correction adds the missing direct scientific comparison: V2 is now split into V2-A frozen topology replay and V2-B/C controlled semantic interventions. This does not alter the frozen classes, budgets, matching, seeds, or original intervention thresholds; it prevents the intervention from being misreported as a direct ClientLT-versus-Dirichlet test.
 
 ## Real-manifest audit
 
@@ -27,6 +27,10 @@ Generated under `output/v2_v3_semantic_acquisition/manifests`:
 - V3 placements: 240 = `2 seeds x 20 classes x 3 draws x 2 placements`.
 - Matching rows: 1,200; all matches stay within the V1 frequency quintile and outside target Top-30/bottom-20/related exclusions.
 - Base rows: 13,906; execution rows: 41,718.
+- V2-A topology base rows: 43,388 = `2 seeds x 2 topologies x 10,847 samples`; topology execution rows: 130,164 = three exact epoch repetitions.
+- Every V2-A seed/topology covers the same 10,847 distinct raw train IDs exactly once; all 30 clients are present; per-client FedAvg weights are `n_k/10847` and sum to one.
+- Every frozen ClientLT-controlled replay reasserts zero tail leakage: all 153 tail samples are in clients 27/28/29, specialist companions are at most 38, and each specialist has at least 0.8 tail purity.
+- V2-A augmentation seeds are bound to `seed x epoch x raw sample ID`, not topology/client, so each sample receives the same augmentation across topologies. Runtime rechecks the hashes of the actual transformed tensors.
 - Maximum V2 episode and V3 client size: 25, below batch size 32.
 - Every base sample occurs exactly once per base episode/client and exactly three times in its execution schedule (once per epoch).
 - Every V3 placement has equal S/D sizes and exact weights `0.5/0.5`.
@@ -45,25 +49,28 @@ Runtime assertions cover:
 - LoRA-only trainable keys and flatten spec;
 - serialized `theta_0` exact reload after deliberate parameter perturbation;
 - exact fixed-probe logits after reload;
-- one full batch per epoch, three optimizer attempts and three scheduler steps;
-- fresh optimizer/scheduler/GradScaler per episode/client;
-- AMP scale and overflow parity;
+- V2-B/C and V3: one batch per epoch, three optimizer attempts and three scheduler steps; V2-A: the complete real client batch schedule with all expected optimizer steps successful and three scheduler steps;
+- fresh optimizer/scheduler per episode/client;
+- FP32 mechanism precision and exactly 3/3 successful optimizer steps; the mainline AMP behavior is unchanged;
 - V2 fixed-denominator mask and real-model masked-gradient invariance;
 - V2 target margin/NLL/accuracy, adaptation-tail loss, gradient compatibility/difficulty, update norms and safety metrics;
+- V2-A per-client epoch states, sample-weighted global states, whole-tail test metrics, topology fairness checks, paired Dirichlet-minus-ClientLT effects, and the joint V1/V2 bridge table;
 - V3 actual augmented-tensor multiset equality, raw-gradient oracle, actual LoRA FedAvg plain-SGD oracle, main-optimizer epoch-1 diagnostic, per-epoch S/D/FedAvg states, path effects and layer effects;
 - JSON finite-value rejection and failure/exclusion artifacts.
+- stale-smoke rejection using explicit implementation-file hashes, git commit/tracked-diff hash, and current manifest hashes.
 
 ## Commands actually checked locally
 
 ```text
 python -m unittest tests.test_semantic_acquisition_v2_v3 -v
-14 tests: PASS
+21 tests: PASS
 
 python -m py_compile <all new/modified Python files>
 PASS
 
-python -m tools.semantic_acquisition.manifests --output-dir output/v2_v3_semantic_acquisition/manifests
-structural_gate: PASS
+python -m tools.semantic_acquisition.manifests --output-dir output/v2_v3_semantic_acquisition/manifests_verify
+base_rows=13906, execution_rows=41718, topology_base_rows=43388,
+topology_execution_rows=130164, structural_gate: PASS
 
 python -m tools.semantic_acquisition.runtime --stage v2 --mode full ...
 expected fail-closed result: rejected because no passed smoke summary
@@ -83,4 +90,4 @@ bash scripts/run_v2_semantic_acquisition_smoke.sh
 bash scripts/run_v3_local_placement_smoke.sh
 ```
 
-Only if V2 smoke reports `IMPLEMENTATION_SMOKE_ONLY` with `valid_comparison=true` should V3 smoke unlock. Formal V2 remains a separate explicit command. Formal V3 remains locked until both V3 smoke passes and formal V2 reports `POSITIVE_SEMANTIC_TRANSFER`.
+Only if V2 smoke reports `IMPLEMENTATION_SMOKE_ONLY` with `valid_comparison=true` should the two formal V2 panels and V3 smoke unlock. Run the complete V2 evidence chain with `bash scripts/run_v2_complete_full.sh`. Formal V3 remains locked until V3 smoke passes and the V2 joint summary reports `FORMATION_CHAIN_SUPPORTED`.
