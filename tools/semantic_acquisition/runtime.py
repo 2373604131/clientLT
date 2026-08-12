@@ -35,6 +35,27 @@ from utils.cliplora_loss import fixed_denominator_cross_entropy
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_cliplora_api():
+    """Load ClipLora through Dassl's normal registry initialization order.
+
+    Importing ``trainers.cliplora`` first is unsafe because that module imports
+    ``Dassl.dassl.engine.trainer`` while ``engine.__init__`` imports
+    ``engine.build``, which in turn imports ``trainers.cliplora``.  The normal
+    application starts from ``Dassl.dassl.engine``; reproduce that order here.
+    """
+    import Dassl.dassl.engine  # noqa: F401 -- completes trainer registration
+    from trainers.cliplora import (
+        build_cliplora_model,
+        build_cliplora_optimizer_and_scheduler,
+        cliplora_optimizer_step,
+    )
+    return (
+        build_cliplora_model,
+        build_cliplora_optimizer_and_scheduler,
+        cliplora_optimizer_step,
+    )
 def build_experiment_cfg(output_dir: Path):
     """Resolve the preregistered configuration using Dassl's real config type."""
     from yacs.config import CfgNode as CN
@@ -226,7 +247,7 @@ def _per_layer_update_norms(before: Mapping[str, torch.Tensor], after: Mapping[s
 
 
 def _train_client(model, cfg, theta0, execution: pd.DataFrame, store, transform) -> tuple[dict[int, dict], dict]:
-    from trainers.cliplora import build_cliplora_optimizer_and_scheduler, cliplora_optimizer_step
+    _, build_cliplora_optimizer_and_scheduler, cliplora_optimizer_step = _load_cliplora_api()
 
     load_lora_state(model, theta0)
     optimizer, scheduler = build_cliplora_optimizer_and_scheduler(model, cfg)
@@ -322,7 +343,7 @@ def _build_runtime(args):
     _set_determinism(args.model_init_seed)
     store = CifarRawStore(args.data_dir)
     from Dassl.dassl.data.transforms import build_transform
-    from trainers.cliplora import build_cliplora_model
+    build_cliplora_model, _, _ = _load_cliplora_api()
     train_transform = build_transform(cfg, is_train=True)
     test_transform = build_transform(cfg, is_train=False)
     model = build_cliplora_model(cfg, store.class_names).cuda()
@@ -714,6 +735,9 @@ def parse_args(argv=None):
 def main(argv=None):
     args = parse_args(argv)
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    stale_failure = args.output_dir / "failure.json"
+    if stale_failure.is_file():
+        stale_failure.unlink()
     try:
         if args.mode == "full":
             if args.smoke_summary is None or not args.smoke_summary.is_file():

@@ -79,6 +79,14 @@ class ManifestTests(unittest.TestCase):
         self.assertGreaterEqual(trainer_source.count("cliplora_optimizer_step("), 2)
         self.assertIn("cliplora_optimizer_step(", runtime_source)
 
+    def test_runtime_bootstraps_dassl_before_direct_cliplora_import(self):
+        runtime_source = (Path(__file__).resolve().parents[1] / "tools" / "semantic_acquisition" / "runtime.py").read_text(encoding="utf-8")
+        helper = runtime_source.split("def _load_cliplora_api():", 1)[1].split("def build_experiment_cfg", 1)[0]
+        self.assertLess(
+            helper.index("import Dassl.dassl.engine"),
+            helper.index("from trainers.cliplora import"),
+        )
+
     def test_manifest_rebuild_is_identical(self):
         second = build_manifests(DEFAULT_V1, DEFAULT_DATA, [42, 2026], 3)
         self.assertEqual(stable_hash(self.bundle.base_rows), stable_hash(second.base_rows))
