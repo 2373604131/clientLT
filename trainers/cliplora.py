@@ -2,7 +2,6 @@ import os.path as osp
 
 import torch
 import torch.nn as nn
-from torch.nn import functional as F
 from torch.cuda.amp import GradScaler, autocast
 
 # from Dassl.dassl.engine import TRAINER_REGISTRY, TrainerX
@@ -14,6 +13,7 @@ from Dassl.dassl.optim import build_optimizer, build_lr_scheduler
 from clip import clip
 from clip.simple_tokenizer import SimpleTokenizer as _Tokenizer
 from utils.loralib.utils import mark_only_lora_as_trainable, apply_lora, get_lora_parameters, lora_state_dict, save_lora, load_lora
+from utils.cliplora_loss import fixed_denominator_cross_entropy
 
 
 _tokenizer = _Tokenizer()
@@ -154,6 +154,86 @@ class CustomCLIP(nn.Module):
         return logits
 
 
+def build_cliplora_model(cfg, classnames):
+    """Build the exact model used by ``ClipLora`` without a DataManager.
+
+    Mechanism experiments use this entry point so their model construction and
+    trainable-parameter semantics cannot drift from the federated trainer.
+    """
+    print(f"Loading CLIP (backbone: {cfg.MODEL.BACKBONE.NAME})")
+    clip_model = load_clip_to_cpu(cfg)
+    if cfg.TRAINER.COOP.PREC in ("fp32", "amp"):
+        clip_model.float()
+
+    print("Building custom CLIP")
+    model = CustomCLIP(cfg, classnames, clip_model)
+    for name, param in model.named_parameters():
+        param.requires_grad = "lora_" in name
+
+    trainable = [(name, param) for name, param in model.named_parameters() if param.requires_grad]
+    if not trainable:
+        raise RuntimeError("ClipLora has no trainable LoRA parameters")
+    if cfg.TRAINER.CLIPLORA.encoder == "vision":
+        text_lora = [name for name, _ in trainable if name.startswith("text_encoder.")]
+        if text_lora:
+            raise RuntimeError(f"Vision-only ClipLora unexpectedly exposed text LoRA parameters: {text_lora}")
+
+    print(
+        "ClipLora effective config: "
+        f"encoder={cfg.TRAINER.CLIPLORA.encoder} "
+        f"position={cfg.TRAINER.CLIPLORA.position} "
+        f"rank={cfg.TRAINER.CLIPLORA.r} "
+        f"alpha={cfg.TRAINER.CLIPLORA.alpha} "
+        f"params={list(cfg.TRAINER.CLIPLORA.params)} "
+        f"dropout={cfg.TRAINER.CLIPLORA.dropout_rate} "
+        f"precision={cfg.TRAINER.COOP.PREC} "
+        f"trainable_params={sum(param.numel() for _, param in trainable)}"
+    )
+    if cfg.MODEL.INIT_WEIGHTS:
+        load_pretrained_weights(model.prompt_learner, cfg.MODEL.INIT_WEIGHTS)
+    return model
+
+
+def build_cliplora_optimizer_and_scheduler(model, cfg):
+    """Use the same optimizer/scheduler factories as the federated trainer."""
+    optim = build_optimizer(get_lora_parameters(model), cfg.OPTIM)
+    sched = build_lr_scheduler(optim, cfg.OPTIM)
+    return optim, sched
+
+
+def cliplora_optimizer_step(
+    model, optimizer, scaler, precision, images, labels, loss_weight=None,
+    reject_nonfinite_amp=False,
+):
+    """One canonical ClipLora optimizer step, shared by trainer and audits."""
+    if precision == "amp":
+        old_scale = float(scaler.get_scale())
+        with autocast():
+            output = model(images)
+            loss = fixed_denominator_cross_entropy(output, labels, loss_weight)
+        if reject_nonfinite_amp and not torch.isfinite(loss).all():
+            raise FloatingPointError("Loss is infinite or NaN")
+        optimizer.zero_grad()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+        new_scale = float(scaler.get_scale())
+    else:
+        output = model(images)
+        loss = fixed_denominator_cross_entropy(output, labels, loss_weight)
+        if not torch.isfinite(loss).all():
+            raise FloatingPointError("Loss is infinite or NaN")
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        old_scale = new_scale = None
+    return output, loss, {
+        "amp_scale_before": old_scale,
+        "amp_scale_after": new_scale,
+        "amp_overflow": bool(new_scale < old_scale) if old_scale is not None else False,
+    }
+
+
 # @TRAINER_REGISTRY.register()
 class ClipLora(TrainerX):
     """Context Optimization (CoOp).
@@ -168,51 +248,12 @@ class ClipLora(TrainerX):
     def build_model(self):
         cfg = self.cfg
         classnames = self.dm.dataset.classnames
-
-        print(f"Loading CLIP (backbone: {cfg.MODEL.BACKBONE.NAME})")
-        clip_model = load_clip_to_cpu(cfg)
-        
-        if cfg.TRAINER.COOP.PREC == "fp32" or cfg.TRAINER.COOP.PREC == "amp":
-            # CLIP's default precision is fp16
-            clip_model.float()
-
-        print("Building custom CLIP")
-        self.model = CustomCLIP(cfg, classnames, clip_model)
-
-        print("Turning off gradients in both the image and the text encoder")
-        for name, param in self.model.named_parameters():
-            if 'lora_' in name:
-                param.requires_grad = True
-            else:
-                param.requires_grad = False
-
-        trainable = [(name, param) for name, param in self.model.named_parameters() if param.requires_grad]
-        if not trainable:
-            raise RuntimeError("ClipLora has no trainable LoRA parameters")
-        if cfg.TRAINER.CLIPLORA.encoder == "vision":
-            text_lora = [name for name, _ in trainable if name.startswith("text_encoder.")]
-            if text_lora:
-                raise RuntimeError(f"Vision-only ClipLora unexpectedly exposed text LoRA parameters: {text_lora}")
-        print(
-            "ClipLora effective config: "
-            f"encoder={cfg.TRAINER.CLIPLORA.encoder} "
-            f"position={cfg.TRAINER.CLIPLORA.position} "
-            f"rank={cfg.TRAINER.CLIPLORA.r} "
-            f"alpha={cfg.TRAINER.CLIPLORA.alpha} "
-            f"params={list(cfg.TRAINER.CLIPLORA.params)} "
-            f"dropout={cfg.TRAINER.CLIPLORA.dropout_rate} "
-            f"precision={cfg.TRAINER.COOP.PREC} "
-            f"trainable_params={sum(param.numel() for _, param in trainable)}"
-        )
-
-        if cfg.MODEL.INIT_WEIGHTS:
-            load_pretrained_weights(self.model.prompt_learner, cfg.MODEL.INIT_WEIGHTS)
+        self.model = build_cliplora_model(cfg, classnames)
 
         self.model.to(self.device)
         self.cls_num_list = self.get_cls_num_list()
         # 只优化LoRA参数
-        self.optim = build_optimizer(get_lora_parameters(self.model), cfg.OPTIM)
-        self.sched = build_lr_scheduler(self.optim, cfg.OPTIM)
+        self.optim, self.sched = build_cliplora_optimizer_and_scheduler(self.model, cfg)
         self.register_model("lora", self.model, self.optim, self.sched)
 
         self.scaler = GradScaler() if cfg.TRAINER.COOP.PREC == "amp" else None
@@ -226,8 +267,7 @@ class ClipLora(TrainerX):
 
     def reset_optimizer_and_scheduler(self):
         """Start every FedAvg client from an independent local optimizer."""
-        new_optim = build_optimizer(get_lora_parameters(self.model), self.cfg.OPTIM)
-        new_sched = build_lr_scheduler(new_optim, self.cfg.OPTIM)
+        new_optim, new_sched = build_cliplora_optimizer_and_scheduler(self.model, self.cfg)
         self.optim = new_optim
         self.sched = new_sched
         self._optims["lora"] = new_optim
@@ -236,20 +276,10 @@ class ClipLora(TrainerX):
 
     def forward_backward(self, batch):
         image, label = self.parse_batch_train(batch)
-        
         prec = self.cfg.TRAINER.COOP.PREC
-        if prec == "amp":
-            with autocast():
-                output = self.model(image)
-                loss = F.cross_entropy(output, label)
-            self.optim.zero_grad()
-            self.scaler.scale(loss).backward()
-            self.scaler.step(self.optim)
-            self.scaler.update()
-        else:
-            output = self.model(image)
-            loss = F.cross_entropy(output, label)
-            self.model_backward_and_update(loss)
+        output, loss, _ = cliplora_optimizer_step(
+            self.model, self.optim, self.scaler, prec, image, label, batch.get("loss_weight")
+        )
 
         loss_summary = {
             "loss": loss.item(),
