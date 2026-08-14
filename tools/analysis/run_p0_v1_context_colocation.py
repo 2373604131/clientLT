@@ -114,8 +114,15 @@ def load_exact_cifar100_lt(data_dir: Path) -> tuple[np.ndarray, np.ndarray, list
 
 
 def bottom_classes(labels: np.ndarray, count: int = 20) -> list[int]:
+    """Recover the LT generator's least-frequent end, preserving index order.
+
+    Realized integer counts tie at the boundary (classes 79 and 80 both have
+    12 examples), so larger ids must be preferred for the bottom set.
+    """
     counts = np.bincount(labels, minlength=100)
-    return sorted(range(100), key=lambda class_id: (int(counts[class_id]), class_id))[:count]
+    return sorted(
+        range(100), key=lambda class_id: (int(counts[class_id]), -class_id)
+    )[:count]
 
 
 def counts_matrix(labels: np.ndarray, partition: dict[int, np.ndarray], clients: int = 30) -> np.ndarray:

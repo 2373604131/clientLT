@@ -238,12 +238,21 @@ def communicate_within_cluster_dissimilarity(cluster_members, local_weights):
 
 def get_lt_class_splits_from_counts(global_class_counts, tail_class_ratio=0.2):
     counts = torch.as_tensor(global_class_counts, dtype=torch.float32)
-    sorted_classes = torch.argsort(counts, descending=True).tolist()
-    num_classes = len(sorted_classes)
+    num_classes = len(counts)
     tail_count = max(1, int(round(num_classes * float(tail_class_ratio))))
     tail_count = min(tail_count, num_classes)
-    tail_classes = sorted_classes[-tail_count:]
-    head_classes = sorted_classes[:-tail_count]
+    # The LT generator assigns monotonically decreasing budgets in class-id
+    # order.  Prefer larger ids on equal realized counts so a boundary tie
+    # (CIFAR-100-LT classes 79/80) cannot change the intended tail identity.
+    tail_classes = sorted(
+        range(num_classes), key=lambda class_id: (float(counts[class_id]), -class_id)
+    )[:tail_count]
+    tail_set = set(tail_classes)
+    head_classes = sorted(
+        (class_id for class_id in range(num_classes) if class_id not in tail_set),
+        key=lambda class_id: (-float(counts[class_id]), class_id),
+    )
+    sorted_classes = head_classes + tail_classes
     return {
         "head": head_classes,
         "tail": tail_classes,

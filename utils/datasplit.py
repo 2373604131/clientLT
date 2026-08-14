@@ -172,7 +172,12 @@ def _append_dirichlet(subset, group_ids, net_map, alpha, rng):
 
 
 def _bottom_classes_from_counts(labels, num_classes, tail_class_ratio):
-    """Return the least frequent class ids with a deterministic id tie-break."""
+    """Return the LT tail while preserving the generator's class order.
+
+    Exponential LT construction can give adjacent boundary classes identical
+    integer counts.  Larger ids are later in the LT schedule and therefore win
+    an equal-count tie for tail membership.
+    """
     labels = np.asarray(labels, dtype=np.int64)
     tail_count = max(1, int(round(int(num_classes) * float(tail_class_ratio))))
     tail_count = min(tail_count, int(num_classes))
@@ -180,7 +185,7 @@ def _bottom_classes_from_counts(labels, num_classes, tail_class_ratio):
         class_id: int(np.sum(labels == class_id))
         for class_id in range(int(num_classes))
     }
-    return sorted(class_counts, key=lambda class_id: (class_counts[class_id], class_id))[
+    return sorted(class_counts, key=lambda class_id: (class_counts[class_id], -class_id))[
         :tail_count
     ]
 
