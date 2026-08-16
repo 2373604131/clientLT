@@ -3,12 +3,13 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
-import math
+import pickle
 from pathlib import Path
 from typing import Mapping
 
 import numpy as np
 import torch
+from PIL import Image
 from torchvision import transforms as T
 
 from tools.breadth_audit.artifacts import append_breadth_artifacts
@@ -22,7 +23,23 @@ from tools.breadth_audit.inputs import (
 )
 from tools.breadth_audit.protocol import TAIL_CLASSES, frozen_protocol
 from tools.semantic_acquisition.common import file_sha256, tensor_mapping_hash, write_json
-from tools.semantic_acquisition.runtime import CifarRawStore
+
+
+def _load_cifar_test(data_dir: Path) -> tuple[np.ndarray, np.ndarray]:
+    """Load raw CIFAR test images without importing the pandas-heavy V2 runtime."""
+    test_path = Path(data_dir) / "test"
+    if not test_path.is_file():
+        raise FileNotFoundError(f"raw CIFAR-100 test pickle is missing: {test_path}")
+    with test_path.open("rb") as handle:
+        payload = pickle.load(handle, encoding="latin1")
+    images = np.asarray(payload["data"], dtype=np.uint8).reshape(-1, 3, 32, 32)
+    images = images.transpose(0, 2, 3, 1)
+    labels = np.asarray(payload["fine_labels"], dtype=np.int64)
+    if images.shape != (10000, 32, 32, 3) or labels.shape != (10000,):
+        raise RuntimeError(
+            f"unexpected CIFAR-100 test shapes: images={images.shape}, labels={labels.shape}"
+        )
+    return images, labels
 
 
 def _lora_state(model) -> dict[str, torch.Tensor]:
@@ -247,13 +264,16 @@ class E1RoundEvaluator:
             )
         self.labels = arrays["labels"].astype(np.int64)
         self.cluster_ids = arrays["cluster_ids"].astype(np.int64)
-        store = CifarRawStore(Path(args.e1_data_dir))
+        raw_test_images, raw_test_labels = _load_cifar_test(Path(args.e1_data_dir))
         if not np.array_equal(
-            store.test_labels[arrays["raw_test_indices"].astype(np.int64)],
+            raw_test_labels[arrays["raw_test_indices"].astype(np.int64)],
             self.labels,
         ):
             raise RuntimeError("DINO artifact raw test indices do not match the CIFAR labels")
-        self.images = [store.image(f"test:{int(index)}") for index in arrays["raw_test_indices"]]
+        self.images = [
+            Image.fromarray(raw_test_images[int(index)])
+            for index in arrays["raw_test_indices"]
+        ]
         self.neighbors, neighbor_meta = load_preregistered_neighbors(TAIL_CLASSES)
         expected_neighbor_hash = protocol["breadth_audit"]["neighbor_discrimination"]["neighbors_hash"]
         if neighbor_meta["neighbors_hash"] != expected_neighbor_hash:

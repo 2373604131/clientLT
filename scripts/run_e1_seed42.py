@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
+import importlib
 import json
 import subprocess
 import sys
@@ -12,6 +14,33 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+CLIP_SHA256 = "5806e77cd80f8b59890b7e101eabd078d9fb84e6937f9e85e4ecb61988df416f"
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _runtime_preflight() -> None:
+    """Fail before creating a run directory when runtime inputs are unavailable."""
+    for module in ("yacs.config", "torchvision", "tools.breadth_audit.runtime_e1"):
+        try:
+            importlib.import_module(module)
+        except ModuleNotFoundError as error:
+            raise RuntimeError(f"E1 runtime dependency is missing: {error.name}") from error
+    clip_path = Path.home() / ".cache" / "clip" / "ViT-B-16.pt"
+    if not clip_path.is_file():
+        raise FileNotFoundError(
+            f"CLIP ViT-B/16 checkpoint is missing: {clip_path}. "
+            "Download it on the login node before allocating the compute run."
+        )
+    observed = _file_sha256(clip_path)
+    if observed != CLIP_SHA256:
+        raise RuntimeError(f"CLIP checkpoint hash mismatch: {observed} != {CLIP_SHA256}")
 
 
 def _completed(run_dir: Path) -> bool:
@@ -175,6 +204,7 @@ def main() -> None:
     ):
         if not path.is_file():
             raise FileNotFoundError(f"{label} is missing: {path}")
+    _runtime_preflight()
     if args.case in ("both", "dirichlet"):
         _run_case(args, "dirichlet")
     if args.case in ("both", "clientlt_controlled"):
