@@ -1,25 +1,6 @@
 """E1 semantic-breadth audit for the controlled Client-LT mechanism study.
 
-The frozen protocol in this package applies only to the mechanism-validation
-comparison.  It is deliberately isolated from later method tuning, SOTA
-experiments, robustness sweeps, and ablations.
+Submodules are intentionally not imported here.  Keeping package import free
+of eager imports lets ``python -m tools.breadth_audit.<module>`` execute the
+requested entry point exactly once and avoids ``runpy`` warnings.
 """
-
-from .metrics import (
-    multiview_robustness_metrics,
-    neighbor_discrimination_metrics,
-    visual_subgroup_metrics,
-)
-from .artifacts import append_breadth_artifacts
-from .comparison import preregistered_direction_gate
-from .protocol import MECHANISM_VALIDATION_PROTOCOL, write_frozen_protocol
-
-__all__ = [
-    "MECHANISM_VALIDATION_PROTOCOL",
-    "append_breadth_artifacts",
-    "multiview_robustness_metrics",
-    "neighbor_discrimination_metrics",
-    "preregistered_direction_gate",
-    "visual_subgroup_metrics",
-    "write_frozen_protocol",
-]
