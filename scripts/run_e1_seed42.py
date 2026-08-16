@@ -6,10 +6,10 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
-import importlib
 import json
 import subprocess
 import sys
+from importlib.util import find_spec
 from pathlib import Path
 
 
@@ -27,11 +27,11 @@ def _file_sha256(path: Path) -> str:
 
 def _runtime_preflight() -> None:
     """Fail before creating a run directory when runtime inputs are unavailable."""
-    for module in ("yacs.config", "torchvision", "tools.breadth_audit.runtime_e1"):
-        try:
-            importlib.import_module(module)
-        except ModuleNotFoundError as error:
-            raise RuntimeError(f"E1 runtime dependency is missing: {error.name}") from error
+    # Probe only top-level third-party packages without importing repository
+    # modules or executing dependency initialization code.
+    missing = [module for module in ("yacs", "torchvision") if find_spec(module) is None]
+    if missing:
+        raise RuntimeError(f"E1 runtime dependencies are missing: {missing}")
     clip_path = Path.home() / ".cache" / "clip" / "ViT-B-16.pt"
     if not clip_path.is_file():
         raise FileNotFoundError(
