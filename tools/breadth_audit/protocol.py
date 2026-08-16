@@ -17,7 +17,7 @@ TAIL_CLASSES = list(range(80, 100))
 
 
 MECHANISM_VALIDATION_PROTOCOL = {
-    "protocol_name": "E1_STRONG_BUT_NARROW_MECHANISM_VALIDATION_V1",
+    "protocol_name": "E1_STRONG_BUT_NARROW_MECHANISM_VALIDATION_V2",
     "scope": "mechanism_validation_only",
     "scope_exclusions": [
         "method_hyperparameter_tuning",
@@ -67,8 +67,20 @@ MECHANISM_VALIDATION_PROTOCOL = {
         "data_seeds": [42, 2026, 3407],
         "model_initialization_equal": True,
         "client_participation_schedule_equal": True,
-        "optimizer_steps_equal": True,
-        "augmentation_schedule_equal": True,
+        "optimizer_rule_equal": True,
+        "realized_optimizer_steps_equal": False,
+        "realized_optimizer_steps_policy": (
+            "Do not repeat, truncate, or pad client batches. Both topologies use "
+            "the same local_epochs, batch_size, optimizer, and full local data; "
+            "the topology-mediated ceil(n_k/batch_size) step totals are recorded "
+            "and reported as a partition consequence rather than hidden."
+        ),
+        "augmentation_policy_equal": True,
+        "augmentation_realization_note": (
+            "The current CIFAR repository wrapper applies the same deterministic "
+            "resize/normalization path in both topologies. No stochastic image "
+            "augmentation is used by this mechanism-validation run."
+        ),
         "global_training_multiset_equal": True,
     },
     "training": {
@@ -82,8 +94,17 @@ MECHANISM_VALIDATION_PROTOCOL = {
         "test_batch_size": 64,
         "optimizer": "sgd",
         "learning_rate": 0.001,
+        "weight_decay": 0.0005,
+        "momentum": 0.9,
+        "sgd_dampening": 0,
+        "sgd_nesterov": False,
         "lr_policy": "constant",
-        "precision": "amp",
+        "precision": "fp32",
+        "precision_rationale": (
+            "Mechanism validation uses FP32 because the earlier AMP smoke "
+            "showed condition-dependent GradScaler skipped steps. AMP is "
+            "reserved for a later mainline-setting robustness replication."
+        ),
         "lora": {
             "backbone": "ViT-B/16",
             "encoder": "vision",
@@ -100,6 +121,7 @@ MECHANISM_VALIDATION_PROTOCOL = {
         "visual_subgroups": {
             "encoder": "dinov2_vitb14",
             "encoder_trainable": False,
+            "artifact_sha256": "cb01997c2fcfed70430a68fe5717812614cf7b4f4d1fd40ce92a6e20dc4622de",
             "clusters_per_tail_class": 4,
             "clustering": "per_tail_class_kmeans",
             "kmeans_seed": 20260813,
@@ -132,6 +154,7 @@ MECHANISM_VALIDATION_PROTOCOL = {
         },
         "neighbor_discrimination": {
             "neighbor_source": "frozen_V1_CLIP_text_top10_non_tail_only",
+            "neighbors_hash": "14badca315deb0bdca8bfd7f56b670053b04b36174324e91ea8f1ffd050a8d2f",
             "neighbors_per_tail_class": 10,
             "neighbors_fixed_across_all_rounds_topologies_and_seeds": True,
             "primary_metrics": [

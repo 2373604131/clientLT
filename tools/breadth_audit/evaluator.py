@@ -20,7 +20,8 @@ def predict_fixed_views(
     *,
     batch_size: int,
     device=None,
-) -> dict[str, np.ndarray]:
+    return_clean_features: bool = False,
+) -> dict[str, np.ndarray] | tuple[dict[str, np.ndarray], np.ndarray]:
     """Run the current in-memory model on all preregistered deterministic views."""
     import torch
 
@@ -29,6 +30,7 @@ def predict_fixed_views(
     was_training = bool(model.training)
     model.eval()
     output = {}
+    clean_feature_chunks = []
     with torch.inference_mode():
         for view in FROZEN_VIEW_NAMES:
             chunks = []
@@ -37,10 +39,18 @@ def predict_fixed_views(
                     test_transform(fixed_view(image, view))
                     for image in images[start:start + batch_size]
                 ]
-                logits = model(torch.stack(tensors).to(device))
+                batch = torch.stack(tensors).to(device)
+                logits = model(batch)
                 chunks.append(logits.detach().float().cpu().numpy())
+                if return_clean_features and view == "clean":
+                    core = model.module if hasattr(model, "module") else model
+                    features = core.image_encoder(batch.type(core.dtype))
+                    features = features / features.norm(dim=-1, keepdim=True).clamp_min(1e-12)
+                    clean_feature_chunks.append(features.detach().float().cpu().numpy())
             output[view] = np.concatenate(chunks, axis=0)
     model.train(was_training)
+    if return_clean_features:
+        return output, np.concatenate(clean_feature_chunks, axis=0)
     return output
 
 

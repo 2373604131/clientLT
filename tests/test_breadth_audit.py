@@ -8,6 +8,7 @@ from PIL import Image
 from tools.breadth_audit.artifacts import append_breadth_artifacts
 from tools.breadth_audit.comparison import preregistered_direction_gate
 from tools.breadth_audit.evaluator import evaluate_three_breadth_families
+from tools.breadth_audit.inputs import load_preregistered_neighbors
 from tools.breadth_audit.metrics import (
     multiview_robustness_metrics,
     neighbor_discrimination_metrics,
@@ -34,6 +35,9 @@ def test_protocol_is_mechanism_only_and_refuses_drift(tmp_path):
     assert "sota_comparison" in protocol["scope_exclusions"]
     assert protocol["dataset"]["tail_classes"] == list(range(80, 100))
     assert protocol["dataset"]["tail_sample_count"] == 153
+    assert protocol["fairness"]["optimizer_rule_equal"] is True
+    assert protocol["fairness"]["realized_optimizer_steps_equal"] is False
+    assert protocol["training"]["precision"] == "fp32"
     path = write_frozen_protocol(tmp_path)
     assert write_frozen_protocol(tmp_path) == path
     changed = json.loads(path.read_text(encoding="utf-8"))
@@ -45,6 +49,14 @@ def test_protocol_is_mechanism_only_and_refuses_drift(tmp_path):
         pass
     else:
         raise AssertionError("protocol drift was not rejected")
+
+
+def test_preregistered_neighbors_are_complete_and_non_tail_only():
+    neighbors, metadata = load_preregistered_neighbors(range(80, 100))
+    assert set(neighbors) == set(range(80, 100))
+    assert metadata["neighbors_hash"]
+    assert all(len(values) == 10 for values in neighbors.values())
+    assert all(not set(values).intersection(range(80, 100)) for values in neighbors.values())
 
 
 def test_visual_subgroup_metrics():

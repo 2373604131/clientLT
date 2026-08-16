@@ -3156,6 +3156,20 @@ def main(args):
     save_partition_summary(args.output_dir, client_class_counts, args, args.num_users, n_cls)
     save_client_split_fingerprint(args.output_dir, local_trainer, args.num_users)
     global_class_counts = client_counts_to_tensor(client_class_counts, args.num_users, n_cls).sum(dim=0)
+    e1_evaluator = None
+    if bool(getattr(args, "e1_enable", False)):
+        if args.trainer != "ClipLora" or global_trainer is None:
+            raise ValueError("E1 runtime requires the federated ClipLora trainer")
+        from tools.breadth_audit.runtime_e1 import prepare_e1_run
+        e1_evaluator = prepare_e1_run(
+            args,
+            cfg,
+            global_trainer.model,
+            local_trainer.model,
+        )
+        # prepare_e1_run loads the shared theta0 into both trainers. Refresh the
+        # server state so the first local client cannot see the pre-gate state.
+        global_weights = copy.deepcopy(global_trainer.model.state_dict())
     exposure_count = torch.zeros(n_cls, dtype=torch.float32)
     tail_score = torch.ones(n_cls, dtype=torch.float32)
     protected_tail_mask = torch.ones(n_cls, dtype=torch.bool)
@@ -4142,6 +4156,9 @@ def main(args):
                 print("idxs_users", idxs_users)
 
                 if epoch == 0:
+                    if e1_evaluator is not None:
+                        global_trainer.model.load_state_dict(global_weights, strict=True)
+                        e1_evaluator.evaluate(global_trainer.model, round_id=0)
                     print("------------zero-shot test start (before local training)-------------")
                     global_trainer.model.load_state_dict(global_weights, strict=True)
                     zero_shot_result = global_trainer.global_test(is_global=True, current_epoch=-1)
@@ -4196,6 +4213,14 @@ def main(args):
                         f"scheduler_steps={scheduler_step_delta} "
                         f"optimizer_steps={optimizer_step_count}"
                     )
+                    if e1_evaluator is not None:
+                        e1_evaluator.record_optimizer_steps(
+                            round_id=epoch + 1,
+                            client_id=idx,
+                            client_samples=len(local_trainer.fed_train_loader_x_dict[idx].dataset),
+                            optimizer_steps=optimizer_step_count,
+                            scheduler_steps=scheduler_step_delta,
+                        )
                     local_weight = local_trainer.model.state_dict()
                     local_weights[idx] = copy.deepcopy(local_weight)
                 print("------------local train finish epoch:", epoch, "-------------")
@@ -4238,6 +4263,8 @@ def main(args):
                     f"{aggregation_details['tail_class_count']}"
                 )
                 global_trainer.model.load_state_dict(global_weights, strict=True)
+                if e1_evaluator is not None:
+                    e1_evaluator.evaluate(global_trainer.model, round_id=epoch + 1)
 
                 # Experiment D counterfactual diagnostics on the LoRA substrate.
                 # Reuses the trainer-agnostic full-state-dict machinery; frozen
@@ -5262,6 +5289,13 @@ if __name__ == "__main__":
     parser.add_argument('--cliplora_params', type=str, nargs='+', default=['q', 'v'], choices=['q', 'k', 'v', 'o'])
     parser.add_argument('--cliplora_lr_policy', type=str, default='constant', choices=['constant', 'cosine'])
     parser.add_argument('--cliplora_precision', type=str, default='amp', choices=['amp', 'fp32', 'fp16'])
+    parser.add_argument('--e1_enable', type=str2bool, default=False, help='enable the frozen E1 strong-but-narrow per-round audit')
+    parser.add_argument('--e1_protocol_file', type=str, default='output/e1_strength_breadth/protocol_v2/mechanism_validation_protocol.json')
+    parser.add_argument('--e1_dino_artifact', type=str, default='output/e1_strength_breadth/frozen_eval/dino_tail_clusters.npz')
+    parser.add_argument('--e1_data_dir', type=str, default='DATA/cifar-100/cifar-100-python')
+    parser.add_argument('--e1_theta0_file', type=str, default='output/e1_strength_breadth/protocol_v2/theta0_seed42.pt')
+    parser.add_argument('--e1_model_seed', type=int, default=42)
+    parser.add_argument('--e1_eval_batch_size', type=int, default=64)
     parser.add_argument(
         '--cliplora_aggregation',
         type=str,

@@ -11,6 +11,46 @@ from tools.breadth_audit.protocol import MECHANISM_VALIDATION_PROTOCOL
 from tools.semantic_acquisition.common import file_sha256, stable_hash
 
 
+FROZEN_NEIGHBOR_PATH = Path(__file__).with_name("frozen_neighbors.json")
+
+
+def load_preregistered_neighbors(
+    tail_classes: Sequence[int],
+    path: Path | None = None,
+) -> tuple[dict[int, list[int]], dict]:
+    """Load the checked-in E1 neighbor table without requiring old outputs."""
+    path = FROZEN_NEIGHBOR_PATH if path is None else Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(f"missing preregistered neighbor table: {path}")
+    metadata = json.loads(path.read_text(encoding="utf-8"))
+    expected_tail = sorted(int(value) for value in tail_classes)
+    observed_tail = sorted(int(value) for value in metadata.get("tail_classes", []))
+    if observed_tail != expected_tail or expected_tail != list(range(80, 100)):
+        raise RuntimeError(
+            f"neighbor-table tail classes differ: {observed_tail} != {expected_tail}"
+        )
+    neighbors = {
+        int(class_id): [int(value) for value in values]
+        for class_id, values in metadata.get("neighbors", {}).items()
+    }
+    expected_count = int(
+        MECHANISM_VALIDATION_PROTOCOL["breadth_audit"]
+        ["neighbor_discrimination"]["neighbors_per_tail_class"]
+    )
+    tail_set = set(expected_tail)
+    if set(neighbors) != tail_set:
+        raise RuntimeError("preregistered neighbor table does not cover every tail class")
+    for class_id, values in neighbors.items():
+        if len(values) != expected_count or len(set(values)) != expected_count:
+            raise RuntimeError(f"invalid neighbor list for class {class_id}: {values}")
+        if class_id in values or tail_set.intersection(values):
+            raise RuntimeError(f"neighbor list for class {class_id} is not non-tail-only")
+    observed_hash = stable_hash({str(key): value for key, value in neighbors.items()})
+    if observed_hash != metadata.get("neighbors_hash"):
+        raise RuntimeError("preregistered neighbor-table hash mismatch")
+    return neighbors, {**metadata, "table_path": str(path.resolve())}
+
+
 def load_frozen_neighbors(
     v1_dir: Path,
     tail_classes: Sequence[int],
