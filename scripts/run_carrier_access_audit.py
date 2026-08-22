@@ -49,24 +49,25 @@ def _preflight(args, needs_cuda: bool) -> None:
         for name in ("train", "test", "meta"):
             if not (args.data_dir / name).is_file():
                 raise FileNotFoundError(f"CIFAR-100 file is missing: {args.data_dir / name}")
-    if needs_similarity and not args.similarity_file.is_file():
-        raise FileNotFoundError(f"Frozen CLIP similarity matrix is missing: {args.similarity_file}")
-    if not needs_cuda:
+    needs_clip = needs_cuda or (needs_similarity and not args.similarity_file.is_file())
+    if not needs_cuda and not needs_clip:
         return
-    try:
-        import pandas  # noqa: F401
-        import torch
-        import torchvision  # noqa: F401
-        import yacs  # noqa: F401
-    except ImportError as exc:
-        raise RuntimeError(f"Active environment lacks a runtime dependency: {exc.name}") from exc
-    if not torch.cuda.is_available():
-        raise RuntimeError("Experiments B/C require a CUDA compute node")
-    clip_path = Path.home() / ".cache" / "clip" / "ViT-B-16.pt"
-    if not clip_path.is_file() or _sha256(clip_path) != CLIP_SHA256:
-        raise RuntimeError(f"Verified CLIP checkpoint is missing or invalid: {clip_path}")
-    if not args.theta0_file.is_file():
-        raise FileNotFoundError(f"Shared theta0 is missing: {args.theta0_file}")
+    if needs_cuda:
+        try:
+            import pandas  # noqa: F401
+            import torch
+            import torchvision  # noqa: F401
+            import yacs  # noqa: F401
+        except ImportError as exc:
+            raise RuntimeError(f"Active environment lacks a runtime dependency: {exc.name}") from exc
+        if not torch.cuda.is_available():
+            raise RuntimeError("Experiments B/C require a CUDA compute node")
+        if not args.theta0_file.is_file():
+            raise FileNotFoundError(f"Shared theta0 is missing: {args.theta0_file}")
+    if needs_clip:
+        clip_path = Path.home() / ".cache" / "clip" / "ViT-B-16.pt"
+        if not clip_path.is_file() or _sha256(clip_path) != CLIP_SHA256:
+            raise RuntimeError(f"Verified CLIP checkpoint is missing or invalid: {clip_path}")
 
 
 def main() -> None:
@@ -98,6 +99,13 @@ def main() -> None:
         path = write_protocol(protocol_dir)
         print(json.dumps({"stage": "protocol", "path": str(path.resolve())}))
     if args.stage in {"all", "manifests"}:
+        if not args.similarity_file.is_file():
+            _call([
+                "-m", "tools.carrier_access_audit.semantic_prior",
+                "--data-dir", str(args.data_dir),
+                "--clip-checkpoint", str(Path.home() / ".cache" / "clip" / "ViT-B-16.pt"),
+                "--output-file", str(args.similarity_file),
+            ])
         _call([
             "-m", "tools.carrier_access_audit.manifests",
             "--data-dir", str(args.data_dir),

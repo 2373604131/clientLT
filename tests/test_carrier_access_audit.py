@@ -47,6 +47,15 @@ def test_runtime_source_keeps_private_and_test_evidence_separate():
     assert '"gradient_calls": gradient_calls' in source
 
 
+def test_launcher_regenerates_only_a_missing_semantic_prior():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "scripts" / "run_carrier_access_audit.py").read_text(encoding="utf-8")
+    shell = (root / "scripts" / "run_carrier_access_audit.sh").read_text(encoding="utf-8")
+    assert "if not args.similarity_file.is_file()" in source
+    assert '"tools.carrier_access_audit.semantic_prior"' in source
+    assert '"$@"' in shell
+
+
 def test_b_and_c_summarizers_use_preregistered_primary_endpoint():
     source = (Path(__file__).resolve().parents[1] / "tools" / "carrier_access_audit" / "summarize.py").read_text(encoding="utf-8")
     assert "values[:10]" in source

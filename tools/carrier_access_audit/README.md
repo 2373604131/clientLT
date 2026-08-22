@@ -23,6 +23,12 @@ On a CUDA compute node, after E2A and E1 `theta0` are available, run one line:
 bash scripts/run_carrier_access_audit.sh
 ```
 
+If the old P0 output directory is absent on a fresh server, the launcher uses
+the verified local `ViT-B-16.pt` checkpoint to regenerate only the 100-by-100
+CLIP-text similarity matrix. This CPU-only preparation does not run a
+partition, bootstrap, image encoder, backward pass, or optimizer. An existing
+matrix is reused without being overwritten.
+
 The runner is stage-resumable. Experiment B additionally checkpoints each of
 the 80 candidate states, so an interrupted matrix run can continue:
 
@@ -45,3 +51,32 @@ Main conclusions are stored in `experiment_a/experiment_a_summary.json`,
 separate verdicts so one failed mechanism does not erase another supported
 result.
 
+## Post-write rewrite and retention audit
+
+The follow-up D1/D2 audit reuses the 80 saved candidate states from Experiment
+B. D1 first writes each tail class from three frozen private samples, then
+measures the same norm-equalized candidate update both before and after that
+write. The remaining two private samples estimate signed post-write effects;
+the 100 test images per class are evaluation-only. D2 ranks fixed updates using
+only those private effects and replays low-risk, blind, and high-risk sequences
+of lengths 5, 10, and 20. It does not retrain clients or use test effects to
+choose a sequence.
+
+Run the complete resumable audit on a CUDA compute node:
+
+```bash
+bash scripts/run_post_write_rewrite_audit.sh
+```
+
+Or resume an individual stage:
+
+```bash
+python scripts/run_post_write_rewrite_audit.py --stage d1
+python scripts/run_post_write_rewrite_audit.py --stage summarize-d1
+python scripts/run_post_write_rewrite_audit.py --stage d2
+python scripts/run_post_write_rewrite_audit.py --stage summarize-d2
+```
+
+The final verdicts are written to
+`output/post_write_rewrite_audit/analysis_d1/d1_summary.json` and
+`output/post_write_rewrite_audit/analysis_d2/d2_summary.json`.
