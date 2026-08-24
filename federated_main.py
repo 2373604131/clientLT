@@ -28,6 +28,7 @@ from utils.lora_aggregation import (
     compute_lora_aggregation_weights,
     sample_weighted_client_weights,
 )
+from utils.stage3_runtime import STAGE3_CONDITIONS, Stage3FederatedRuntime
 from utils.cusp_minimal import (
     save_cusp_minimal_dump,
     sha256_json,
@@ -3030,6 +3031,25 @@ def main(args):
                 "support-normalized training round. Run the end-to-end baseline "
                 "with --experimentD_enable False."
             )
+    if bool(getattr(args, "stage3_enable", False)):
+        if args.trainer != "ClipLora" or args.model != "fedavg":
+            raise ValueError("Stage-3 requires trainer=ClipLora and model=fedavg")
+        if args.cliplora_aggregation != "fedavg":
+            raise ValueError("Stage-3 requires ordinary FedAvg server aggregation")
+        if args.encoder != "vision":
+            raise ValueError("Stage-3 requires vision-only ClipLora")
+        if args.cliplora_precision != "fp32":
+            raise ValueError("Stage-3 formal MVP requires --cliplora_precision fp32")
+        if abs(float(args.frac) - 1.0) > 1e-12:
+            raise ValueError("Stage-3 formal MVP requires full client participation")
+        if not bool(args.isolate_local_optimizer_state):
+            raise ValueError("Stage-3 requires isolated local optimizer state")
+        if not bool(args.federated_single_scheduler_step):
+            raise ValueError("Stage-3 requires one scheduler step per local epoch")
+        if not getattr(args, "client_schedule_file", ""):
+            raise ValueError("Stage-3 requires an explicit fixed client schedule")
+        if bool(args.experimentD_enable) or bool(args.e1_enable):
+            raise ValueError("Stage-3 cannot share a run with Experiment D or E1 audits")
     cusp_minimal = bool(args.cusp_minimal_enable)
     boundary_gate_dump = bool(args.boundary_gate_dump_enable)
     boundary_gate_online_repair = bool(args.boundary_gate_online_repair_enable)
@@ -3170,6 +3190,18 @@ def main(args):
         # prepare_e1_run loads the shared theta0 into both trainers. Refresh the
         # server state so the first local client cannot see the pre-gate state.
         global_weights = copy.deepcopy(global_trainer.model.state_dict())
+    stage3_runtime = None
+    if bool(getattr(args, "stage3_enable", False)):
+        stage3_runtime = Stage3FederatedRuntime(
+            local_trainer,
+            output_dir=args.output_dir,
+            global_seed=args.seed,
+            condition=args.stage3_condition,
+            num_users=args.num_users,
+            start_round=start_epoch,
+            resume_dir=args.resume,
+        )
+        stage3_runtime.assert_model_spec(global_trainer.model)
     exposure_count = torch.zeros(n_cls, dtype=torch.float32)
     tail_score = torch.ones(n_cls, dtype=torch.float32)
     protected_tail_mask = torch.ones(n_cls, dtype=torch.bool)
@@ -4193,9 +4225,18 @@ def main(args):
                     raise RuntimeError(
                         f"Vision-only ClipLora exposed non-visual LoRA state: {non_visual_lora}"
                     )
+                stage3_round_uploads = []
                 for idx in idxs_users:
                     local_trainer.model.load_state_dict(global_weights, strict=True)
                     local_trainer.reset_optimizer_and_scheduler()
+                    stage3_prepared = None
+                    if stage3_runtime is not None:
+                        stage3_prepared = stage3_runtime.prepare_client(
+                            local_trainer.model,
+                            global_weights,
+                            client_id=idx,
+                            round_id=epoch,
+                        )
                     before_last_epoch, after_last_epoch, scheduler_step_delta, optimizer_step_count = (
                         run_promptfl_local_train_with_scheduler_policy(
                             local_trainer,
@@ -4221,20 +4262,37 @@ def main(args):
                             optimizer_steps=optimizer_step_count,
                             scheduler_steps=scheduler_step_delta,
                         )
+                    if stage3_runtime is not None:
+                        stage3_finalized = stage3_runtime.finalize_client(
+                            local_trainer.model,
+                            stage3_prepared,
+                        )
+                        stage3_round_uploads.append(stage3_finalized.upload)
                     local_weight = local_trainer.model.state_dict()
                     local_weights[idx] = copy.deepcopy(local_weight)
                 print("------------local train finish epoch:", epoch, "-------------")
-                tail_class_ids = get_lt_class_splits_from_counts(
-                    global_class_counts,
-                    args.tail_class_ratio,
-                )["tail"]
-                aggregation_weights, aggregation_details = compute_lora_aggregation_weights(
-                    args.cliplora_aggregation,
-                    idxs_users,
-                    datanumber_client,
-                    client_class_counts=client_class_counts,
-                    tail_class_ids=tail_class_ids,
-                )
+                if stage3_runtime is not None:
+                    # The formal method path does not consume client class
+                    # lists/counts. FedAvg needs sample counts only.
+                    aggregation_weights, aggregation_details = compute_lora_aggregation_weights(
+                        "fedavg",
+                        idxs_users,
+                        datanumber_client,
+                        client_class_counts=None,
+                        tail_class_ids=(),
+                    )
+                else:
+                    tail_class_ids = get_lt_class_splits_from_counts(
+                        global_class_counts,
+                        args.tail_class_ratio,
+                    )["tail"]
+                    aggregation_weights, aggregation_details = compute_lora_aggregation_weights(
+                        args.cliplora_aggregation,
+                        idxs_users,
+                        datanumber_client,
+                        client_class_counts=client_class_counts,
+                        tail_class_ids=tail_class_ids,
+                    )
                 # Only LoRA A/B tensors move. The frozen pretrained CLIP state
                 # remains the common server anchor for every aggregation mode.
                 global_weights = aggregate_lora_state(
@@ -4263,6 +4321,10 @@ def main(args):
                     f"{aggregation_details['tail_class_count']}"
                 )
                 global_trainer.model.load_state_dict(global_weights, strict=True)
+                if stage3_runtime is not None:
+                    if len(stage3_round_uploads) != len(idxs_users):
+                        raise RuntimeError("Stage-3 did not produce exactly one upload per client")
+                    stage3_runtime.complete_round(epoch, stage3_round_uploads)
                 if e1_evaluator is not None:
                     e1_evaluator.evaluate(global_trainer.model, round_id=epoch + 1)
 
@@ -5296,6 +5358,19 @@ if __name__ == "__main__":
     parser.add_argument('--e1_theta0_file', type=str, default='output/e1_strength_breadth/protocol_v2/theta0_seed42.pt')
     parser.add_argument('--e1_model_seed', type=int, default=42)
     parser.add_argument('--e1_eval_batch_size', type=int, default=64)
+    parser.add_argument(
+        '--stage3_enable',
+        type=str2bool,
+        default=False,
+        help='enable the frozen private P-FCC/D-RTC Stage-3 runtime',
+    )
+    parser.add_argument(
+        '--stage3_condition',
+        type=str,
+        default='fedavg',
+        choices=STAGE3_CONDITIONS,
+        help='condition-local Stage-3 ablation; ignored when --stage3_enable False',
+    )
     parser.add_argument(
         '--cliplora_aggregation',
         type=str,
