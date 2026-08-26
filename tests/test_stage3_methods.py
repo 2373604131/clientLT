@@ -10,6 +10,7 @@ from utils.stage3_methods import (
     EvidenceBatch,
     compute_restore_direction,
     evaluate_and_select_proposals,
+    evaluate_postlocal_fcc_candidates,
     evaluate_proposals_for_audit,
 )
 from utils.stage3_private_state import IncomingGlobalReference
@@ -18,7 +19,11 @@ from utils.stage3_proposals import (
     MixedProposal,
     PROPOSAL_BANK_SCHEMA,
 )
-from utils.stage3_vectors import build_model_lora_flat_spec, flatten_model
+from utils.stage3_vectors import (
+    build_model_lora_flat_spec,
+    flatten_model,
+    load_lora_vector,
+)
 
 
 class ToyPrivateClassifier(nn.Module):
@@ -106,6 +111,48 @@ def test_private_p_fcc_selects_only_positive_top_proposals():
     assert result.selected_weights == pytest.approx((1.0,))
     assert torch.equal(result.direction, positive.vector)
     assert result.forward_count == 3
+
+
+def test_postlocal_private_gate_backoffs_while_random_keeps_full_dose():
+    model = ToyPrivateClassifier()
+    model.eval()
+    spec = build_model_lora_flat_spec(model)
+    incoming = flatten_model(model, spec).cpu()
+    local = torch.tensor([[1.0, -1.0], [-1.0, 1.0]]).reshape(-1)
+    load_lora_vector(model, local, spec)
+    before = flatten_model(model, spec).cpu().clone()
+    uploads = {
+        0.0: local,
+        0.25: torch.tensor([[2.0, -2.0], [-2.0, 2.0]]).reshape(-1),
+        0.5: torch.zeros(4),
+        1.0: torch.tensor([[-1.0, 1.0], [1.0, -1.0]]).reshape(-1),
+    }
+
+    private = evaluate_postlocal_fcc_candidates(
+        model,
+        spec,
+        incoming,
+        local,
+        _batch(),
+        uploads,
+        mode="private",
+    )
+    random_result = evaluate_postlocal_fcc_candidates(
+        model,
+        spec,
+        incoming,
+        local,
+        _batch(),
+        uploads,
+        mode="random",
+    )
+
+    assert private.selected_multiplier == 0.25
+    assert private.selected_ce < private.zero_multiplier_ce
+    assert random_result.selected_multiplier == 1.0
+    assert random_result.selected_ce > random_result.zero_multiplier_ce
+    assert private.forward_count == random_result.forward_count == 4
+    assert torch.equal(flatten_model(model, spec).cpu(), before)
 
 
 def test_probe_order_does_not_change_utility_or_mutate_state_rng_or_gradients():

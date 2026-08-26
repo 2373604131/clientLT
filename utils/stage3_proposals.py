@@ -733,7 +733,6 @@ def build_proposal_bank(
             "proposal-cluster",
             int(global_seed),
             int(source_round),
-            str(condition),
         ),
     )
     clusters = merge_small_clusters(clusters, unit_rows)

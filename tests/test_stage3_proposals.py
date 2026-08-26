@@ -371,3 +371,43 @@ def test_determinism_is_independent_of_upload_input_order():
             second.payload_for(99).proposals,
         )
     )
+
+
+def test_identical_uploads_use_identical_clustering_across_conditions():
+    spec, _ = _spec(5)
+    generator = torch.Generator().manual_seed(91)
+    vectors = torch.randn(20, 5, generator=generator)
+
+    banks = []
+    for condition in ("p_fcc_only", "combined", "random_proposal"):
+        uploads = [
+            _upload(
+                client_id,
+                vector,
+                spec,
+                condition=condition,
+            )
+            for client_id, vector in enumerate(vectors)
+        ]
+        banks.append(
+            build_proposal_bank(
+                uploads,
+                spec=spec,
+                global_seed=42,
+                source_round=SOURCE_ROUND,
+                condition=condition,
+            )
+        )
+
+    expected_members = [cluster.member_client_ids for cluster in banks[0].clusters]
+    expected_vectors = banks[0].payload_for(999).proposals
+    for bank in banks[1:]:
+        assert [cluster.member_client_ids for cluster in bank.clusters] == expected_members
+        actual_vectors = bank.payload_for(999).proposals
+        assert [item.proposal_id for item in actual_vectors] == [
+            item.proposal_id for item in expected_vectors
+        ]
+        assert all(
+            torch.equal(left.vector, right.vector)
+            for left, right in zip(expected_vectors, actual_vectors)
+        )

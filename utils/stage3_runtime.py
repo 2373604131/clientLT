@@ -21,11 +21,14 @@ import torch.nn.functional as F
 
 from utils.stage3_methods import (
     EvidenceBatch,
+    POSTLOCAL_FCC_MULTIPLIERS,
+    PostLocalFCCDecision,
     ProposalProbe,
     ProposalSelection,
     RestoreResult,
     compute_restore_direction,
     evaluate_and_select_proposals,
+    evaluate_postlocal_fcc_candidates,
     evaluate_private_logits,
     evaluate_proposals_for_audit,
 )
@@ -191,6 +194,7 @@ class PreparedStage3Client:
 class FinalizedStage3Client:
     upload: ClientUpload
     norm_report: Mapping
+    postlocal_fcc: PostLocalFCCDecision | None = None
 
 
 def _private_ce(model, batch: EvidenceBatch | None) -> float | None:
@@ -308,7 +312,7 @@ class Stage3FederatedRuntime:
     def _write_contract(self) -> None:
         self.stage3_dir.mkdir(parents=True, exist_ok=True)
         payload = {
-            "schema_version": "p_fcc_d_rtc_runtime_v1",
+            "schema_version": "p_fcc_d_rtc_runtime_v1.0.2",
             "condition": self.condition,
             "global_seed": self.global_seed,
             "flatten_spec": self.spec.as_dict(),
@@ -316,6 +320,9 @@ class Stage3FederatedRuntime:
             "lambda_rtc": LAMBDA_RTC,
             "proposal_probe_dose": 0.5,
             "accepted_proposals": 2,
+            "postlocal_fcc_multipliers": list(POSTLOCAL_FCC_MULTIPLIERS),
+            "postlocal_fcc_private_safety": True,
+            "random_postlocal_selection": "full_dose_after_matched_forwards",
             "restore_temperature": 2.0,
             "server_public_data": False,
             "runtime_class_information": False,
@@ -433,7 +440,7 @@ class Stage3FederatedRuntime:
                 degradation=prepared.degradation,
             )
 
-        fcc_active = (
+        fcc_available = (
             _proposal_mode(self.condition) is not None
             and float(torch.linalg.vector_norm(prepared.selection.direction).item())
             > EPS_NORM
@@ -443,30 +450,76 @@ class Stage3FederatedRuntime:
             and prepared.degradation > 0.0
             and float(torch.linalg.vector_norm(restore.direction).item()) > EPS_NORM
         )
-        if not fcc_active and not rtc_active:
-            # The no-correction branch is deliberately bitwise passive: the
-            # ordinary local CE model remains untouched and its already
-            # representable FP32 delta is uploaded verbatim.
-            upload = ce_delta.detach().cpu().to(torch.float32).clone()
-            norm_report = _identity_norm_report(
-                upload,
-                degradation=(
-                    prepared.degradation if _rtc_enabled(self.condition) else 0.0
-                ),
-            )
-        else:
+        def compose_candidate(fcc_multiplier: float):
+            candidate_fcc_active = fcc_available and float(fcc_multiplier) > 0.0
+            if not candidate_fcc_active and not rtc_active:
+                candidate_upload = ce_delta.detach().cpu().to(torch.float32).clone()
+                candidate_report = _identity_norm_report(
+                    candidate_upload,
+                    degradation=(
+                        prepared.degradation
+                        if _rtc_enabled(self.condition)
+                        else 0.0
+                    ),
+                )
+                return candidate_upload, candidate_report
             parameters = dict(model.named_parameters())
-            upload, norm_report = compose_fixed_norm_upload(
+            return compose_fixed_norm_upload(
                 ce_delta,
                 fcc_direction=prepared.selection.direction,
                 rtc_direction=restore.direction,
-                lambda_fcc=LAMBDA_FCC if fcc_active else 0.0,
+                lambda_fcc=(
+                    LAMBDA_FCC * float(fcc_multiplier)
+                    if candidate_fcc_active
+                    else 0.0
+                ),
                 lambda_rtc=LAMBDA_RTC if rtc_active else 0.0,
                 degradation=prepared.degradation if rtc_active else 0.0,
                 spec=self.spec,
                 like=parameters,
                 anchor_vector=prepared.incoming_vector,
             )
+
+        postlocal_fcc = None
+        postlocal_audit = None
+        if fcc_available:
+            candidate_pairs = {
+                multiplier: compose_candidate(multiplier)
+                for multiplier in POSTLOCAL_FCC_MULTIPLIERS
+            }
+            candidate_uploads = {
+                multiplier: pair[0] for multiplier, pair in candidate_pairs.items()
+            }
+            decision_mode = (
+                "private" if _proposal_mode(self.condition) == "private" else "random"
+            )
+            postlocal_fcc = evaluate_postlocal_fcc_candidates(
+                model,
+                self.spec,
+                prepared.incoming_vector,
+                local_ce_vector,
+                prepared.evidence,
+                candidate_uploads,
+                mode=decision_mode,
+            )
+            if prepared.audit is not None:
+                postlocal_audit = evaluate_postlocal_fcc_candidates(
+                    model,
+                    self.spec,
+                    prepared.incoming_vector,
+                    local_ce_vector,
+                    prepared.audit,
+                    candidate_uploads,
+                    mode="audit",
+                )
+            selected_multiplier = postlocal_fcc.selected_multiplier
+            if selected_multiplier is None:
+                raise RuntimeError("Post-local FCC decision did not choose a multiplier")
+            upload, norm_report = candidate_pairs[selected_multiplier]
+        else:
+            upload, norm_report = compose_candidate(0.0)
+
+        if not torch.equal(upload, ce_delta):
             final_vector = prepared.incoming_vector + upload
             load_lora_vector(model, final_vector, self.spec)
             actual_upload = (
@@ -478,10 +531,17 @@ class Stage3FederatedRuntime:
                     "Applied Stage-3 upload differs after model-dtype loading"
                 )
         audit_final_ce = _private_ce(model, prepared.audit)
+        self._log_postlocal_fcc(
+            prepared,
+            postlocal_fcc,
+            postlocal_audit,
+        )
         self._log_client_runtime(
             prepared,
             restore,
             norm_report,
+            postlocal_fcc=postlocal_fcc,
+            postlocal_audit=postlocal_audit,
             ce_delta=ce_delta,
             upload=upload,
             audit_local_ce=audit_local_ce,
@@ -496,6 +556,7 @@ class Stage3FederatedRuntime:
                 round_id=prepared.round_id,
             ),
             norm_report=dict(norm_report),
+            postlocal_fcc=postlocal_fcc,
         )
 
     def complete_round(
@@ -592,6 +653,8 @@ class Stage3FederatedRuntime:
         restore: RestoreResult,
         norm_report: Mapping,
         *,
+        postlocal_fcc: PostLocalFCCDecision | None,
+        postlocal_audit: PostLocalFCCDecision | None,
         ce_delta: torch.Tensor,
         upload: torch.Tensor,
         audit_local_ce: float | None,
@@ -617,6 +680,24 @@ class Stage3FederatedRuntime:
                 "upload_norm": float(torch.linalg.vector_norm(upload).item()),
                 "norm_relative_error": norm_report["relative_norm_error"],
                 "norm_fallback": norm_report["fallback"],
+                "postlocal_fcc_multiplier": (
+                    "" if postlocal_fcc is None else postlocal_fcc.selected_multiplier
+                ),
+                "postlocal_memory_gain": (
+                    ""
+                    if postlocal_fcc is None
+                    else postlocal_fcc.zero_multiplier_ce - postlocal_fcc.selected_ce
+                ),
+                "postlocal_audit_gain": (
+                    ""
+                    if postlocal_fcc is None or postlocal_audit is None
+                    else postlocal_audit.zero_multiplier_ce
+                    - next(
+                        probe.ce
+                        for probe in postlocal_audit.probes
+                        if probe.multiplier == postlocal_fcc.selected_multiplier
+                    )
+                ),
                 "audit_incoming_ce": prepared.audit_incoming_ce,
                 "audit_local_ce": audit_local_ce,
                 "audit_final_ce": audit_final_ce,
@@ -637,8 +718,50 @@ class Stage3FederatedRuntime:
                 "upload_norm",
                 "norm_relative_error",
                 "norm_fallback",
+                "postlocal_fcc_multiplier",
+                "postlocal_memory_gain",
+                "postlocal_audit_gain",
                 "audit_incoming_ce",
                 "audit_local_ce",
                 "audit_final_ce",
             ),
         )
+
+    def _log_postlocal_fcc(
+        self,
+        prepared: PreparedStage3Client,
+        memory: PostLocalFCCDecision | None,
+        audit: PostLocalFCCDecision | None,
+    ) -> None:
+        if memory is None:
+            return
+        selected_multiplier = memory.selected_multiplier
+        for view, decision in (("memory", memory), ("audit", audit)):
+            if decision is None:
+                continue
+            for probe in decision.probes:
+                _append_csv(
+                    self.stage3_dir
+                    / "client_local_research_audit"
+                    / "postlocal_fcc_safety.csv",
+                    {
+                        "condition": self.condition,
+                        "round": prepared.round_id,
+                        "client_id": prepared.client_id,
+                        "view": view,
+                        "selection_mode": memory.mode,
+                        "multiplier": probe.multiplier,
+                        "ce": probe.ce,
+                        "chosen": int(probe.multiplier == selected_multiplier),
+                    },
+                    (
+                        "condition",
+                        "round",
+                        "client_id",
+                        "view",
+                        "selection_mode",
+                        "multiplier",
+                        "ce",
+                        "chosen",
+                    ),
+                )

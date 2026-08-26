@@ -42,6 +42,7 @@ from utils.boundary_audit import (
     save_boundary_round_dump,
 )
 from utils.boundary_gate import BoundaryGateConfig, build_boundary_candidates
+from utils.v0_oracle import save_v0_round_dump
 from utils.aggregation_crush import append_aggregation_crush, should_log_aggregation_crush
 from loss.prompt_loss import PromptLoss, update_class_priors
 
@@ -3053,9 +3054,16 @@ def main(args):
     cusp_minimal = bool(args.cusp_minimal_enable)
     boundary_gate_dump = bool(args.boundary_gate_dump_enable)
     boundary_gate_online_repair = bool(args.boundary_gate_online_repair_enable)
+    v0_dump = bool(getattr(args, "v0_dump_enable", False))
+    v0_dump_round_ids = set()
+    if v0_dump:
+        configured_v0_rounds = str(getattr(args, "v0_dump_rounds", "")).strip()
+        v0_dump_round_ids = parse_experiment_d_rounds(
+            configured_v0_rounds if configured_v0_rounds else [int(args.v0_dump_round)]
+        )
     trainable_only_gate = cusp_minimal or boundary_gate_dump or boundary_gate_online_repair
-    if sum((cusp_minimal, boundary_gate_dump, boundary_gate_online_repair)) > 1:
-        raise ValueError("CUSP dump, Boundary Gate dump, and Boundary online repair are separate controls; enable only one")
+    if sum((cusp_minimal, boundary_gate_dump, boundary_gate_online_repair, v0_dump)) > 1:
+        raise ValueError("CUSP, Boundary, and V0 dump/repair controls are separate; enable only one")
     if trainable_only_gate:
         if args.trainer != "PromptFL" or args.model != "fedavg" or abs(float(args.frac) - 1.0) > 1e-12:
             raise ValueError("diagnostic dumps require trainer=PromptFL, model=fedavg, and frac=1.0")
@@ -3071,6 +3079,17 @@ def main(args):
             raise ValueError("diagnostic dumps require CSC=True so all PromptFL trainable states are explicit")
         if bool(args.experimentD_enable):
             raise ValueError("diagnostic dumps must run with --experimentD_enable False")
+    if v0_dump:
+        if args.trainer != "ClipLora" or args.model != "fedavg" or abs(float(args.frac) - 1.0) > 1e-12:
+            raise ValueError("V0 dumps require trainer=ClipLora, model=fedavg, and frac=1.0")
+        if args.cliplora_aggregation != "fedavg":
+            raise ValueError("V0 diagnoses ordinary FedAvg and requires --cliplora_aggregation fedavg")
+        if not v0_dump_round_ids or max(v0_dump_round_ids) != int(args.round):
+            raise ValueError("The largest V0 dump round must equal --round to prevent prior test access")
+        if not getattr(args, "client_schedule_file", ""):
+            raise ValueError("V0 dumps require an explicit --client_schedule_file")
+        if bool(args.experimentD_enable) or bool(args.e1_enable) or bool(getattr(args, "stage3_enable", False)):
+            raise ValueError("V0 dump runs cannot share Experiment D, E1, or Stage-3 test/audit access")
     print(f"Resolved local epochs per selected client: {cfg.OPTIM.MAX_EPOCH}")
     if cfg.SEED >= 0:
         # print("Setting fixed seed: {}".format(cfg.SEED))
@@ -3389,7 +3408,7 @@ def main(args):
 
     for epoch in range(start_epoch, max_epoch):
         run_global_eval = should_run_global_eval(epoch, max_epoch, args.global_eval_interval)
-        if cusp_minimal or boundary_gate_dump:
+        if cusp_minimal or boundary_gate_dump or v0_dump:
             run_global_eval = False
         elif boundary_gate_online_repair and int(epoch) + 1 <= int(args.boundary_gate_online_repair_round):
             run_global_eval = False
@@ -4177,7 +4196,7 @@ def main(args):
                         "Standard federated ClipLora requires "
                         "--federated_single_scheduler_step True"
                     )
-                if epoch == 0:
+                if epoch == 0 and not v0_dump:
                     print(
                         "ClipLora server aggregation: "
                         f"mode={args.cliplora_aggregation} "
@@ -4187,7 +4206,7 @@ def main(args):
                 idxs_users = select_round_clients(args, epoch, client_schedule)
                 print("idxs_users", idxs_users)
 
-                if epoch == 0:
+                if epoch == 0 and not v0_dump:
                     if e1_evaluator is not None:
                         global_trainer.model.load_state_dict(global_weights, strict=True)
                         e1_evaluator.evaluate(global_trainer.model, round_id=0)
@@ -4357,6 +4376,25 @@ def main(args):
                             client_class_counts,
                             n_cls,
                         )
+
+                if v0_dump and int(epoch) + 1 in v0_dump_round_ids:
+                    dump_dir = save_v0_round_dump(
+                        output_dir=args.output_dir,
+                        args=args,
+                        cfg=cfg,
+                        epoch=epoch,
+                        global_before=pre_global_weights,
+                        global_after=global_weights,
+                        local_weights=local_weights,
+                        selected_clients=idxs_users,
+                        client_sample_counts=datanumber_client,
+                        client_class_counts=client_class_counts,
+                        global_class_counts=global_class_counts,
+                        trainable_keys=lora_keys,
+                    )
+                    print(f"V0 round dump saved without validation/test access: {dump_dir}")
+                    if int(epoch) + 1 == int(args.round):
+                        return
 
                 if not run_global_eval:
                     print_skip_global_eval(epoch, args.global_eval_interval)
@@ -5065,6 +5103,9 @@ if __name__ == "__main__":
     parser.add_argument('--experimentD_eval_mode', type=str, default='class_filtered', choices=['class_filtered', 'full'], help='evaluation loader mode for Experiment D counterfactual diagnostics')
     parser.add_argument('--cusp_minimal_enable', type=str2bool, default=False, help='save a small round dump for the simplified offline CUSP minimal experiment')
     parser.add_argument('--cusp_minimal_round', type=int, default=10, help='1-based communication round to save for the CUSP minimal experiment')
+    parser.add_argument('--v0_dump_enable', type=str2bool, default=False, help='save a final-round ClipLoRA dump for the offline V0 label-oracle headroom experiment')
+    parser.add_argument('--v0_dump_round', type=int, default=50, help='1-based final communication round saved for V0; must equal --round')
+    parser.add_argument('--v0_dump_rounds', type=str, default='', help='optional comma-separated V0 dump rounds; the largest must equal --round')
     parser.add_argument('--boundary_gate_dump_enable', type=str2bool, default=False, help='save a train-only Boundary Gate dump and audit cache at the final round')
     parser.add_argument('--boundary_gate_dump_round', type=int, default=10, help='1-based final communication round for the Boundary Gate dump')
     parser.add_argument('--boundary_gate_dump_batch_size', type=int, default=256, help='batch size used only to encode deterministic Boundary Gate audit views')

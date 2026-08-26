@@ -34,6 +34,7 @@ MAX_ACCEPTED_PROPOSALS = 2
 RESTORE_TEMPERATURE = 2.0
 RESTORE_CE_WEIGHT = 0.5
 RESTORE_KL_WEIGHT = 0.5
+POSTLOCAL_FCC_MULTIPLIERS = (0.0, 0.25, 0.5, 1.0)
 
 
 @dataclass(frozen=True)
@@ -94,6 +95,22 @@ class RestoreResult:
     kl: float
     backward_count: int
     gradient_norm: float
+
+
+@dataclass(frozen=True)
+class PostLocalCandidateProbe:
+    multiplier: float
+    ce: float
+
+
+@dataclass(frozen=True)
+class PostLocalFCCDecision:
+    mode: str
+    probes: tuple[PostLocalCandidateProbe, ...]
+    selected_multiplier: float | None
+    selected_ce: float | None
+    zero_multiplier_ce: float
+    forward_count: int
 
 
 def _model_device(model) -> torch.device:
@@ -188,6 +205,73 @@ def evaluate_private_logits(model, batch: EvidenceBatch) -> torch.Tensor:
         return _forward_logits(model, batch, with_grad=False).detach().cpu().float().clone()
     finally:
         _restore_module_training_state(modes)
+
+
+def evaluate_postlocal_fcc_candidates(
+    model,
+    spec: LoRAFlatSpec,
+    incoming_vector: torch.Tensor,
+    local_ce_vector: torch.Tensor,
+    evidence: EvidenceBatch,
+    candidate_uploads: Mapping[float, torch.Tensor],
+    *,
+    mode: str,
+) -> PostLocalFCCDecision:
+    """Probe actual fixed-norm uploads after local CE without state leakage.
+
+    ``private`` deterministically chooses the lowest-CE multiplier, including
+    the zero-FCC fallback. ``random`` performs the same four forwards but
+    retains the full random correction, and ``audit`` records all candidates
+    without making an algorithmic decision.
+    """
+    mode = str(mode)
+    if mode not in ("private", "random", "audit"):
+        raise ValueError(f"Unknown post-local FCC mode: {mode!r}")
+    normalized = {float(key): value for key, value in candidate_uploads.items()}
+    expected = set(POSTLOCAL_FCC_MULTIPLIERS)
+    if set(normalized) != expected:
+        raise ValueError(
+            "Post-local FCC candidates must use the frozen multipliers "
+            f"{POSTLOCAL_FCC_MULTIPLIERS}"
+        )
+    incoming = torch.as_tensor(incoming_vector, dtype=torch.float32).reshape(-1)
+    local = torch.as_tensor(local_ce_vector, dtype=torch.float32).reshape(-1)
+    if incoming.numel() != spec.numel or local.numel() != spec.numel:
+        raise ValueError("Post-local FCC anchors do not match the flatten spec")
+
+    probes = []
+    for multiplier in POSTLOCAL_FCC_MULTIPLIERS:
+        upload = torch.as_tensor(
+            normalized[multiplier], dtype=torch.float32
+        ).reshape(-1)
+        if upload.numel() != spec.numel or not bool(torch.isfinite(upload).all()):
+            raise ValueError("Post-local FCC candidate upload is invalid")
+        candidate = incoming + upload
+        with isolated_model_probe(model, spec, local):
+            load_lora_vector(model, candidate, spec)
+            logits = _forward_logits(model, evidence, with_grad=False)
+        ce, _ = _ce_and_per_class(logits, evidence.labels)
+        probes.append(PostLocalCandidateProbe(multiplier=multiplier, ce=ce))
+
+    selected_multiplier = None
+    selected_ce = None
+    if mode == "private":
+        selected = min(probes, key=lambda item: (item.ce, item.multiplier))
+        selected_multiplier = float(selected.multiplier)
+        selected_ce = float(selected.ce)
+    elif mode == "random":
+        selected_multiplier = 1.0
+        selected_ce = next(item.ce for item in probes if item.multiplier == 1.0)
+
+    zero_ce = next(item.ce for item in probes if item.multiplier == 0.0)
+    return PostLocalFCCDecision(
+        mode=mode,
+        probes=tuple(probes),
+        selected_multiplier=selected_multiplier,
+        selected_ce=selected_ce,
+        zero_multiplier_ce=float(zero_ce),
+        forward_count=len(probes),
+    )
 
 
 def _ce_and_per_class(logits: torch.Tensor, labels: torch.Tensor) -> tuple[float, dict[int, float]]:

@@ -62,6 +62,11 @@ def fedavg_delta_from_payload(payload: Mapping, spec: FlatSpec | None = None) ->
         # it directly instead of introducing a second aggregation rounding.
         theta_after = flatten_state(payload["fedavg_candidate_trainable"], spec)
         delta_avg = theta_after - theta_t
+    elif "global_after_fedavg_trainable" in payload:
+        # CUSP-minimal and V0 dumps use this field name for the authoritative
+        # server state.  Prefer it to a second floating-point reconstruction.
+        theta_after = flatten_state(payload["global_after_fedavg_trainable"], spec)
+        delta_avg = theta_after - theta_t
     else:
         delta_avg = (client_deltas * weights[:, None]).sum(dim=0)
     return theta_t, local_vectors, client_deltas, delta_avg

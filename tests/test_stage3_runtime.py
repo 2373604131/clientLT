@@ -175,6 +175,21 @@ def test_previous_round_bank_is_leave_one_out_and_privately_evaluated(tmp_path):
     assert prepared.selection.probes[0].utility > 0
     assert torch.equal(flatten_model(trainer.model, runtime.spec), torch.zeros(4))
 
+    # With no subsequent CE delta, every fixed-norm candidate is the zero
+    # upload. The post-local private gate must deterministically fall back to
+    # multiplier zero and leave the model untouched.
+    finalized = runtime.finalize_client(trainer.model, prepared)
+    assert finalized.postlocal_fcc is not None
+    assert finalized.postlocal_fcc.selected_multiplier == 0.0
+    assert finalized.postlocal_fcc.forward_count == 4
+    assert torch.equal(finalized.upload.vector, torch.zeros(4))
+    assert (
+        Path(tmp_path)
+        / "stage3"
+        / "client_local_research_audit"
+        / "postlocal_fcc_safety.csv"
+    ).is_file()
+
 
 def test_d_rtc_uses_degradation_and_keeps_final_upload_at_ce_norm(tmp_path):
     trainer = _Trainer()

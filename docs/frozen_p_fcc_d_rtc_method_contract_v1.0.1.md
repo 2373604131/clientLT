@@ -1,5 +1,10 @@
 # P-FCC + D-RTC 方法运行契约 v1.0.1
 
+> 两轮真实集成审计后，proposal clustering seed 与 post-local FCC
+> compatibility 由
+> `frozen_p_fcc_d_rtc_method_contract_v1.0.2_amendment.md` 修正；冲突处以
+> v1.0.2 修正案为准。
+
 状态：**FROZEN CORRECTNESS REVISION FOR STAGE-3 SEED-42 MVP**  
 冻结日期：2026-08-24  
 基础契约：[v1](./frozen_p_fcc_d_rtc_method_contract_v1.md)  
