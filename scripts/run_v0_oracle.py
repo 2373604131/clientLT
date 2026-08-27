@@ -33,6 +33,7 @@ from utils.v0_oracle import (
     gap_closure,
     maximum_trust_angle,
     metrics_from_logits,
+    oracle_objective,
     optimize_span_oracle,
     random_span_candidates,
     sphere_candidate_from_coordinates,
@@ -61,12 +62,16 @@ def load_dump(dump_dir: Path) -> tuple[dict, dict]:
     return payload, metadata
 
 
-def build_trainer(metadata: dict, output_dir: Path):
+def build_trainer(metadata: dict, output_dir: Path, eval_batch_size: int | None = None):
     from Dassl.dassl.engine import build_trainer
     from federated_main import setup_cfg
 
     args = SimpleNamespace(**metadata["resolved_args"])
     args.output_dir = str(output_dir)
+    if eval_batch_size is not None:
+        if int(eval_batch_size) < 1:
+            raise ValueError("eval_batch_size must be positive")
+        args.test_batch_size = int(eval_batch_size)
     cfg = setup_cfg(args)
     trainer = build_trainer(cfg)
     trainer.fed_before_train(is_global=True)
@@ -219,8 +224,16 @@ def build_candidates(payload: dict, metadata: dict, evaluator: StateEvaluator, o
     if basis is None:
         raise RuntimeError(f"V0 client disagreement subspace is unavailable: {basis_report}")
 
-    fedavg_opt, _ = evaluator.evaluate_delta(delta_avg, opt_loader)
-    fedavg_safe, _ = evaluator.evaluate_delta(delta_avg, safe_loader)
+    evaluation_cache: dict[tuple[str, str], dict] = {}
+
+    def cached_metrics(delta: torch.Tensor, loader, split: str) -> dict:
+        key = (str(split), candidate_hash_from_delta(delta))
+        if key not in evaluation_cache:
+            evaluation_cache[key] = evaluator.evaluate_delta(delta, loader)[0]
+        return dict(evaluation_cache[key])
+
+    fedavg_opt = cached_metrics(delta_avg, opt_loader, "opt")
+    fedavg_safe = cached_metrics(delta_avg, safe_loader, "safe")
     states, rows = {}, []
 
     def add(candidate_id: str, method: str, delta: torch.Tensor, gamma: float, report: dict, opt_metrics: dict, safe_metrics: dict):
@@ -247,46 +260,27 @@ def build_candidates(payload: dict, metadata: dict, evaluator: StateEvaluator, o
     convex_alpha_rows.extend(
         rng.dirichlet(np.ones(client_deltas.shape[0]), size=args.convex_random_count)
     )
+
+    counts = torch.as_tensor(payload["client_class_counts"], dtype=torch.float64)
+    support_coefficients = torch.zeros(client_deltas.shape[0], dtype=torch.float64)
+    covered = 0
+    for class_id in evaluator.groups["tail"]:
+        support = counts[:, int(class_id)] > 0
+        mass = float(weights[support].sum().item())
+        if mass <= 1e-12:
+            continue
+        support_coefficients[support] += weights[support] / mass
+        covered += 1
+    support_raw = None
+    if covered:
+        support_coefficients /= float(covered)
+        support_raw = (client_deltas * support_coefficients[:, None]).sum(dim=0)
+    equal_raw = client_deltas.mean(dim=0)
+
     for gamma_index, gamma in enumerate(args.gammas):
         gamma = float(gamma)
         if gamma == 0.0:
             continue
-        span_pool = []
-        for lambda_head in args.lambda_head:
-            for lambda_mid in args.lambda_mid:
-                result = optimize_span_oracle(
-                    lambda delta: evaluator.evaluate_delta(delta, opt_loader)[0],
-                    delta_avg,
-                    basis,
-                    gamma=gamma,
-                    disagreement_scale=disagreement,
-                    lambda_head=lambda_head,
-                    lambda_mid=lambda_mid,
-                    iterations=args.solver_iterations,
-                    probe_angle=args.probe_angle,
-                )
-                safe_metrics, _ = evaluator.evaluate_delta(result.delta, safe_loader)
-                span_pool.append((result, safe_metrics))
-        safe_span = [item for item in span_pool if _safe(item[1], fedavg_safe, args)]
-        chosen, chosen_safe = max(
-            safe_span or [(SpanFallback(delta_avg, fedavg_opt), fedavg_safe)],
-            key=lambda item: (float(item[1]["tail_acc"]), float(item[1]["h3"])),
-        )
-        span_id = f"oracle_span_g{_gamma_id(gamma)}"
-        add(span_id, "oracle_span", chosen.delta, gamma, dict(chosen.report), dict(chosen.metrics), chosen_safe)
-
-        for random_delta, random_report in random_span_candidates(
-            delta_avg,
-            basis,
-            gamma=gamma,
-            disagreement_scale=disagreement,
-            count=args.random_count,
-            seed=int(args.random_seed) + 1009 * gamma_index,
-        ):
-            opt_metrics, _ = evaluator.evaluate_delta(random_delta, opt_loader)
-            safe_metrics, _ = evaluator.evaluate_delta(random_delta, safe_loader)
-            random_id = f"random_span_g{_gamma_id(gamma)}_{int(random_report['random_index']):03d}"
-            add(random_id, "random_span", random_delta, gamma, random_report, opt_metrics, safe_metrics)
 
         angle_cap = maximum_trust_angle(float(delta_avg.norm().item()), gamma * disagreement)
 
@@ -295,46 +289,181 @@ def build_candidates(payload: dict, metadata: dict, evaluator: StateEvaluator, o
             coordinate_norm = float(coordinates.norm().item())
             if coordinate_norm > 1e-12:
                 coordinates = coordinates / coordinate_norm * angle_cap
-            return sphere_candidate_from_coordinates(
+            delta, report = sphere_candidate_from_coordinates(
                 delta_avg, basis, coordinates, trust_radius=gamma * disagreement
             )
+            return delta, report, coordinates
 
-        equal_delta, equal_report = project_raw_candidate(client_deltas.mean(dim=0))
-        equal_opt, _ = evaluator.evaluate_delta(equal_delta, opt_loader)
-        equal_safe, _ = evaluator.evaluate_delta(equal_delta, safe_loader)
+        start_candidates = [{
+            "name": "fedavg",
+            "coordinates": torch.zeros(basis.shape[1], dtype=torch.float64),
+            "delta": delta_avg,
+            "opt": fedavg_opt,
+            "safe": fedavg_safe,
+        }]
+
+        random_entries = []
+        for random_delta, random_report in random_span_candidates(
+            delta_avg,
+            basis,
+            gamma=gamma,
+            disagreement_scale=disagreement,
+            count=args.random_count,
+            seed=int(args.random_seed) + 1009 * gamma_index,
+        ):
+            opt_metrics = cached_metrics(random_delta, opt_loader, "opt")
+            safe_metrics = cached_metrics(random_delta, safe_loader, "safe")
+            random_id = f"random_span_g{_gamma_id(gamma)}_{int(random_report['random_index']):03d}"
+            add(random_id, "random_span", random_delta, gamma, random_report, opt_metrics, safe_metrics)
+            random_entries.append({
+                "name": f"best_random_{int(random_report['random_index']):03d}",
+                "coordinates": basis.T @ (random_delta - delta_avg),
+                "delta": random_delta,
+                "opt": opt_metrics,
+                "safe": safe_metrics,
+            })
+
+        equal_delta, equal_report, equal_coordinates = project_raw_candidate(equal_raw)
+        equal_opt = cached_metrics(equal_delta, opt_loader, "opt")
+        equal_safe = cached_metrics(equal_delta, safe_loader, "safe")
         add(
             f"equal_client_g{_gamma_id(gamma)}", "equal_client", equal_delta, gamma,
             equal_report, equal_opt, equal_safe,
         )
+        if "equal" in args.oracle_starts:
+            start_candidates.append({
+                "name": "equal",
+                "coordinates": equal_coordinates,
+                "delta": equal_delta,
+                "opt": equal_opt,
+                "safe": equal_safe,
+            })
 
-        counts = torch.as_tensor(payload["client_class_counts"], dtype=torch.float64)
-        support_coefficients = torch.zeros(client_deltas.shape[0], dtype=torch.float64)
-        covered = 0
-        for class_id in evaluator.groups["tail"]:
-            support = counts[:, int(class_id)] > 0
-            mass = float(weights[support].sum().item())
-            if mass <= 1e-12:
-                continue
-            support_coefficients[support] += weights[support] / mass
-            covered += 1
-        if covered:
-            support_coefficients /= float(covered)
-            support_raw = (client_deltas * support_coefficients[:, None]).sum(dim=0)
-            support_delta, support_report = project_raw_candidate(support_raw)
-            support_opt, _ = evaluator.evaluate_delta(support_delta, opt_loader)
-            support_safe, _ = evaluator.evaluate_delta(support_delta, safe_loader)
+        if support_raw is not None:
+            support_delta, support_report, support_coordinates = project_raw_candidate(support_raw)
+            support_opt = cached_metrics(support_delta, opt_loader, "opt")
+            support_safe = cached_metrics(support_delta, safe_loader, "safe")
             add(
                 f"support_weighting_g{_gamma_id(gamma)}", "support_weighting", support_delta, gamma,
                 {**support_report, "covered_tail_classes": covered}, support_opt, support_safe,
             )
+            if "support" in args.oracle_starts:
+                start_candidates.append({
+                    "name": "support",
+                    "coordinates": support_coordinates,
+                    "delta": support_delta,
+                    "opt": support_opt,
+                    "safe": support_safe,
+                })
+
+        if "best_random" in args.oracle_starts:
+            start_candidates.extend(random_entries)
+
+        enabled_names = set(args.oracle_starts)
+        if "fedavg" not in enabled_names:
+            start_candidates = [item for item in start_candidates if item["name"] != "fedavg"]
+        if not start_candidates:
+            raise RuntimeError("V0b has no usable oracle initialization candidates")
+
+        # Keep every feasible initialization in the final pool as well as
+        # refining from the objective-best one. This makes the safe-selection
+        # oracle auditable: it can never discard a stronger support/equal/
+        # random candidate merely because local coordinate refinement moved
+        # away from it.
+        span_pool = [
+            (
+                SpanFallback(
+                    item["delta"],
+                    item["opt"],
+                    report={
+                        "fallback": False,
+                        "initialization": item["name"],
+                        "initialization_only": True,
+                        "multi_start_count": len(start_candidates),
+                        "safe_start_count": sum(
+                            _safe(candidate["safe"], fedavg_safe, args)
+                            for candidate in start_candidates
+                        ),
+                        "evaluation_count": 0,
+                        "objective_improvement_from_start": 0.0,
+                    },
+                ),
+                item["safe"],
+            )
+            for item in start_candidates
+        ]
+        for lambda_head in args.lambda_head:
+            for lambda_mid in args.lambda_mid:
+                safe_starts = [
+                    item for item in start_candidates if _safe(item["safe"], fedavg_safe, args)
+                ]
+                eligible_starts = safe_starts or start_candidates
+                initial = min(
+                    eligible_starts,
+                    key=lambda item: oracle_objective(item["opt"], lambda_head, lambda_mid),
+                )
+                initial_objective = oracle_objective(initial["opt"], lambda_head, lambda_mid)
+                result = optimize_span_oracle(
+                    lambda delta: cached_metrics(delta, opt_loader, "opt"),
+                    delta_avg,
+                    basis,
+                    gamma=gamma,
+                    disagreement_scale=disagreement,
+                    lambda_head=lambda_head,
+                    lambda_mid=lambda_mid,
+                    iterations=args.solver_iterations,
+                    probe_angle=args.probe_angle,
+                    initial_coordinates=initial["coordinates"],
+                    initialization=initial["name"],
+                )
+                if float(result.report["objective"]) > float(initial_objective) + 1e-9:
+                    raise RuntimeError(
+                        "V0b solver violated initialization dominance: "
+                        f"gamma={gamma} lambda_head={lambda_head} lambda_mid={lambda_mid} "
+                        f"start={initial['name']} initial={initial_objective} "
+                        f"result={result.report['objective']}"
+                    )
+                safe_metrics = cached_metrics(result.delta, safe_loader, "safe")
+                report = {
+                    **result.report,
+                    "multi_start_count": len(start_candidates),
+                    "safe_start_count": len(safe_starts),
+                    "initial_objective": float(initial_objective),
+                    "objective_improvement_from_start": float(initial_objective - result.report["objective"]),
+                    "evaluation_cache_entries": len(evaluation_cache),
+                }
+                wrapped = SpanFallback(result.delta, result.metrics, report=report)
+                span_pool.append((wrapped, safe_metrics))
+        safe_span = [item for item in span_pool if _safe(item[1], fedavg_safe, args)]
+        chosen, chosen_safe = max(
+            safe_span or [(SpanFallback(delta_avg, fedavg_opt), fedavg_safe)],
+            key=lambda item: (float(item[1]["tail_acc"]), float(item[1]["h3"])),
+        )
+        chosen_report = dict(chosen.report)
+        if support_raw is not None:
+            safe_tail_regret = float(support_safe["tail_acc"]) - float(chosen_safe["tail_acc"])
+            chosen_report.update({
+                "support_val_safe_tail_regret": safe_tail_regret,
+                "support_val_opt_tail_regret": (
+                    float(support_opt["tail_acc"]) - float(chosen.metrics["tail_acc"])
+                ),
+                "support_initialization_safe": _safe(support_safe, fedavg_safe, args),
+            })
+            if _safe(support_safe, fedavg_safe, args) and safe_tail_regret > 1e-9:
+                raise RuntimeError(
+                    "V0b safe-selection oracle failed to dominate its support initialization: "
+                    f"gamma={gamma} regret={safe_tail_regret}"
+                )
+        span_id = f"oracle_span_g{_gamma_id(gamma)}"
+        add(span_id, "oracle_span", chosen.delta, gamma, chosen_report, dict(chosen.metrics), chosen_safe)
 
         convex_pool = []
         for alpha in convex_alpha_rows:
             alpha_tensor = torch.as_tensor(alpha, dtype=torch.float64)
             raw = (client_deltas * alpha_tensor[:, None]).sum(dim=0)
-            convex_delta, convex_report = project_raw_candidate(raw)
-            opt_metrics, _ = evaluator.evaluate_delta(convex_delta, opt_loader)
-            safe_metrics, _ = evaluator.evaluate_delta(convex_delta, safe_loader)
+            convex_delta, convex_report, _ = project_raw_candidate(raw)
+            opt_metrics = cached_metrics(convex_delta, opt_loader, "opt")
+            safe_metrics = cached_metrics(convex_delta, safe_loader, "safe")
             convex_pool.append((convex_delta, convex_report, opt_metrics, safe_metrics))
         safe_convex = [item for item in convex_pool if _safe(item[3], fedavg_safe, args)]
         convex_delta, convex_report, convex_opt, convex_safe = max(
@@ -364,15 +493,16 @@ def build_candidates(payload: dict, metadata: dict, evaluator: StateEvaluator, o
         "disagreement_scale": disagreement,
         "fedavg_opt": fedavg_opt,
         "fedavg_safe": fedavg_safe,
+        "evaluation_cache_entries": len(evaluation_cache),
     }
     return states, rows, support_states, context
 
 
 class SpanFallback:
-    def __init__(self, delta: torch.Tensor, metrics: dict):
+    def __init__(self, delta: torch.Tensor, metrics: dict, report: dict | None = None):
         self.delta = delta
         self.metrics = metrics
-        self.report = {"fallback": True, "fallback_reason": "no_safe_span_candidate"}
+        self.report = report or {"fallback": True, "fallback_reason": "no_safe_span_candidate"}
 
 
 def evaluate_test(output_dir: Path, evaluator: StateEvaluator, test_loader, groups: dict[str, list[int]]):
@@ -410,6 +540,27 @@ def evaluate_test(output_dir: Path, evaluator: StateEvaluator, test_loader, grou
         row["mid_damage"] = float(fedavg["mid_acc"]) - float(row["mid_acc"])
         row["gap_closure"] = gap_closure(row["tail_acc"], fedavg["tail_acc"], support_ceiling)
         row["support_only_tail_ceiling"] = support_ceiling
+    support_by_gamma = {
+        float(row["gamma"]): row for row in metric_rows if row["method"] == "support_weighting"
+    }
+    random_by_gamma = {}
+    for row in metric_rows:
+        if row["method"] == "random_span":
+            random_by_gamma.setdefault(float(row["gamma"]), []).append(float(row["tail_gain"]))
+    for row in metric_rows:
+        support = support_by_gamma.get(float(row["gamma"]))
+        row["support_regret"] = (
+            float(support["tail_gain"]) - float(row["tail_gain"])
+            if support is not None else math.nan
+        )
+        random_values = random_by_gamma.get(float(row["gamma"]), [])
+        row["random_tail_gain_p95"] = (
+            float(np.percentile(random_values, 95)) if random_values else math.nan
+        )
+        row["beats_random_p95"] = (
+            bool(float(row["tail_gain"]) > row["random_tail_gain_p95"])
+            if math.isfinite(float(row["random_tail_gain_p95"])) else False
+        )
     write_csv(output_dir / "test_metrics.csv", metric_rows)
     write_csv(output_dir / "per_class_metrics.csv", per_class_rows)
     write_csv(output_dir / "support_only_ceiling.csv", support_rows)
@@ -425,11 +576,9 @@ def evaluate_test(output_dir: Path, evaluator: StateEvaluator, test_loader, grou
 
 def unit_verdict(metric_rows: list[dict]) -> dict:
     span = [row for row in metric_rows if row["method"] == "oracle_span"]
-    random_rows = [row for row in metric_rows if row["method"] == "random_span"]
     comparisons = []
     for row in span:
-        same_gamma = [float(item["tail_gain"]) for item in random_rows if float(item["gamma"]) == float(row["gamma"])]
-        random_p95 = float(np.percentile(same_gamma, 95)) if same_gamma else math.nan
+        random_p95 = float(row.get("random_tail_gain_p95", math.nan))
         passed = (
             float(row["tail_gain"]) > 0.0
             and float(row["head_damage"]) <= 0.5
@@ -437,16 +586,31 @@ def unit_verdict(metric_rows: list[dict]) -> dict:
             and (math.isnan(float(row["gap_closure"])) or float(row["gap_closure"]) >= 0.1)
         )
         comparisons.append({**row, "random_tail_gain_p95": random_p95, "single_unit_pass": passed})
+    support_comparisons = []
+    for row in [item for item in metric_rows if item["method"] == "support_weighting"]:
+        support_comparisons.append({
+            **row,
+            "single_unit_signal": (
+                float(row["tail_gain"]) > 0.0
+                and float(row["head_damage"]) <= 0.5
+                and bool(row.get("beats_random_p95", False))
+            ),
+        })
     return {
         "verdict": "PASS_SINGLE_UNIT" if any(row["single_unit_pass"] for row in comparisons) else "FAIL_SINGLE_UNIT",
         "warning": "A formal V0 verdict requires aggregation across three seeds and three dump rounds.",
         "span_comparisons": comparisons,
+        "support_comparisons": support_comparisons,
     }
 
 
 def run(args: argparse.Namespace) -> None:
     payload, metadata = load_dump(args.dump_dir)
-    cfg, trainer = build_trainer(metadata, args.output_dir / "model_build")
+    cfg, trainer = build_trainer(
+        metadata,
+        args.output_dir / "model_build",
+        eval_batch_size=args.eval_batch_size,
+    )
     groups = class_groups_from_counts(payload["global_class_counts"])
     opt_loader, safe_loader, selection_report = build_selection_loaders(
         cfg, trainer, args.selection_source, args.selection_seed, args.allow_optimistic_selection
@@ -471,6 +635,9 @@ def run(args: argparse.Namespace) -> None:
         "rank_max": int(args.rank_max),
         "basis_report": context["basis_report"],
         "disagreement_scale": context["disagreement_scale"],
+        "oracle_starts": list(args.oracle_starts),
+        "eval_batch_size_override": args.eval_batch_size,
+        "selection_evaluation_cache_entries": int(context["evaluation_cache_entries"]),
         "selection_only_before_freeze": True,
     })
     validation_rows = [{key: value for key, value in row.items() if key != "candidate_hash"} for row in rows]
@@ -530,12 +697,28 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rank-max", type=int, default=8)
     parser.add_argument("--solver-iterations", type=int, default=4)
     parser.add_argument("--probe-angle", type=float, default=0.02)
+    parser.add_argument(
+        "--oracle-starts",
+        nargs="+",
+        choices=["fedavg", "support", "equal", "best_random"],
+        default=["fedavg", "support", "equal", "best_random"],
+        help=(
+            "Feasible initializations audited before local span refinement. best_random chooses "
+            "the objective-best member of the frozen random pool for each lambda pair."
+        ),
+    )
     parser.add_argument("--random-count", type=int, default=20)
     parser.add_argument("--convex-random-count", type=int, default=32)
     parser.add_argument("--random-seed", type=int, default=2026)
     parser.add_argument("--max-head-drop", type=float, default=0.5)
     parser.add_argument("--max-mid-drop", type=float, default=0.5)
     parser.add_argument("--max-overall-drop", type=float, default=0.25)
+    parser.add_argument(
+        "--eval-batch-size",
+        type=int,
+        default=None,
+        help="Optional offline-only validation/test batch-size override; it does not change training.",
+    )
     return parser.parse_args()
 
 

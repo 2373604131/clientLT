@@ -51,6 +51,12 @@ python scripts/run_v0_oracle.py `
 Once the pilot has non-zero headroom, omit the reduced grids to run the frozen
 formal defaults.
 
+If a feasible support-weighted candidate outperforms the single-start span
+search, do not interpret the latter as an oracle upper bound. Run the V0b
+multi-start audit described in `docs/v0b_v1_offline_analysis.md`; it reuses the
+same dumps, includes support/equal/random initializations, caches repeated
+evaluations, and reports support regret.
+
 ## 3. Aggregate formal units
 
 ```powershell

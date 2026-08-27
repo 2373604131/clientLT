@@ -32,6 +32,9 @@ def read_units(directories: list[Path]) -> list[dict]:
                 "support_only_tail_ceiling",
             ):
                 row[key] = float(row[key])
+            for key in ("support_regret", "random_tail_gain_p95"):
+                row[key] = float(row.get(key, math.nan))
+            row["beats_random_p95"] = str(row.get("beats_random_p95", "False")).lower() == "true"
         units.append({"directory": str(directory), "manifest": manifest, "rows": rows})
     return units
 
@@ -71,11 +74,15 @@ def summarize(units: list[dict]) -> tuple[list[dict], dict]:
         gap = [float(row["gap_closure"]) for row in rows if math.isfinite(float(row["gap_closure"]))]
         lower, upper = bootstrap_ci(tail_gain)
         random_superiority = []
-        if method == "oracle_span":
+        if method in {"oracle_span", "support_weighting"}:
             for row in rows:
                 random_values = random_lookup.get((partition, row["seed"], row["round"], gamma), [])
                 if random_values:
                     random_superiority.append(float(row["tail_gain"]) > float(np.percentile(random_values, 95)))
+        support_regret = [
+            float(row["support_regret"])
+            for row in rows if math.isfinite(float(row.get("support_regret", math.nan)))
+        ]
         record = {
             "partition": partition,
             "method": method,
@@ -91,6 +98,7 @@ def summarize(units: list[dict]) -> tuple[list[dict], dict]:
             "gap_closure_mean": float(np.mean(gap)) if gap else math.nan,
             "positive_unit_rate": float(np.mean(np.asarray(tail_gain) > 0.0)),
             "random_p95_superiority_rate": float(np.mean(random_superiority)) if random_superiority else math.nan,
+            "support_regret_mean": float(np.mean(support_regret)) if support_regret else math.nan,
         }
         summary_rows.append(record)
         if method == "oracle_span":
@@ -116,6 +124,24 @@ def summarize(units: list[dict]) -> tuple[list[dict], dict]:
             "use the validation protocol frozen in each unit."
         ),
         "formal_oracle_span_candidates": formal_candidates,
+        "support_weighting_diagnostics": [
+            row for row in summary_rows if row["method"] == "support_weighting"
+        ],
+        "solver_audit": {
+            "criterion": (
+                "On official-test reporting only, negative support_regret_mean means oracle_span "
+                "outperformed the feasible projected support initialization. Selection-space "
+                "dominance is recorded in candidate manifests and is the actual solver invariant."
+            ),
+            "oracle_support_regret_by_gamma": [
+                {
+                    "partition": row["partition"],
+                    "gamma": row["gamma"],
+                    "support_regret_mean": row["support_regret_mean"],
+                }
+                for row in formal_candidates
+            ],
+        },
     }
     return summary_rows, verdict
 
@@ -157,6 +183,33 @@ def plot_pareto(summary_rows: list[dict], output_dir: Path) -> None:
         plt.close(figure)
 
 
+def write_report(summary_rows: list[dict], verdict: dict, output_dir: Path) -> None:
+    rows = [
+        row for row in summary_rows
+        if row["method"] in {"oracle_span", "support_weighting", "oracle_convex_search"}
+    ]
+    lines = [
+        "# V0/V0b aggregate report",
+        "",
+        f"Verdict: **{verdict['verdict']}**",
+        "",
+        "| method | gamma | tail gain (pp) | head damage (pp) | positive rate | random-p95 superiority | gap closure | support regret (pp) |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in rows:
+        lines.append(
+            "| {method} | {gamma:g} | {tail_gain_mean:.4f} | {head_damage_mean:.4f} | "
+            "{positive_unit_rate:.3f} | {random_p95_superiority_rate:.3f} | "
+            "{gap_closure_mean:.4f} | {support_regret_mean:.4f} |".format(**row)
+        )
+    lines.extend([
+        "",
+        "A positive support regret means the reported method remained below the feasible projected support candidate.",
+        "Gamma-wise official-test results are diagnostic only and must not be used to tune the paper method.",
+    ])
+    (output_dir / "v0_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-dirs", type=Path, nargs="+", required=True)
@@ -171,6 +224,7 @@ def main() -> None:
     summary_rows, verdict = summarize(units)
     write_csv(args.output_dir / "v0_aggregate.csv", summary_rows)
     write_json(args.output_dir / "v0_verdict.json", verdict)
+    write_report(summary_rows, verdict, args.output_dir)
     plot_pareto(summary_rows, args.output_dir)
     print(f"V0 summary finished: {args.output_dir}")
 

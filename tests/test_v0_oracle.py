@@ -91,6 +91,38 @@ def test_span_oracle_improves_synthetic_tail_objective():
     assert torch.isclose(result.delta.norm(), fedavg.norm(), atol=1e-8)
 
 
+def test_span_oracle_accepts_and_preserves_a_better_feasible_initialization():
+    fedavg = torch.tensor([1.0, 0.0], dtype=torch.float64)
+    basis = torch.tensor([[0.0], [1.0]], dtype=torch.float64)
+
+    def evaluate(delta):
+        return {
+            "tail_loss": float((delta[1] - 0.3).square().item()),
+            "head_loss": 0.0,
+            "mid_loss": 0.0,
+        }
+
+    initial = torch.tensor([0.3], dtype=torch.float64)
+    initial_delta, _ = sphere_candidate_from_coordinates(
+        fedavg, basis, initial, trust_radius=0.6
+    )
+    initial_objective = evaluate(initial_delta)["tail_loss"]
+    result = optimize_span_oracle(
+        evaluate,
+        fedavg,
+        basis,
+        gamma=0.6,
+        disagreement_scale=1.0,
+        lambda_head=0.0,
+        lambda_mid=0.0,
+        iterations=2,
+        initial_coordinates=initial,
+        initialization="support",
+    )
+    assert result.metrics["tail_loss"] <= initial_objective + 1e-12
+    assert result.report["initialization"] == "support"
+
+
 def test_support_normalized_delta_renormalizes_only_supporters():
     payload = synthetic_payload()
     deltas = support_normalized_deltas(payload)

@@ -245,13 +245,28 @@ def optimize_span_oracle(
     iterations: int = 4,
     probe_angle: float = 0.02,
     max_angle: float = math.pi / 2.0,
+    initial_coordinates: torch.Tensor | None = None,
+    initialization: str = "fedavg",
 ) -> SpanOracleResult:
     """Derivative-free projected optimization in the client disagreement span."""
     fedavg_delta = torch.as_tensor(fedavg_delta, dtype=torch.float64).reshape(-1)
     basis = torch.as_tensor(basis, dtype=torch.float64)
     trust_radius = max(0.0, float(gamma) * float(disagreement_scale))
     angle_cap = maximum_trust_angle(float(fedavg_delta.norm().item()), trust_radius, max_angle=max_angle)
-    coordinates = torch.zeros(basis.shape[1], dtype=torch.float64)
+    if initial_coordinates is None:
+        coordinates = torch.zeros(basis.shape[1], dtype=torch.float64)
+    else:
+        coordinates = torch.as_tensor(initial_coordinates, dtype=torch.float64).reshape(-1).clone()
+        if coordinates.numel() != basis.shape[1]:
+            raise ValueError(
+                "initial_coordinates dimension does not match disagreement basis: "
+                f"{coordinates.numel()} != {basis.shape[1]}"
+            )
+        if not bool(torch.isfinite(coordinates).all()):
+            raise ValueError("initial_coordinates contains NaN or Inf")
+        coordinate_norm = float(coordinates.norm().item())
+        if coordinate_norm > angle_cap and coordinate_norm > 0.0:
+            coordinates.mul_(angle_cap / coordinate_norm)
 
     def candidate_and_metrics(current: torch.Tensor) -> tuple[torch.Tensor, dict, dict]:
         delta, geometry = sphere_candidate_from_coordinates(
@@ -323,6 +338,7 @@ def optimize_span_oracle(
         "evaluation_count": int(evaluations),
         "objective": float(best_objective),
         "coordinate_norm": float(coordinates.norm().item()),
+        "initialization": str(initialization),
     }
     return SpanOracleResult(best_delta, coordinates, best_metrics, report)
 

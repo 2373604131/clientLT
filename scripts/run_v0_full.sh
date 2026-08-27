@@ -56,8 +56,8 @@ if [[ "${SELECTION_SOURCE}" == "train" && "${ALLOW_OPTIMISTIC_SELECTION}" != "1"
   echo "train selection requires ALLOW_OPTIMISTIC_SELECTION=1" >&2
   exit 2
 fi
-if [[ "${GRID}" != "pilot" && "${GRID}" != "formal" ]]; then
-  echo "GRID must be pilot or formal" >&2
+if [[ "${GRID}" != "pilot" && "${GRID}" != "v0b" && "${GRID}" != "formal" ]]; then
+  echo "GRID must be pilot, v0b, or formal" >&2
   exit 2
 fi
 
@@ -199,6 +199,16 @@ run_oracles() {
       --solver-iterations 2
       --random-count 5
       --convex-random-count 8
+    )
+  elif [[ "${GRID}" == "v0b" ]]; then
+    grid_args=(
+      --gammas 0.2 0.4 0.8 1.0
+      --lambda-head 0 1 4
+      --lambda-mid 0 1
+      --solver-iterations 4
+      --random-count 20
+      --convex-random-count 32
+      --oracle-starts fedavg support equal best_random
     )
   else
     grid_args=()
