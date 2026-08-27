@@ -18,7 +18,14 @@ PYTHON_BIN="${PYTHON_BIN:-python}"
 DATA_ROOT="${DATA_ROOT:-DATA}"
 OUT_ROOT="${OUT_ROOT:-output/v0_oracle_full}"
 SEEDS_TEXT="${SEEDS:-1 42 2026}"
-GPU_IDS_TEXT="${GPU_IDS:-0 1 2}"
+if [[ -n "${CUDA_VISIBLE_DEVICES:-}" ]]; then
+  # Slurm commonly exports a comma-separated list of physical GPU ids or UUIDs.
+  # Preserve those allocation tokens when binding one seed worker per GPU.
+  DEFAULT_GPU_IDS="${CUDA_VISIBLE_DEVICES//,/ }"
+else
+  DEFAULT_GPU_IDS="0"
+fi
+GPU_IDS_TEXT="${GPU_IDS:-${DEFAULT_GPU_IDS}}"
 ROUNDS="${ROUNDS:-80}"
 DUMP_ROUNDS_TEXT="${DUMP_ROUNDS:-20 50 80}"
 NUM_USERS="${NUM_USERS:-30}"
