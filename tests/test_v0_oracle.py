@@ -13,6 +13,7 @@ from utils.v0_oracle import (
     support_normalized_deltas,
     weighted_disagreement_scale,
 )
+from scripts.run_v0_oracle import build_candidates_pooled, stratified_cap
 
 
 def synthetic_payload():
@@ -173,3 +174,67 @@ def test_v0_dump_contains_only_lora_trainables(tmp_path):
     assert payload["trainable_keys"] == [key]
     assert list(payload["global_before_trainable"]) == [key]
     assert (path / "metadata.json").exists()
+
+
+def test_stratified_cap_is_balanced_and_deterministic():
+    items = [{"label": label, "index": index} for label in range(3) for index in range(7)]
+    first = stratified_cap(items, per_class=2, seed=9)
+    second = stratified_cap(items, per_class=2, seed=9)
+    assert first == second
+    assert len(first) == 6
+    assert [sum(item["label"] == label for item in first) for label in range(3)] == [2, 2, 2]
+
+
+def test_pooled_oracle_reuses_bank_and_shortlists_safe_evaluations():
+    payload = synthetic_payload()
+
+    class FakeEvaluator:
+        spec = make_flat_spec(payload["global_before_trainable"])
+        groups = {"head": [0], "mid": [1], "tail": [2], "non_tail": [0, 1]}
+
+        @staticmethod
+        def state_from_delta(delta):
+            return {"image_encoder.block.lora_A": delta.detach().clone()}
+
+        @staticmethod
+        def evaluate_delta(delta, loader):
+            tail_acc = 40.0 + 5.0 * float(delta[1])
+            head_acc = 80.0 - 0.1 * abs(float(delta[1]))
+            mid_acc = 60.0
+            metrics = {
+                "overall_acc": (head_acc + mid_acc + tail_acc) / 3.0,
+                "balanced_acc": (head_acc + mid_acc + tail_acc) / 3.0,
+                "head_acc": head_acc,
+                "mid_acc": mid_acc,
+                "tail_acc": tail_acc,
+                "non_tail_acc": (head_acc + mid_acc) / 2.0,
+                "h3": 3.0 / (1.0 / head_acc + 1.0 / mid_acc + 1.0 / tail_acc),
+                "head_loss": 100.0 - head_acc,
+                "mid_loss": 100.0 - mid_acc,
+                "tail_loss": 100.0 - tail_acc,
+            }
+            return metrics, []
+
+    args = SimpleNamespace(
+        rank_max=2,
+        gammas=[0.2],
+        random_count=2,
+        random_seed=7,
+        convex_random_count=2,
+        axis_scales=[0.5, 1.0],
+        progress_every=100,
+        safe_top_k=2,
+        lambda_head=[0.0, 1.0],
+        lambda_mid=[0.0, 1.0],
+        max_head_drop=0.5,
+        max_mid_drop=0.5,
+        max_overall_drop=0.25,
+    )
+    states, rows, support_states, context = build_candidates_pooled(
+        payload, {}, FakeEvaluator(), object(), object(), args
+    )
+    methods = {row["method"] for row in rows}
+    assert {"fedavg", "random_span", "support_weighting", "oracle_span"} <= methods
+    assert set(states) == {row["candidate_id"] for row in rows}
+    assert support_states
+    assert context["evaluation_counts"]["safe"] < context["evaluation_counts"]["opt"]

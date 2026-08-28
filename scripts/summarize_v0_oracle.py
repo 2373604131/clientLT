@@ -52,6 +52,9 @@ def bootstrap_ci(values: list[float], seed: int = 2026, draws: int = 4000) -> tu
 
 
 def summarize(units: list[dict]) -> tuple[list[dict], dict]:
+    screening_mode = bool(units) and all(
+        str(unit["manifest"].get("search_mode", "")) == "pooled" for unit in units
+    )
     grouped: dict[tuple[str, str, float], list[dict]] = defaultdict(list)
     random_lookup: dict[tuple[str, str, str, float], list[float]] = defaultdict(list)
     for unit in units:
@@ -105,6 +108,17 @@ def summarize(units: list[dict]) -> tuple[list[dict], dict]:
             formal_candidates.append(record)
 
     for row in formal_candidates:
+        row["screen_pass"] = (
+            row["tail_gain_mean"] > 0.0
+            and row["head_damage_mean"] <= 0.5
+            and row["positive_unit_rate"] >= 2.0 / 3.0
+            and (math.isnan(row["gap_closure_mean"]) or row["gap_closure_mean"] >= 0.1)
+            and (
+                math.isnan(row["random_p95_superiority_rate"])
+                or row["random_p95_superiority_rate"] >= 2.0 / 3.0
+            )
+            and row["seed_count"] >= 3
+        )
         row["strong_pass"] = (
             row["tail_gain_ci95_low"] > 0.0
             and row["head_damage_mean"] <= 0.5
@@ -117,9 +131,21 @@ def summarize(units: list[dict]) -> tuple[list[dict], dict]:
             and row["seed_count"] >= 3
             and row["round_count"] >= 3
         )
+    if any(row.get("strong_pass", False) for row in formal_candidates):
+        verdict_name = "PASS"
+    elif screening_mode and any(row.get("screen_pass", False) for row in formal_candidates):
+        verdict_name = "SCREEN_PASS_EXPAND_ROUNDS"
+    elif screening_mode:
+        verdict_name = "SCREEN_NO_SIGNAL"
+    else:
+        verdict_name = "NOT_YET_PASS"
     verdict = {
-        "verdict": "PASS" if any(row.get("strong_pass", False) for row in formal_candidates) else "NOT_YET_PASS",
+        "verdict": verdict_name,
+        "screening_mode": screening_mode,
         "warning": (
+            "V0c round-80-only output is a screening verdict, not a formal three-round verdict. "
+            "Gamma-wise official-test results may not be used to tune the paper method."
+            if screening_mode else
             "Gamma-wise results are all reported. A paper method may not select gamma from official-test results; "
             "use the validation protocol frozen in each unit."
         ),
@@ -189,7 +215,7 @@ def write_report(summary_rows: list[dict], verdict: dict, output_dir: Path) -> N
         if row["method"] in {"oracle_span", "support_weighting", "oracle_convex_search"}
     ]
     lines = [
-        "# V0/V0b aggregate report",
+        "# V0/V0b/V0c aggregate report",
         "",
         f"Verdict: **{verdict['verdict']}**",
         "",
@@ -205,6 +231,11 @@ def write_report(summary_rows: list[dict], verdict: dict, output_dir: Path) -> N
     lines.extend([
         "",
         "A positive support regret means the reported method remained below the feasible projected support candidate.",
+        (
+            "SCREEN_PASS_EXPAND_ROUNDS means the round-80 three-seed screen found a signal and rounds 20/50 should be added."
+            if verdict.get("screening_mode", False) else
+            "PASS requires three seeds and three distinct rounds."
+        ),
         "Gamma-wise official-test results are diagnostic only and must not be used to tune the paper method.",
     ])
     (output_dir / "v0_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
