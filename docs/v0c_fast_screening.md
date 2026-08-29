@@ -40,17 +40,20 @@ Defaults:
 ## Run on a three-GPU allocation
 
 Stop the old V0b workers before launching V0c so the two searches do not share
-the same GPUs. Then run:
+the same GPUs. Activate the project environment and verify Python first:
+
+```bash
+conda activate clientlt
+which python
+python -c 'import torch; print(torch.__version__, torch.cuda.is_available())'
+```
+
+Run V0c in the foreground. All three workers are prefixed by seed/round/GPU,
+printed directly in the terminal, and copied to their per-unit log files:
 
 ```bash
 mkdir -p output/v0_oracle_full
-nohup env GPU_IDS="${CUDA_VISIBLE_DEVICES//,/ }" V0_ROOT="output/v0_oracle_full" EVAL_BATCH_SIZE=256 bash scripts/run_v0c_fast.sh > output/v0_oracle_full/v0c_launcher.log 2>&1 & echo $!
-```
-
-Monitor the launcher and all three unit logs:
-
-```bash
-tail -f output/v0_oracle_full/v0c_launcher.log output/v0_oracle_full/logs/oracle_train_v0c_fast_seed*_round080.log
+env GPU_IDS="${CUDA_VISIBLE_DEVICES//,/ }" V0_ROOT="output/v0_oracle_full" EVAL_BATCH_SIZE=256 bash scripts/run_v0c_fast.sh
 ```
 
 Successful completion ends with:
@@ -77,7 +80,7 @@ python -m json.tool output/v0_oracle_full/summary/train_v0c_fast/v0_verdict.json
 Expansion command:
 
 ```bash
-nohup env GPU_IDS="${CUDA_VISIBLE_DEVICES//,/ }" V0_ROOT="output/v0_oracle_full" ROUNDS="20 50 80" EVAL_BATCH_SIZE=256 bash scripts/run_v0c_fast.sh > output/v0_oracle_full/v0c_expand_launcher.log 2>&1 & echo $!
+env GPU_IDS="${CUDA_VISIBLE_DEVICES//,/ }" V0_ROOT="output/v0_oracle_full" ROUNDS="20 50 80" EVAL_BATCH_SIZE=256 bash scripts/run_v0c_fast.sh
 ```
 
 Train-based selection is deliberately optimistic and is suitable only for

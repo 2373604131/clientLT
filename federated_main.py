@@ -351,6 +351,18 @@ def add_expF_runtime_arguments(parser):
     parser.add_argument("--split_seed", type=int, default=1, help="Random seed used only for client data partitioning.")
     parser.add_argument("--isolate_local_optimizer_state", type=str2bool, default=False, help="Rebuild local optimizer, scheduler, and AMP scaler before each selected client.")
     parser.add_argument("--federated_single_scheduler_step", type=str2bool, default=False, help="Use exactly one scheduler step per federated local epoch.")
+    parser.add_argument(
+        "--g0_probe_enable",
+        type=str2bool,
+        default=False,
+        help="Run the six-client local ClipLoRA capacity probe and exit before aggregation.",
+    )
+    parser.add_argument(
+        "--g0_probe_config_id",
+        type=str,
+        default="",
+        help="Stable identifier written into G0 artifacts (for example old_r2 or candidate_r4).",
+    )
 
 
 def apply_federated_runtime_overrides(cfg, args):
@@ -3024,6 +3036,7 @@ def setup_cfg(args):
 
 def main(args):
     cfg = setup_cfg(args)
+    g0_probe = bool(getattr(args, "g0_probe_enable", False))
     if args.trainer == "ClipLora":
         args.cliplora_aggregation = str(args.cliplora_aggregation).lower()
         if args.cliplora_aggregation != "fedavg" and bool(args.experimentD_enable):
@@ -3032,6 +3045,35 @@ def main(args):
                 "support-normalized training round. Run the end-to-end baseline "
                 "with --experimentD_enable False."
             )
+    if g0_probe:
+        from utils.g0_lora_probe import validate_g0_protocol
+
+        if args.trainer != "ClipLora" or args.model != "fedavg":
+            raise ValueError("G0 requires trainer=ClipLora and model=fedavg")
+        if args.encoder != "vision":
+            raise ValueError("G0 requires vision-only ClipLora")
+        if args.cliplora_precision != "fp32":
+            raise ValueError("G0 requires --cliplora_precision fp32")
+        if not bool(args.isolate_local_optimizer_state):
+            raise ValueError("G0 requires isolated local optimizer state")
+        if not bool(args.federated_single_scheduler_step):
+            raise ValueError("G0 requires the explicit local scheduler policy")
+        if not str(getattr(args, "g0_probe_config_id", "")).strip():
+            raise ValueError("G0 requires a non-empty --g0_probe_config_id")
+        if bool(args.experimentD_enable) or bool(args.e1_enable) or bool(getattr(args, "stage3_enable", False)):
+            raise ValueError("G0 cannot share a run with Experiment D, E1, or Stage-3")
+        validate_g0_protocol(args)
+    if bool(args.experimentD_enable):
+        support_min_fraction = float(args.experimentD_support_min_fraction)
+        if support_min_fraction < 0.0 or support_min_fraction >= 1.0:
+            raise ValueError("--experimentD_support_min_fraction must be in [0, 1)")
+        if int(args.experimentD_random_support_count) < 0:
+            raise ValueError("--experimentD_random_support_count cannot be negative")
+        requested_rounds = parse_experiment_d_rounds(args.experimentD_rounds)
+        if not requested_rounds:
+            raise ValueError("Experiment D requires at least one --experimentD_rounds value")
+        if min(requested_rounds) < 1 or max(requested_rounds) > int(args.round):
+            raise ValueError("Experiment D rounds must be within [1, --round]")
     if bool(getattr(args, "stage3_enable", False)):
         if args.trainer != "ClipLora" or args.model != "fedavg":
             raise ValueError("Stage-3 requires trainer=ClipLora and model=fedavg")
@@ -3195,6 +3237,38 @@ def main(args):
     save_partition_summary(args.output_dir, client_class_counts, args, args.num_users, n_cls)
     save_client_split_fingerprint(args.output_dir, local_trainer, args.num_users)
     global_class_counts = client_counts_to_tensor(client_class_counts, args.num_users, n_cls).sum(dim=0)
+    if g0_probe:
+        from utils.g0_lora_probe import run_g0_local_probe
+
+        def _g0_train_client(client_id):
+            local_trainer.reset_optimizer_and_scheduler()
+            _, _, scheduler_steps, optimizer_steps = run_promptfl_local_train_with_scheduler_policy(
+                local_trainer,
+                int(client_id),
+                0,
+                args,
+                cfg.OPTIM.MAX_EPOCH,
+            )
+            return {
+                "scheduler_steps": int(scheduler_steps),
+                "optimizer_steps": int(optimizer_steps),
+            }
+
+        run_g0_local_probe(
+            output_dir=args.output_dir,
+            args=args,
+            cfg=cfg,
+            trainer=local_trainer,
+            global_weights=copy.deepcopy(global_weights),
+            client_class_counts=client_class_counts,
+            global_class_counts=global_class_counts,
+            train_client=_g0_train_client,
+        )
+        print("G0 local capacity probe finished; no server aggregation was executed.")
+        local_trainer.fed_after_train()
+        if global_trainer is not None and global_trainer is not local_trainer:
+            global_trainer.fed_after_train()
+        return
     e1_evaluator = None
     if bool(getattr(args, "e1_enable", False)):
         if args.trainer != "ClipLora" or global_trainer is None:
@@ -5097,6 +5171,21 @@ if __name__ == "__main__":
     parser.add_argument('--experimentD_enable', type=str2bool, default=False, help='enable Experiment D counterfactual diagnostics without changing FedAvg training')
     parser.add_argument('--experimentD_rounds', type=str, default='', help='comma-separated 1-based communication rounds for Experiment D diagnostics, e.g. 5,10,20,30')
     parser.add_argument('--experimentD_include_normalized', type=str2bool, default=True, help='also evaluate the auxiliary support-normalized counterfactual')
+    parser.add_argument(
+        '--experimentD_support_min_fraction',
+        type=float,
+        default=0.0,
+        help=(
+            'A selected client supports class c only when its local class share is '
+            'strictly greater than this value. D1 uses 0.1 to match CAPT.'
+        ),
+    )
+    parser.add_argument(
+        '--experimentD_random_support_count',
+        type=int,
+        default=0,
+        help='Number of matched-size random support sets per tail class for the D1 p95 control.',
+    )
     parser.add_argument('--experimentD_log_update_norm', type=str2bool, default=True, help='log per-client trainable-parameter update norms when Experiment D is enabled')
     parser.add_argument('--experimentD_require_full_participation', type=str2bool, default=True, help='require frac=1.0 and all clients selected for Experiment D diagnostics')
     parser.add_argument('--experimentD_verify_fedavg', type=str2bool, default=True, help='verify reconstructed full FedAvg state matches average_weights output')

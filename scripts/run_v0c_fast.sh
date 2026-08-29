@@ -22,6 +22,7 @@ SAFE_TOP_K="${SAFE_TOP_K:-8}"
 RANDOM_COUNT="${RANDOM_COUNT:-20}"
 CONVEX_RANDOM_COUNT="${CONVEX_RANDOM_COUNT:-16}"
 RANK_MAX="${RANK_MAX:-8}"
+STREAM_OUTPUT="${STREAM_OUTPUT:-1}"
 ORACLE_TAG="${SELECTION_SOURCE}_v0c_fast"
 
 if [[ -n "${CUDA_VISIBLE_DEVICES:-}" ]]; then
@@ -46,6 +47,16 @@ fi
 if [[ "${SELECTION_SOURCE}" == "train" && "${ALLOW_OPTIMISTIC_SELECTION}" != "1" ]]; then
   echo "train selection requires ALLOW_OPTIMISTIC_SELECTION=1" >&2
   exit 2
+fi
+if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
+  echo "Python executable not found: ${PYTHON_BIN}" >&2
+  echo "Activate the project environment first (for example: conda activate clientlt)," >&2
+  echo "or set PYTHON_BIN to an explicit executable path." >&2
+  exit 127
+fi
+if ! "${PYTHON_BIN}" -c 'import sys, torch; print(f"Python: {sys.executable}"); print(f"PyTorch: {torch.__version__}"); print(f"CUDA available: {torch.cuda.is_available()}"); raise SystemExit(0 if torch.cuda.is_available() else 3)'; then
+  echo "Python/PyTorch/CUDA preflight failed; no V0c worker was started." >&2
+  exit 3
 fi
 
 for seed in "${SEED_ARRAY[@]}"; do
@@ -76,6 +87,7 @@ run_seed() {
   local log_file
   local unit_start
   local unit_elapsed
+  local -a command
   local -a selection_args=(--selection-source "${SELECTION_SOURCE}")
   if [[ "${SELECTION_SOURCE}" == "train" ]]; then
     selection_args+=(--allow-optimistic-selection)
@@ -93,7 +105,7 @@ run_seed() {
     mkdir -p "${output_dir}"
     unit_start="$(date +%s)"
     echo "Start V0c: seed=${seed} round=${round_id} gpu=${gpu} log=${log_file}"
-    CUDA_VISIBLE_DEVICES="${gpu}" "${PYTHON_BIN}" -u scripts/run_v0_oracle.py \
+    command=("${PYTHON_BIN}" -u scripts/run_v0_oracle.py \
       --dump-dir "${dump_dir}" \
       --output-dir "${output_dir}" \
       "${selection_args[@]}" \
@@ -108,8 +120,14 @@ run_seed() {
       --axis-scales 0.5 1.0 \
       --safe-top-k "${SAFE_TOP_K}" \
       --progress-every 5 \
-      --eval-batch-size "${EVAL_BATCH_SIZE}" \
-      >"${log_file}" 2>&1
+      --eval-batch-size "${EVAL_BATCH_SIZE}")
+    if [[ "${STREAM_OUTPUT}" == "1" ]]; then
+      CUDA_VISIBLE_DEVICES="${gpu}" "${command[@]}" 2>&1 \
+        | sed -u "s/^/[seed=${seed} round=${round_id} gpu=${gpu}] /" \
+        | tee "${log_file}"
+    else
+      CUDA_VISIBLE_DEVICES="${gpu}" "${command[@]}" >"${log_file}" 2>&1
+    fi
     unit_elapsed="$(( $(date +%s) - unit_start ))"
     echo "Complete V0c unit: seed=${seed} round=${round_id} elapsed=${unit_elapsed}s"
   done
@@ -139,6 +157,7 @@ echo "  balanced opt cap: ${OPT_PER_CLASS} per class"
 echo "  full-safe top-k: ${SAFE_TOP_K}"
 echo "  random/convex: ${RANDOM_COUNT}/${CONVEX_RANDOM_COUNT}"
 echo "  eval batch size: ${EVAL_BATCH_SIZE}"
+echo "  stream output: ${STREAM_OUTPUT}"
 
 pids=()
 for ((slot=0; slot<worker_count; slot+=1)); do

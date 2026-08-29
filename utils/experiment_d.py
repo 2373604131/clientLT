@@ -6,6 +6,7 @@ import time
 from collections.abc import Mapping
 from pathlib import Path
 
+import numpy as np
 import torch
 
 
@@ -19,6 +20,9 @@ PER_CLASS_FIELDS = [
     "local_epochs",
     "class_id",
     "class_group",
+    "support_definition",
+    "support_min_fraction",
+    "support_valid",
     "global_class_count",
     "num_support_clients",
     "support_client_fraction",
@@ -32,11 +36,30 @@ PER_CLASS_FIELDS = [
     "acc_before",
     "acc_support_actual",
     "acc_support_normalized",
+    "acc_non_support_actual",
     "acc_all",
     "gain_support_actual",
     "gain_support_normalized",
+    "gain_non_support_actual",
     "gain_all",
+    "dilution_gap",
     "offset_gap",
+    "tail_gain_support_actual_vs_fedavg",
+    "tail_gain_support_normalized_vs_fedavg",
+    "random_support_count",
+    "random_support_normalized_p95_acc",
+    "tail_gain_support_normalized_vs_random_p95",
+    "support_normalized_beats_random_p95",
+    "head_acc_before",
+    "head_acc_all",
+    "head_acc_support_actual",
+    "head_acc_support_normalized",
+    "head_damage_support_actual_vs_fedavg",
+    "head_damage_support_normalized_vs_fedavg",
+    "h_fedavg",
+    "h_support_actual",
+    "h_support_normalized",
+    "h_gain_support_normalized_vs_fedavg",
     "support_actual_positive",
     "support_normalized_positive",
     "offset_observed",
@@ -54,14 +77,29 @@ ROUND_SUMMARY_FIELDS = [
     "partition",
     "local_epochs",
     "num_tail_classes",
+    "valid_support_class_rate",
     "mean_gain_support_actual",
     "median_gain_support_actual",
     "mean_gain_support_normalized",
     "median_gain_support_normalized",
+    "mean_gain_non_support_actual",
     "mean_gain_all",
+    "mean_dilution_gap",
     "median_gain_all",
     "mean_offset_gap",
     "median_offset_gap",
+    "mean_tail_gain_support_actual_vs_fedavg",
+    "mean_tail_gain_support_normalized_vs_fedavg",
+    "support_normalized_beats_fedavg_rate",
+    "support_normalized_beats_random_p95_rate",
+    "mean_tail_gain_support_normalized_vs_random_p95",
+    "head_acc_before",
+    "head_acc_all",
+    "mean_head_acc_support_actual",
+    "mean_head_acc_support_normalized",
+    "mean_head_damage_support_actual_vs_fedavg",
+    "mean_head_damage_support_normalized_vs_fedavg",
+    "mean_h_gain_support_normalized_vs_fedavg",
     "support_actual_positive_rate",
     "support_normalized_positive_rate",
     "offset_observed_rate",
@@ -388,9 +426,18 @@ def class_ids_from_tail_ratio(global_class_counts, tail_class_ratio):
     num_classes = int(counts.numel())
     num_tail = max(1, int(round(num_classes * float(tail_class_ratio))))
     num_tail = min(num_tail, num_classes)
-    order = torch.argsort(counts, descending=True)
-    tail = [int(x) for x in order[-num_tail:].tolist()]
-    head = [int(x) for x in order[:-num_tail].tolist()]
+    # Keep this identical to federated_main.get_lt_class_splits_from_counts.
+    # The explicit tie-break is important for the realized CIFAR-100-LT
+    # boundary, where adjacent class budgets can be equal after rounding.
+    tail = sorted(
+        range(num_classes),
+        key=lambda class_id: (float(counts[class_id]), -class_id),
+    )[:num_tail]
+    tail_set = set(tail)
+    head = sorted(
+        (class_id for class_id in range(num_classes) if class_id not in tail_set),
+        key=lambda class_id: (-float(counts[class_id]), class_id),
+    )
     return head, tail
 
 
@@ -422,11 +469,29 @@ def validate_full_participation(args, selected_clients):
         )
 
 
-def support_clients_for_class(client_class_counts, selected_clients, class_id):
+def support_clients_for_class(
+    client_class_counts,
+    selected_clients,
+    class_id,
+    min_client_fraction=0.0,
+):
+    """Return clients whose local class share exceeds the frozen threshold.
+
+    ``min_client_fraction=0`` preserves the historical binary-support
+    definition.  D1 uses 0.1 to match CAPT's effective-support rule.
+    """
+
+    threshold = float(min_client_fraction)
+    if threshold < 0.0 or threshold >= 1.0:
+        raise ValueError("min_client_fraction must be in [0, 1)")
     support = []
     for client_id in selected_clients:
         counts = client_class_counts[int(client_id)]
-        if float(torch.as_tensor(counts)[int(class_id)].item()) > 0:
+        tensor = torch.as_tensor(counts, dtype=torch.float32)
+        class_count = float(tensor[int(class_id)].item())
+        total = float(tensor.sum().item())
+        fraction = class_count / total if total > 0.0 else 0.0
+        if class_count > 0.0 and fraction > threshold:
             support.append(int(client_id))
     return support
 
@@ -449,6 +514,14 @@ def _median(values):
 def _rate(values):
     valid = [bool(x) for x in values]
     return float(sum(1 for x in valid if x) / len(valid)) if valid else math.nan
+
+
+def _harmonic_pair(first, second, eps=1e-12):
+    first = float(first)
+    second = float(second)
+    if not math.isfinite(first) or not math.isfinite(second) or first <= 0.0 or second <= 0.0:
+        return 0.0
+    return 2.0 * first * second / max(first + second, eps)
 
 
 def _as_bool_text(value):
@@ -708,6 +781,10 @@ def _write_experiment_d_metadata(out_dir, args):
                 "core_model": "support_actual uses original FedAvg weights over support clients only; no renormalization.",
                 "rounds": getattr(args, "experimentD_rounds", ""),
                 "include_normalized": bool(getattr(args, "experimentD_include_normalized", False)),
+                "support_definition": "client_class_count/client_total > support_min_fraction",
+                "support_min_fraction": float(
+                    getattr(args, "experimentD_support_min_fraction", 0.0)
+                ),
             },
             f,
             indent=2,
@@ -769,7 +846,9 @@ def run_experiment_d_round(
     eval_mode = str(getattr(args, "experimentD_eval_mode", "class_filtered"))
     eval_loaders = None
     if eval_mode == "class_filtered":
-        eval_loaders = build_class_filtered_eval_loaders(global_trainer, tail_classes)
+        eval_loaders = build_class_filtered_eval_loaders(
+            global_trainer, list(head_classes) + list(tail_classes)
+        )
         if eval_loaders is None:
             print(
                 "Experiment D warning: class_filtered eval loader unavailable; "
@@ -778,25 +857,58 @@ def run_experiment_d_round(
     elif eval_mode != "full":
         raise ValueError(f"Unknown --experimentD_eval_mode: {eval_mode}")
 
+    tail_eval_loaders = (
+        {class_id: eval_loaders[class_id] for class_id in tail_classes}
+        if isinstance(eval_loaders, Mapping)
+        else eval_loaders
+    )
+    head_eval_loaders = (
+        {class_id: eval_loaders[class_id] for class_id in head_classes}
+        if isinstance(eval_loaders, Mapping)
+        else eval_loaders
+    )
     acc_before = evaluate_state_per_class(
         global_trainer,
         global_before,
         tail_classes,
-        eval_loaders,
+        tail_eval_loaders,
     )
     acc_all = evaluate_state_per_class(
         global_trainer,
         theta_all,
         tail_classes,
-        eval_loaders,
+        tail_eval_loaders,
     )
+    head_before_by_class = evaluate_state_per_class(
+        global_trainer,
+        global_before,
+        head_classes,
+        head_eval_loaders,
+    )
+    head_all_by_class = evaluate_state_per_class(
+        global_trainer,
+        theta_all,
+        head_classes,
+        head_eval_loaders,
+    )
+    head_acc_before = _mean(head_before_by_class.values())
+    head_acc_all = _mean(head_all_by_class.values())
 
     tail_specialists = tail_specialist_clients(args)
     tail_specialist_set = set(tail_specialists)
+    support_min_fraction = float(
+        getattr(args, "experimentD_support_min_fraction", 0.0)
+    )
     per_class_rows = []
 
     for class_id in tail_classes:
-        support = support_clients_for_class(client_class_counts, selected, class_id)
+        support = support_clients_for_class(
+            client_class_counts,
+            selected,
+            class_id,
+            min_client_fraction=support_min_fraction,
+        )
+        support_valid = bool(support)
         support_state = build_support_actual_state(
             global_before,
             local_weights,
@@ -811,8 +923,31 @@ def run_experiment_d_round(
             {class_id: eval_loaders[class_id]} if isinstance(eval_loaders, Mapping) else eval_loaders,
         )[class_id]
 
+        non_support_state = build_non_support_actual_state(
+            global_before,
+            local_weights,
+            selected,
+            support,
+            client_weights,
+        )
+        acc_non_support_actual = evaluate_state_per_class(
+            global_trainer,
+            non_support_state,
+            [class_id],
+            {class_id: eval_loaders[class_id]} if isinstance(eval_loaders, Mapping) else eval_loaders,
+        )[class_id]
+
+        head_support_actual_by_class = evaluate_state_per_class(
+            global_trainer,
+            support_state,
+            head_classes,
+            head_eval_loaders,
+        )
+        head_acc_support_actual = _mean(head_support_actual_by_class.values())
+
         acc_support_normalized = math.nan
-        if bool(getattr(args, "experimentD_include_normalized", False)):
+        head_acc_support_normalized = math.nan
+        if support_valid and bool(getattr(args, "experimentD_include_normalized", False)):
             support_normalized_state = build_support_normalized_state(
                 global_before,
                 local_weights,
@@ -825,6 +960,53 @@ def run_experiment_d_round(
                 [class_id],
                 {class_id: eval_loaders[class_id]} if isinstance(eval_loaders, Mapping) else eval_loaders,
             )[class_id]
+            head_support_normalized_by_class = evaluate_state_per_class(
+                global_trainer,
+                support_normalized_state,
+                head_classes,
+                head_eval_loaders,
+            )
+            head_acc_support_normalized = _mean(head_support_normalized_by_class.values())
+
+        random_support_count = int(
+            getattr(args, "experimentD_random_support_count", 0)
+        )
+        random_support_accs = []
+        if support_valid and random_support_count > 0:
+            rng = np.random.default_rng(
+                int(getattr(args, "seed", 0)) * 1_000_003
+                + (int(epoch) + 1) * 10_009
+                + int(class_id)
+            )
+            for _ in range(random_support_count):
+                random_support = [
+                    int(value)
+                    for value in rng.choice(
+                        selected,
+                        size=len(support),
+                        replace=False,
+                    ).tolist()
+                ]
+                random_state = build_support_normalized_state(
+                    global_before,
+                    local_weights,
+                    random_support,
+                    datanumber_client,
+                )
+                random_acc = evaluate_state_per_class(
+                    global_trainer,
+                    random_state,
+                    [class_id],
+                    {class_id: eval_loaders[class_id]}
+                    if isinstance(eval_loaders, Mapping)
+                    else eval_loaders,
+                )[class_id]
+                random_support_accs.append(float(random_acc))
+        random_support_normalized_p95_acc = (
+            float(np.percentile(random_support_accs, 95.0))
+            if random_support_accs
+            else math.nan
+        )
 
         gain_support_actual = float(acc_support_actual) - float(acc_before[class_id])
         gain_support_normalized = (
@@ -832,8 +1014,41 @@ def run_experiment_d_round(
             if not math.isnan(float(acc_support_normalized))
             else math.nan
         )
+        gain_non_support_actual = float(acc_non_support_actual) - float(acc_before[class_id])
         gain_all = float(acc_all[class_id]) - float(acc_before[class_id])
+        dilution_gap = gain_support_normalized - gain_support_actual
         offset_gap = gain_support_actual - gain_all
+        tail_gain_support_actual_vs_fedavg = float(acc_support_actual) - float(acc_all[class_id])
+        tail_gain_support_normalized_vs_fedavg = (
+            float(acc_support_normalized) - float(acc_all[class_id])
+            if math.isfinite(float(acc_support_normalized))
+            else math.nan
+        )
+        tail_gain_support_normalized_vs_random_p95 = (
+            float(acc_support_normalized) - random_support_normalized_p95_acc
+            if math.isfinite(float(acc_support_normalized))
+            and math.isfinite(float(random_support_normalized_p95_acc))
+            else math.nan
+        )
+        head_damage_support_actual_vs_fedavg = head_acc_all - head_acc_support_actual
+        head_damage_support_normalized_vs_fedavg = (
+            head_acc_all - head_acc_support_normalized
+            if math.isfinite(float(head_acc_support_normalized))
+            else math.nan
+        )
+        h_fedavg = _harmonic_pair(head_acc_all, acc_all[class_id])
+        h_support_actual = _harmonic_pair(head_acc_support_actual, acc_support_actual)
+        h_support_normalized = (
+            _harmonic_pair(head_acc_support_normalized, acc_support_normalized)
+            if math.isfinite(float(acc_support_normalized))
+            and math.isfinite(float(head_acc_support_normalized))
+            else math.nan
+        )
+        h_gain_support_normalized_vs_fedavg = (
+            h_support_normalized - h_fedavg
+            if math.isfinite(float(h_support_normalized))
+            else math.nan
+        )
 
         class_positive_samples = float(global_counts[class_id].item())
         positive_samples_in_tail_specialists = (
@@ -858,6 +1073,9 @@ def run_experiment_d_round(
                 "local_epochs": int(getattr(args, "local_epochs", -1)),
                 "class_id": int(class_id),
                 "class_group": "tail" if class_id in tail_set else ("head" if class_id in head_set else ""),
+                "support_definition": "client_class_fraction_gt_threshold",
+                "support_min_fraction": support_min_fraction,
+                "support_valid": _as_bool_text(support_valid),
                 "global_class_count": class_positive_samples,
                 "num_support_clients": int(len(support)),
                 "support_client_fraction": float(len(support) / max(len(selected), 1)),
@@ -871,11 +1089,33 @@ def run_experiment_d_round(
                 "acc_before": float(acc_before[class_id]),
                 "acc_support_actual": float(acc_support_actual),
                 "acc_support_normalized": acc_support_normalized,
+                "acc_non_support_actual": float(acc_non_support_actual),
                 "acc_all": float(acc_all[class_id]),
                 "gain_support_actual": gain_support_actual,
                 "gain_support_normalized": gain_support_normalized,
+                "gain_non_support_actual": gain_non_support_actual,
                 "gain_all": gain_all,
+                "dilution_gap": dilution_gap,
                 "offset_gap": offset_gap,
+                "tail_gain_support_actual_vs_fedavg": tail_gain_support_actual_vs_fedavg,
+                "tail_gain_support_normalized_vs_fedavg": tail_gain_support_normalized_vs_fedavg,
+                "random_support_count": len(random_support_accs),
+                "random_support_normalized_p95_acc": random_support_normalized_p95_acc,
+                "tail_gain_support_normalized_vs_random_p95": tail_gain_support_normalized_vs_random_p95,
+                "support_normalized_beats_random_p95": _as_bool_text(
+                    math.isfinite(float(tail_gain_support_normalized_vs_random_p95))
+                    and tail_gain_support_normalized_vs_random_p95 > 0.0
+                ),
+                "head_acc_before": head_acc_before,
+                "head_acc_all": head_acc_all,
+                "head_acc_support_actual": head_acc_support_actual,
+                "head_acc_support_normalized": head_acc_support_normalized,
+                "head_damage_support_actual_vs_fedavg": head_damage_support_actual_vs_fedavg,
+                "head_damage_support_normalized_vs_fedavg": head_damage_support_normalized_vs_fedavg,
+                "h_fedavg": h_fedavg,
+                "h_support_actual": h_support_actual,
+                "h_support_normalized": h_support_normalized,
+                "h_gain_support_normalized_vs_fedavg": h_gain_support_normalized_vs_fedavg,
                 "support_actual_positive": _as_bool_text(gain_support_actual > 0.0),
                 "support_normalized_positive": _as_bool_text(
                     (not math.isnan(gain_support_normalized)) and gain_support_normalized > 0.0
@@ -896,14 +1136,61 @@ def run_experiment_d_round(
         "partition": getattr(args, "partition", ""),
         "local_epochs": int(getattr(args, "local_epochs", -1)),
         "num_tail_classes": int(len(per_class_rows)),
+        "valid_support_class_rate": _rate(
+            [str(row["support_valid"]).lower() == "true" for row in per_class_rows]
+        ),
         "mean_gain_support_actual": _mean([row["gain_support_actual"] for row in per_class_rows]),
         "median_gain_support_actual": _median([row["gain_support_actual"] for row in per_class_rows]),
         "mean_gain_support_normalized": _mean([row["gain_support_normalized"] for row in per_class_rows]),
         "median_gain_support_normalized": _median([row["gain_support_normalized"] for row in per_class_rows]),
+        "mean_gain_non_support_actual": _mean(
+            [row["gain_non_support_actual"] for row in per_class_rows]
+        ),
         "mean_gain_all": _mean([row["gain_all"] for row in per_class_rows]),
+        "mean_dilution_gap": _mean([row["dilution_gap"] for row in per_class_rows]),
         "median_gain_all": _median([row["gain_all"] for row in per_class_rows]),
         "mean_offset_gap": _mean([row["offset_gap"] for row in per_class_rows]),
         "median_offset_gap": _median([row["offset_gap"] for row in per_class_rows]),
+        "mean_tail_gain_support_actual_vs_fedavg": _mean(
+            [row["tail_gain_support_actual_vs_fedavg"] for row in per_class_rows]
+        ),
+        "mean_tail_gain_support_normalized_vs_fedavg": _mean(
+            [row["tail_gain_support_normalized_vs_fedavg"] for row in per_class_rows]
+        ),
+        "support_normalized_beats_fedavg_rate": _rate(
+            [
+                math.isfinite(float(row["tail_gain_support_normalized_vs_fedavg"]))
+                and float(row["tail_gain_support_normalized_vs_fedavg"]) > 0.0
+                for row in per_class_rows
+            ]
+        ),
+        "support_normalized_beats_random_p95_rate": _rate(
+            [
+                math.isfinite(float(row["tail_gain_support_normalized_vs_random_p95"]))
+                and float(row["tail_gain_support_normalized_vs_random_p95"]) > 0.0
+                for row in per_class_rows
+            ]
+        ),
+        "mean_tail_gain_support_normalized_vs_random_p95": _mean(
+            [row["tail_gain_support_normalized_vs_random_p95"] for row in per_class_rows]
+        ),
+        "head_acc_before": head_acc_before,
+        "head_acc_all": head_acc_all,
+        "mean_head_acc_support_actual": _mean(
+            [row["head_acc_support_actual"] for row in per_class_rows]
+        ),
+        "mean_head_acc_support_normalized": _mean(
+            [row["head_acc_support_normalized"] for row in per_class_rows]
+        ),
+        "mean_head_damage_support_actual_vs_fedavg": _mean(
+            [row["head_damage_support_actual_vs_fedavg"] for row in per_class_rows]
+        ),
+        "mean_head_damage_support_normalized_vs_fedavg": _mean(
+            [row["head_damage_support_normalized_vs_fedavg"] for row in per_class_rows]
+        ),
+        "mean_h_gain_support_normalized_vs_fedavg": _mean(
+            [row["h_gain_support_normalized_vs_fedavg"] for row in per_class_rows]
+        ),
         "support_actual_positive_rate": _rate([row["gain_support_actual"] > 0.0 for row in per_class_rows]),
         "support_normalized_positive_rate": _rate(
             [
