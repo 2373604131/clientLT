@@ -167,8 +167,9 @@ def test_d1_schema_contains_non_support_random_and_head_safety_metrics():
 
 
 def test_d1_summary_requires_and_aggregates_exact_three_rounds(tmp_path):
-    path = tmp_path / "d1_seed42" / "experiment_d" / "experiment_d_round_summary.csv"
-    path.parent.mkdir(parents=True)
+    experiment_dir = tmp_path / "d1_seed42" / "experiment_d"
+    path = experiment_dir / "experiment_d_round_summary.csv"
+    experiment_dir.mkdir(parents=True)
     rows = []
     for communication_round in (20, 50, 80):
         rows.append(
@@ -186,6 +187,27 @@ def test_d1_summary_requires_and_aggregates_exact_three_rounds(tmp_path):
         writer.writeheader()
         writer.writerows(rows)
 
+    per_class = []
+    for communication_round in (20, 50, 80):
+        for class_id in range(80, 100):
+            per_class.append({
+                "communication_round": communication_round,
+                "class_id": class_id,
+                "support_valid": "True",
+                "support_normalized_beats_random_p95": "True",
+                "tail_gain_support_normalized_vs_fedavg": 2.0,
+                "tail_gain_support_normalized_vs_random_p95": 1.0,
+                "head_damage_support_normalized_vs_fedavg": 0.2,
+                "h_gain_support_normalized_vs_fedavg": 0.5,
+                "num_support_clients": 1,
+            })
+    with (experiment_dir / "experiment_d_per_class.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(per_class[0]))
+        writer.writeheader()
+        writer.writerows(per_class)
+
     report = summarize_d1(
         tmp_path,
         {
@@ -194,6 +216,54 @@ def test_d1_summary_requires_and_aggregates_exact_three_rounds(tmp_path):
         },
     )
 
-    assert report["verdict"] == "D1_SCREEN_PASS"
+    assert report["verdict"] == "D1_FULL_PASS"
+    assert report["conditional_valid_class_beats_random_p95_rate"] == 1.0
     saved = json.loads((tmp_path / "d1_summary" / "d1_verdict.json").read_text())
     assert saved["rounds"] == [20, 50, 80]
+
+
+def test_d1_summary_separates_supported_phenomenon_from_coverage_gap(tmp_path):
+    experiment_dir = tmp_path / "d1_seed42" / "experiment_d"
+    experiment_dir.mkdir(parents=True)
+    summary = []
+    classes = []
+    for communication_round in (20, 50, 80):
+        summary.append({
+            "communication_round": communication_round,
+            "mean_tail_gain_support_normalized_vs_fedavg": 20.0,
+            "mean_head_damage_support_normalized_vs_fedavg": 3.0,
+            "mean_h_gain_support_normalized_vs_fedavg": 5.0,
+            "support_normalized_beats_random_p95_rate": 0.4,
+            "valid_support_class_rate": 0.55,
+        })
+        for offset, class_id in enumerate(range(80, 100)):
+            valid = offset < 11
+            classes.append({
+                "communication_round": communication_round,
+                "class_id": class_id,
+                "support_valid": str(valid),
+                "support_normalized_beats_random_p95": str(valid and offset < 8),
+                "tail_gain_support_normalized_vs_fedavg": 20.0 if valid else "nan",
+                "tail_gain_support_normalized_vs_random_p95": 2.0 if valid else "nan",
+                "head_damage_support_normalized_vs_fedavg": 3.0 if valid else "nan",
+                "h_gain_support_normalized_vs_fedavg": 5.0 if valid else "nan",
+                "num_support_clients": 1 if valid else 0,
+            })
+    for name, rows in (
+        ("experiment_d_round_summary.csv", summary),
+        ("experiment_d_per_class.csv", classes),
+    ):
+        with (experiment_dir / name).open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+
+    report = summarize_d1(
+        tmp_path,
+        {"selected_config_id": "candidate_r4", "selected_config": CONFIGS["candidate_r4"]},
+    )
+
+    assert report["phenomenon_pass"] is True
+    assert report["support_rule_coverage_pass"] is False
+    assert report["method_ready"] is False
+    assert report["verdict"] == "D1_SUPPORTED_WITH_COVERAGE_GAP"

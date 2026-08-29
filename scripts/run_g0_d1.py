@@ -264,9 +264,15 @@ def _json_safe(value):
     return value
 
 
+def _csv_bool(value) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes"}
+
+
 def summarize_d1(output_root: Path, frozen: Mapping) -> dict:
     run_dir = output_root / "d1_seed42"
-    summary_rows = _read_csv(run_dir / "experiment_d" / "experiment_d_round_summary.csv")
+    experiment_dir = run_dir / "experiment_d"
+    summary_rows = _read_csv(experiment_dir / "experiment_d_round_summary.csv")
+    per_class_rows = _read_csv(experiment_dir / "experiment_d_per_class.csv")
     wanted = {20, 50, 80}
     rows = [row for row in summary_rows if int(float(row["communication_round"])) in wanted]
     observed = {int(float(row["communication_round"])) for row in rows}
@@ -274,21 +280,111 @@ def summarize_d1(output_root: Path, frozen: Mapping) -> dict:
         raise RuntimeError(f"D1 is incomplete: expected rounds {sorted(wanted)}, got {sorted(observed)}")
     rows.sort(key=lambda row: int(float(row["communication_round"])))
 
-    tail_gains = [float(row["mean_tail_gain_support_normalized_vs_fedavg"]) for row in rows]
-    head_damage = [float(row["mean_head_damage_support_normalized_vs_fedavg"]) for row in rows]
-    h_gains = [float(row["mean_h_gain_support_normalized_vs_fedavg"]) for row in rows]
+    class_rows = [
+        row for row in per_class_rows
+        if int(float(row["communication_round"])) in wanted
+    ]
+    class_rounds = {int(float(row["communication_round"])) for row in class_rows}
+    if class_rounds != wanted:
+        raise RuntimeError(
+            "D1 per-class output is incomplete: "
+            f"expected rounds {sorted(wanted)}, got {sorted(class_rounds)}"
+        )
+    by_round = {
+        communication_round: [
+            row for row in class_rows
+            if int(float(row["communication_round"])) == communication_round
+        ]
+        for communication_round in sorted(wanted)
+    }
+    if any(len(items) != 20 for items in by_round.values()):
+        sizes = {key: len(value) for key, value in by_round.items()}
+        raise RuntimeError(f"D1 requires exactly 20 tail-class rows per round, got {sizes}")
+
+    conditional_rows = []
+    uncovered_by_round = {}
+    for communication_round, items in by_round.items():
+        valid = [row for row in items if _csv_bool(row.get("support_valid", False))]
+        uncovered = sorted(
+            int(float(row["class_id"]))
+            for row in items
+            if not _csv_bool(row.get("support_valid", False))
+        )
+        beats_random = [
+            _csv_bool(row.get("support_normalized_beats_random_p95", False))
+            for row in valid
+        ]
+        beneficial_supporters = [
+            float(row["tail_gain_support_normalized_vs_fedavg"]) > 0.0
+            for row in valid
+        ]
+        conditional_rows.append({
+            "communication_round": communication_round,
+            "tail_class_count": len(items),
+            "valid_support_class_count": len(valid),
+            "valid_support_class_rate": len(valid) / len(items),
+            "conditional_beats_random_p95_rate": (
+                sum(beats_random) / len(beats_random) if beats_random else math.nan
+            ),
+            "conditional_beats_fedavg_rate": (
+                sum(beneficial_supporters) / len(beneficial_supporters)
+                if beneficial_supporters else math.nan
+            ),
+            "conditional_mean_tail_gain_vs_fedavg": _mean(
+                [row["tail_gain_support_normalized_vs_fedavg"] for row in valid]
+            ),
+            "conditional_mean_tail_gain_vs_random_p95": _mean(
+                [row["tail_gain_support_normalized_vs_random_p95"] for row in valid]
+            ),
+            "conditional_mean_head_damage_vs_fedavg": _mean(
+                [row["head_damage_support_normalized_vs_fedavg"] for row in valid]
+            ),
+            "conditional_mean_h_gain_vs_fedavg": _mean(
+                [row["h_gain_support_normalized_vs_fedavg"] for row in valid]
+            ),
+            "mean_strict_supporter_count_all_tail_classes": _mean(
+                [row["num_support_clients"] for row in items]
+            ),
+            "mean_strict_supporter_count_valid_classes": _mean(
+                [row["num_support_clients"] for row in valid]
+            ),
+            "uncovered_tail_class_ids": uncovered,
+        })
+        uncovered_by_round[str(communication_round)] = uncovered
+
+    tail_gains = [row["conditional_mean_tail_gain_vs_fedavg"] for row in conditional_rows]
+    head_damage = [row["conditional_mean_head_damage_vs_fedavg"] for row in conditional_rows]
+    h_gains = [row["conditional_mean_h_gain_vs_fedavg"] for row in conditional_rows]
     random_rates = [float(row["support_normalized_beats_random_p95_rate"]) for row in rows]
     valid_rates = [float(row["valid_support_class_rate"]) for row in rows]
+    conditional_random_rates = [
+        row["conditional_beats_random_p95_rate"] for row in conditional_rows
+    ]
+    conditional_fedavg_rates = [
+        row["conditional_beats_fedavg_rate"] for row in conditional_rows
+    ]
     positive_rounds = sum(value > 0.0 for value in tail_gains)
-    checks = {
+    phenomenon_checks = {
         "positive_at_least_two_rounds": positive_rounds >= 2,
-        "mean_tail_gain_at_least_1pp": _mean(tail_gains) >= 1.0,
-        "beats_random_p95_rate_at_least_0p6": _mean(random_rates) >= 0.6,
-        "valid_support_rate_at_least_0p8": _mean(valid_rates) >= 0.8,
+        "conditional_mean_tail_gain_at_least_1pp": _mean(tail_gains) >= 1.0,
+        "conditional_beats_random_p95_rate_at_least_0p6": (
+            _mean(conditional_random_rates) >= 0.6
+        ),
         "head_safe_or_h_improves": _mean(head_damage) <= 0.5 or _mean(h_gains) >= 0.0,
     }
+    coverage_checks = {
+        "strict_support_covers_at_least_0p8_of_tail_classes": _mean(valid_rates) >= 0.8,
+    }
+    phenomenon_pass = all(phenomenon_checks.values())
+    coverage_pass = all(coverage_checks.values())
+    if phenomenon_pass and coverage_pass:
+        verdict = "D1_FULL_PASS"
+    elif phenomenon_pass:
+        verdict = "D1_SUPPORTED_WITH_COVERAGE_GAP"
+    else:
+        verdict = "D1_PHENOMENON_NOT_SUPPORTED"
     report = {
-        "schema_version": "d1_support_counterfactual_v1",
+        "schema_version": "d1_support_counterfactual_v2",
         "seed": 42,
         "rounds": [20, 50, 80],
         "frozen_config_id": frozen["selected_config_id"],
@@ -297,11 +393,24 @@ def summarize_d1(output_root: Path, frozen: Mapping) -> dict:
         "mean_tail_gain_support_normalized_vs_fedavg": _mean(tail_gains),
         "mean_head_damage_support_normalized_vs_fedavg": _mean(head_damage),
         "mean_h_gain_support_normalized_vs_fedavg": _mean(h_gains),
-        "mean_beats_random_p95_rate": _mean(random_rates),
+        "legacy_all_tail_beats_random_p95_rate": _mean(random_rates),
+        "conditional_valid_class_beats_random_p95_rate": _mean(conditional_random_rates),
+        "conditional_valid_class_beats_fedavg_rate": _mean(conditional_fedavg_rates),
         "mean_valid_support_class_rate": _mean(valid_rates),
         "positive_round_count": positive_rounds,
-        "checks": checks,
-        "verdict": "D1_SCREEN_PASS" if all(checks.values()) else "D1_SCREEN_FAIL",
+        "valid_class_conditioning_note": (
+            "Tail/head gains and random-p95 comparisons are defined only for classes "
+            "with at least one strict supporter. Uncovered classes are a support-rule "
+            "coverage failure, not negative random-control trials."
+        ),
+        "phenomenon_checks": phenomenon_checks,
+        "coverage_checks": coverage_checks,
+        "phenomenon_pass": phenomenon_pass,
+        "support_rule_coverage_pass": coverage_pass,
+        "method_ready": phenomenon_pass and coverage_pass,
+        "verdict": verdict,
+        "conditional_round_rows": conditional_rows,
+        "uncovered_tail_classes_by_round": uncovered_by_round,
         "round_rows": rows,
     }
     summary_dir = output_root / "d1_summary"
@@ -319,7 +428,9 @@ def summarize_d1(output_root: Path, frozen: Mapping) -> dict:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--stage", choices=["g0", "d1", "all"], default="all")
+    parser.add_argument(
+        "--stage", choices=["g0", "d1", "d1-summary", "all"], default="all"
+    )
     parser.add_argument("--output-root", type=Path, default=Path("output/g0_d1_seed42"))
     parser.add_argument("--data-root", type=Path, default=Path("DATA"))
     parser.add_argument("--python-bin", default=sys.executable)
@@ -341,6 +452,13 @@ def main() -> None:
         (args.output_root / "schedules").mkdir(parents=True, exist_ok=True)
 
     frozen = None
+    if args.stage == "d1-summary":
+        freeze_path = args.output_root / "lora_freeze.json"
+        if not freeze_path.exists():
+            raise FileNotFoundError(f"D1 summary requires {freeze_path}")
+        frozen = json.loads(freeze_path.read_text(encoding="utf-8"))
+        summarize_d1(args.output_root, frozen)
+        return
     if args.stage in {"g0", "all"}:
         for config_id in CONFIGS:
             output_dir, command = build_g0_command(args, config_id)
