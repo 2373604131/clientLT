@@ -13,6 +13,13 @@ from scripts.analyze_d2_conflict import (
     sign_disagreement,
     spearman,
 )
+from scripts.analyze_d2b_scalar_ceiling import (
+    compose_class_logits,
+    compose_scalar_logits,
+    optimize_weight_distributions,
+    utility_interaction_report,
+    vector_from_weights,
+)
 from scripts.analyze_d3_boundary import (
     apply_logit_adjustment,
     centroid_logits,
@@ -21,7 +28,7 @@ from scripts.analyze_d3_boundary import (
     ridge_logits,
     select_tau,
 )
-from scripts.run_d23 import build_dump_command, dump_complete, load_frozen
+from scripts.run_d23 import analyzer_command, build_dump_command, dump_complete, load_frozen
 from scripts.run_g0_d1 import CONFIGS
 from utils.cusp_minimal import make_flat_spec
 from utils.d23_common import class_split, stratified_fit_calibration_split
@@ -145,3 +152,93 @@ def test_class_split_has_only_eighty_head_and_twenty_tail_classes():
     assert len(head) == 80
     assert len(tail) == 20
     assert set(head).isdisjoint(tail)
+
+
+def test_d2b_utility_report_detects_non_additive_client_class_interaction():
+    rows = []
+    for class_id in range(80, 100):
+        for client_id in range(30):
+            rows.append({
+                "communication_round": 20,
+                "class_id": class_id,
+                "client_id": client_id,
+                "tail_margin_contribution": (
+                    (1.0 if (class_id + client_id) % 2 else -1.0)
+                    * (1.0 + 0.01 * class_id + 0.001 * client_id)
+                ),
+            })
+    report = utility_interaction_report(rows, 20)
+
+    assert report["interaction_energy_ratio"] > 0.9
+    assert report["clients_with_both_beneficial_and_harmful_classes_rate"] == 1.0
+    assert report["classes_with_both_beneficial_and_harmful_clients_rate"] == 1.0
+
+
+def test_d2b_scalar_and_class_composition_use_actual_fedavg_mass_response():
+    baseline = torch.zeros(1, 3)
+    responses = torch.tensor([
+        [[1.0, 2.0, 3.0]],
+        [[0.5, 1.0, 1.5]],
+    ])
+    fedavg = torch.tensor([0.5, 0.5])
+    scalar = compose_scalar_logits(
+        baseline, responses, fedavg, torch.tensor([1.0, 0.0])
+    )
+    classwise = compose_class_logits(
+        baseline,
+        responses,
+        fedavg,
+        torch.tensor([[1.0], [0.0]]),
+        tail=[2],
+    )
+
+    assert torch.allclose(scalar, torch.tensor([[0.5, 1.0, 1.5]]))
+    assert torch.allclose(classwise, torch.tensor([[0.0, 0.0, 1.5]]))
+
+
+def test_d2b_vector_reconstruction_supports_scalar_and_per_class_weights():
+    before = torch.tensor([10.0, 10.0], dtype=torch.float64)
+    deltas = torch.tensor([[1.0, 0.0], [0.0, 2.0]], dtype=torch.float64)
+
+    assert torch.equal(
+        vector_from_weights(before, deltas, torch.tensor([0.25, 0.75])),
+        torch.tensor([10.25, 11.5], dtype=torch.float64),
+    )
+
+
+def test_d2b_weight_optimization_returns_normalized_scalar_and_class_distributions():
+    labels = torch.tensor([0, 1, 2] * 4)
+    baseline = torch.zeros(len(labels), 3)
+    responses = torch.randn(2, len(labels), 3, generator=torch.Generator().manual_seed(7))
+    scalar, classwise, trace = optimize_weight_distributions(
+        baseline,
+        responses,
+        labels,
+        torch.tensor([0.4, 0.6]),
+        tail=[2],
+        steps=2,
+        samples_per_class=2,
+        learning_rate=0.01,
+        kl_weight=1e-3,
+        seed=42,
+        device=torch.device("cpu"),
+    )
+
+    assert scalar.shape == (2,)
+    assert classwise.shape == (2, 1)
+    assert scalar.sum() == pytest.approx(1.0)
+    assert classwise[:, 0].sum() == pytest.approx(1.0)
+    assert trace[-1]["step"] == 2
+
+
+def test_d23_launcher_exposes_d2b_without_new_training(tmp_path):
+    args = SimpleNamespace(
+        python_bin="python",
+        output_root=tmp_path,
+        eval_batch_size=128,
+    )
+    command = analyzer_command(args, "d2b", tmp_path / "dump_seed42")
+
+    assert command[2] == "scripts/analyze_d2b_scalar_ceiling.py"
+    assert "--d2-utility" in command
+    assert str(tmp_path / "d2" / "d2_client_class_utility.csv") in command

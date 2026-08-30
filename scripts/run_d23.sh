@@ -34,7 +34,7 @@ if [[ "${DRY_RUN}" == "1" ]]; then
   command+=(--dry-run)
 fi
 
-echo "D2/D3 foreground diagnostic runner"
+echo "D2/D3/D2b foreground diagnostic runner"
 echo "  stage: ${STAGE}"
 echo "  shared dump: ${OUT_ROOT}/dump_seed42"
 echo "  GPU: ${GPU}"

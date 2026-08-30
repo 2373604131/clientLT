@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Foreground D2/D3 launcher using one shared seed-42 dump trajectory."""
+"""Foreground D2/D3/D2b launcher using one shared seed-42 dump trajectory."""
 
 from __future__ import annotations
 
@@ -76,9 +76,11 @@ def analyzer_command(args, diagnostic: str, dump_root: Path) -> list[str]:
         script = "scripts/analyze_d2_conflict.py"
     elif diagnostic == "d3":
         script = "scripts/analyze_d3_boundary.py"
+    elif diagnostic == "d2b":
+        script = "scripts/analyze_d2b_scalar_ceiling.py"
     else:
         raise ValueError(diagnostic)
-    return [
+    command = [
         args.python_bin,
         "-u",
         script,
@@ -87,11 +89,19 @@ def analyzer_command(args, diagnostic: str, dump_root: Path) -> list[str]:
         "--rounds", "20,50,80",
         "--eval-batch-size", str(args.eval_batch_size),
     ]
+    if diagnostic == "d2b":
+        command += [
+            "--d2-utility",
+            str(args.output_root / "d2" / "d2_client_class_utility.csv"),
+        ]
+    return command
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--stage", choices=["dump", "d2", "d3", "all"], default="all")
+    parser.add_argument(
+        "--stage", choices=["dump", "d2", "d3", "d2b", "all"], default="all"
+    )
     parser.add_argument("--output-root", type=Path, default=Path("output/d23_seed42"))
     parser.add_argument("--freeze", type=Path, default=Path("output/g0_d1_seed42/lora_freeze.json"))
     parser.add_argument("--data-root", type=Path, default=Path("DATA"))
@@ -128,14 +138,24 @@ def main() -> None:
             if not args.dry_run and not dump_complete(dump_root):
                 raise RuntimeError("Training exited without all round-20/50/80 dump artifacts")
 
-    if args.stage in {"d2", "d3"} and not dump_complete(dump_root) and not args.dry_run:
+    if args.stage in {"d2", "d3", "d2b"} and not dump_complete(dump_root) and not args.dry_run:
         raise FileNotFoundError(
             f"Offline stage {args.stage} requires complete shared dumps under {dump_root}"
         )
 
-    diagnostics = [args.stage] if args.stage in {"d2", "d3"} else (["d2", "d3"] if args.stage == "all" else [])
+    diagnostics = (
+        [args.stage]
+        if args.stage in {"d2", "d3", "d2b"}
+        else (["d2", "d3", "d2b"] if args.stage == "all" else [])
+    )
     for diagnostic in diagnostics:
         verdict = args.output_root / diagnostic / f"{diagnostic}_verdict.json"
+        if diagnostic == "d2b" and not args.dry_run:
+            utility = args.output_root / "d2" / "d2_client_class_utility.csv"
+            if not utility.is_file():
+                raise FileNotFoundError(
+                    f"D2b requires completed D2 utility output: {utility}"
+                )
         if verdict.is_file() and args.skip_completed:
             print(f"Skip completed {diagnostic.upper()}: {verdict}", flush=True)
             continue
