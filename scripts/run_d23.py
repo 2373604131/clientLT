@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Foreground D2/D3/D2b launcher using one shared seed-42 dump trajectory."""
+"""Foreground D2/D3/D2b/P0 launcher using one shared seed-42 trajectory."""
 
 from __future__ import annotations
 
@@ -78,6 +78,8 @@ def analyzer_command(args, diagnostic: str, dump_root: Path) -> list[str]:
         script = "scripts/analyze_d3_boundary.py"
     elif diagnostic == "d2b":
         script = "scripts/analyze_d2b_scalar_ceiling.py"
+    elif diagnostic == "p0":
+        script = "scripts/analyze_p0_head_pareto.py"
     else:
         raise ValueError(diagnostic)
     command = [
@@ -94,13 +96,18 @@ def analyzer_command(args, diagnostic: str, dump_root: Path) -> list[str]:
             "--d2-utility",
             str(args.output_root / "d2" / "d2_client_class_utility.csv"),
         ]
+    elif diagnostic == "p0":
+        command += [
+            "--d2b-dir",
+            str(args.output_root / "d2b"),
+        ]
     return command
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--stage", choices=["dump", "d2", "d3", "d2b", "all"], default="all"
+        "--stage", choices=["dump", "d2", "d3", "d2b", "p0", "all"], default="all"
     )
     parser.add_argument("--output-root", type=Path, default=Path("output/d23_seed42"))
     parser.add_argument("--freeze", type=Path, default=Path("output/g0_d1_seed42/lora_freeze.json"))
@@ -138,15 +145,15 @@ def main() -> None:
             if not args.dry_run and not dump_complete(dump_root):
                 raise RuntimeError("Training exited without all round-20/50/80 dump artifacts")
 
-    if args.stage in {"d2", "d3", "d2b"} and not dump_complete(dump_root) and not args.dry_run:
+    if args.stage in {"d2", "d3", "d2b", "p0"} and not dump_complete(dump_root) and not args.dry_run:
         raise FileNotFoundError(
             f"Offline stage {args.stage} requires complete shared dumps under {dump_root}"
         )
 
     diagnostics = (
         [args.stage]
-        if args.stage in {"d2", "d3", "d2b"}
-        else (["d2", "d3", "d2b"] if args.stage == "all" else [])
+        if args.stage in {"d2", "d3", "d2b", "p0"}
+        else (["d2", "d3", "d2b", "p0"] if args.stage == "all" else [])
     )
     for diagnostic in diagnostics:
         verdict = args.output_root / diagnostic / f"{diagnostic}_verdict.json"
@@ -155,6 +162,17 @@ def main() -> None:
             if not utility.is_file():
                 raise FileNotFoundError(
                     f"D2b requires completed D2 utility output: {utility}"
+                )
+        if diagnostic == "p0" and not args.dry_run:
+            required = [
+                args.output_root / "d2b" / f"d2b_frozen_round_{round_id:03d}.pt"
+                for round_id in (20, 50, 80)
+            ]
+            missing = [path for path in required if not path.is_file()]
+            if missing:
+                raise FileNotFoundError(
+                    "P0 requires completed frozen D2b artifacts: "
+                    + ", ".join(str(path) for path in missing)
                 )
         if verdict.is_file() and args.skip_completed:
             print(f"Skip completed {diagnostic.upper()}: {verdict}", flush=True)

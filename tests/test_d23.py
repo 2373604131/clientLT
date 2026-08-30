@@ -28,6 +28,13 @@ from scripts.analyze_d3_boundary import (
     ridge_logits,
     select_tau,
 )
+from scripts.analyze_p0_head_pareto import (
+    match_class_to_scalar,
+    pareto_frontier,
+    recover_alternative_weights,
+    select_budget_choices,
+    weights_at_gamma,
+)
 from scripts.run_d23 import analyzer_command, build_dump_command, dump_complete, load_frozen
 from scripts.run_g0_d1 import CONFIGS
 from utils.cusp_minimal import make_flat_spec
@@ -242,3 +249,111 @@ def test_d23_launcher_exposes_d2b_without_new_training(tmp_path):
     assert command[2] == "scripts/analyze_d2b_scalar_ceiling.py"
     assert "--d2-utility" in command
     assert str(tmp_path / "d2" / "d2_client_class_utility.csv") in command
+
+
+def test_p0_recovers_full_endpoint_from_frozen_gamma_mixture():
+    base = torch.tensor([0.25, 0.75])
+    alternative = torch.tensor([0.75, 0.25])
+    selected = weights_at_gamma(base, alternative, 0.4)
+
+    recovered = recover_alternative_weights(base, selected, 0.4)
+
+    assert torch.allclose(recovered, alternative.double())
+
+
+def test_p0_budget_selection_maximizes_harmonic_under_head_constraint():
+    rows = [
+        {
+            "communication_round": 20,
+            "method": "scalar",
+            "gamma": 0.0,
+            "tau": 1.0,
+            "head_accuracy": 70.0,
+            "tail_accuracy": 60.0,
+            "balanced_accuracy": 68.0,
+            "head_tail_harmonic": 64.0,
+        },
+        {
+            "communication_round": 20,
+            "method": "scalar",
+            "gamma": 0.5,
+            "tau": 1.0,
+            "head_accuracy": 69.4,
+            "tail_accuracy": 66.0,
+            "balanced_accuracy": 68.5,
+            "head_tail_harmonic": 67.0,
+        },
+    ]
+
+    choices = select_budget_choices(rows, reference_head=70.0, budgets=[0.5, 1.0])
+
+    assert choices[0]["gamma"] == 0.0
+    assert choices[1]["gamma"] == 0.5
+
+
+def test_p0_direct_matching_and_frontier_do_not_use_unmatched_head_points():
+    scalar = [
+        {
+            "communication_round": 20,
+            "method": "scalar",
+            "gamma": 0.0,
+            "tau": 0.0,
+            "head_accuracy": 70.0,
+            "tail_accuracy": 50.0,
+            "balanced_accuracy": 66.0,
+            "head_tail_harmonic": 58.0,
+        },
+        {
+            "communication_round": 20,
+            "method": "scalar",
+            "gamma": 1.0,
+            "tau": 0.0,
+            "head_accuracy": 69.8,
+            "tail_accuracy": 60.0,
+            "balanced_accuracy": 68.0,
+            "head_tail_harmonic": 64.0,
+        },
+    ]
+    classwise = [
+        {
+            "communication_round": 20,
+            "method": "class_conditional",
+            "gamma": 0.5,
+            "tau": 0.0,
+            "head_accuracy": 69.9,
+            "tail_accuracy": 62.0,
+            "balanced_accuracy": 68.5,
+            "head_tail_harmonic": 65.0,
+        },
+        {
+            "communication_round": 20,
+            "method": "class_conditional",
+            "gamma": 1.0,
+            "tau": 0.0,
+            "head_accuracy": 68.0,
+            "tail_accuracy": 70.0,
+            "balanced_accuracy": 68.4,
+            "head_tail_harmonic": 68.9,
+        },
+    ]
+
+    matches = match_class_to_scalar(classwise, scalar, tolerance=0.25)
+    frontier = pareto_frontier(scalar, "head_tail_harmonic")
+
+    assert matches[0]["matched"] is True
+    assert matches[0]["scalar_gamma"] == 1.0
+    assert matches[1]["matched"] is False
+    assert {row["gamma"] for row in frontier} == {0.0, 1.0}
+
+
+def test_d23_launcher_exposes_p0_without_new_training(tmp_path):
+    args = SimpleNamespace(
+        python_bin="python",
+        output_root=tmp_path,
+        eval_batch_size=128,
+    )
+    command = analyzer_command(args, "p0", tmp_path / "dump_seed42")
+
+    assert command[2] == "scripts/analyze_p0_head_pareto.py"
+    assert "--d2b-dir" in command
+    assert str(tmp_path / "d2b") in command
