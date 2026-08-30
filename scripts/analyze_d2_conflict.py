@@ -111,6 +111,25 @@ def _dump_dir(root: Path, communication_round: int) -> Path:
     return nested
 
 
+def reconstruct_training_fedavg(payload: dict, spec: FlatSpec) -> torch.Tensor:
+    """Reproduce ``aggregate_lora_state``'s ordered FP32 accumulation.
+
+    The training path aggregates complete local states in FP32. Rewriting it
+    algebraically as ``before + sum(w * (local - before))`` in FP64 is equal in
+    exact arithmetic, but cancellation can make its error look large relative
+    to the much smaller round update.
+    """
+    weights = torch.as_tensor(payload["fedavg_weights"], dtype=torch.float64).reshape(-1)
+    chunks = []
+    for key in spec.keys:
+        reference = payload["global_before_trainable"][key]
+        accumulator = torch.zeros_like(reference, dtype=torch.float32, device="cpu")
+        for weight, state in zip(weights.tolist(), payload["local_trainable_states"]):
+            accumulator.add_(state[key].detach().cpu().float(), alpha=float(weight))
+        chunks.append(accumulator.to(dtype=reference.dtype).double().reshape(-1))
+    return torch.cat(chunks) if chunks else torch.empty(0, dtype=torch.float64)
+
+
 def compute_geometry(payload: dict, metadata: dict) -> tuple[list[dict], dict]:
     spec = FlatSpec.from_dict(payload["flatten_spec"])
     before = flatten_state(payload["global_before_trainable"], spec)
@@ -120,11 +139,21 @@ def compute_geometry(payload: dict, metadata: dict) -> tuple[list[dict], dict]:
     weights = torch.as_tensor(payload["fedavg_weights"], dtype=torch.float64).reshape(-1)
     counts = torch.as_tensor(payload["client_class_counts"], dtype=torch.float64)
     client_ids = [int(value) for value in payload["selected_client_ids"]]
-    expected = before + torch.sum(weights[:, None] * deltas, dim=0)
+    expected = reconstruct_training_fedavg(payload, spec)
     verification_error = float((expected - after).norm().item())
     verification_relative = verification_error / max(float((after - before).norm().item()), 1e-12)
-    if verification_relative > 1e-5:
-        raise RuntimeError(f"D2 dump does not reconstruct FedAvg (relative error={verification_relative:.3e})")
+    state_relative = verification_error / max(float(after.norm().item()), 1e-12)
+    max_absolute_error = float((expected - after).abs().max().item())
+    state_close = bool(torch.allclose(expected, after, rtol=5e-6, atol=5e-7))
+    # A 1e-4 update-relative tolerance is still only 0.01% of the actual round
+    # update and catches meaningful dump/weight mismatches while allowing FP32
+    # CPU/GPU accumulation differences.
+    if not state_close or verification_relative > 1e-4:
+        raise RuntimeError(
+            "D2 dump does not reconstruct the training FP32 FedAvg: "
+            f"update_relative={verification_relative:.3e}, "
+            f"state_relative={state_relative:.3e}, max_abs={max_absolute_error:.3e}"
+        )
 
     fedavg_delta = after - before
     _, tail = class_split(payload["global_class_counts"])
@@ -183,6 +212,9 @@ def compute_geometry(payload: dict, metadata: dict) -> tuple[list[dict], dict]:
         "tail_class_ids": tail,
         "fedavg_reconstruction_error": verification_error,
         "fedavg_reconstruction_relative_error": verification_relative,
+        "fedavg_reconstruction_state_relative_error": state_relative,
+        "fedavg_reconstruction_max_absolute_error": max_absolute_error,
+        "fedavg_reconstruction_matches_training_fp32": state_close,
     }
     return rows, audit
 

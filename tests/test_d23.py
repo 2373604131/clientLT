@@ -8,6 +8,7 @@ import torch
 from scripts.analyze_d2_conflict import (
     binary_auc,
     compute_geometry,
+    reconstruct_training_fedavg,
     safe_cosine,
     sign_disagreement,
     spearman,
@@ -62,6 +63,15 @@ def test_d2_geometry_uses_leave_one_client_out_support_reference():
     assert by_client[0]["cosine_to_support_direction"] == pytest.approx(0.0)
     # A non-supporter sees both supporters as its independent reference.
     assert by_client[2]["peer_support_count"] == 2
+
+
+def test_d2_reconstruction_matches_training_fp32_accumulation_not_delta_algebra():
+    payload = _dump_payload()
+    spec = make_flat_spec(payload["global_before_trainable"])
+    reconstructed = reconstruct_training_fedavg(payload, spec)
+    expected = payload["global_after_fedavg_trainable"]["block.q_lora_A"].double()
+
+    assert torch.equal(reconstructed, expected)
 
 
 def test_d2_statistics_have_expected_direction():
