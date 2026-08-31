@@ -285,17 +285,25 @@ def envelope_auc(
     return float(torch.trapezoid(torch.tensor(ys), xs).item())
 
 
-def _lookup(rows: Sequence[Mapping], method: str, gamma: float, tau: float) -> dict:
+def _lookup(
+    rows: Sequence[Mapping],
+    communication_round: int,
+    method: str,
+    gamma: float,
+    tau: float,
+) -> dict:
     matches = [
         row
         for row in rows
-        if row["method"] == method
+        if int(row["communication_round"]) == int(communication_round)
+        and row["method"] == method
         and abs(float(row["gamma"]) - float(gamma)) <= 1e-9
         and abs(float(row["tau"]) - float(tau)) <= 1e-9
     ]
     if len(matches) != 1:
         raise RuntimeError(
-            f"Expected one {method} candidate at gamma={gamma}, tau={tau}; "
+            f"Expected one round-{communication_round} {method} candidate at "
+            f"gamma={gamma}, tau={tau}; "
             f"found {len(matches)}"
         )
     return dict(matches[0])
@@ -329,18 +337,20 @@ def budget_test_report(
             continue
         scalar = _lookup(
             test_rows,
+            round_id,
             "scalar",
             float(scalar_choice["gamma"]),
             float(scalar_choice["tau"]),
         )
         classwise = _lookup(
             test_rows,
+            round_id,
             "class_conditional",
             float(class_choice["gamma"]),
             float(class_choice["tau"]),
         )
         reference_tau = float(class_choice["reference_tau"])
-        reference = _lookup(test_rows, "scalar", 0.0, reference_tau)
+        reference = _lookup(test_rows, round_id, "scalar", 0.0, reference_tau)
         scalar_head_damage = (
             float(reference["head_accuracy"]) - float(scalar["head_accuracy"])
         )
@@ -396,12 +406,14 @@ def direct_match_test_report(
             continue
         classwise = _lookup(
             test_rows,
+            int(match["communication_round"]),
             "class_conditional",
             float(match["class_gamma"]),
             float(match["class_tau"]),
         )
         scalar = _lookup(
             test_rows,
+            int(match["communication_round"]),
             "scalar",
             float(match["scalar_gamma"]),
             float(match["scalar_tau"]),
@@ -676,7 +688,7 @@ def main() -> None:
             if int(row["communication_round"]) == round_id
         ]
         fedavg_tau = float(artifact["selected_taus"]["fedavg"])
-        fedavg_reference = _lookup(round_rows, "scalar", 0.0, fedavg_tau)
+        fedavg_reference = _lookup(round_rows, round_id, "scalar", 0.0, fedavg_tau)
         reference_head = float(fedavg_reference["head_accuracy"])
         for method in METHODS:
             method_rows = [row for row in round_rows if row["method"] == method]

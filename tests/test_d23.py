@@ -29,6 +29,7 @@ from scripts.analyze_d3_boundary import (
     select_tau,
 )
 from scripts.analyze_p0_head_pareto import (
+    _lookup,
     match_class_to_scalar,
     pareto_frontier,
     recover_alternative_weights,
@@ -357,3 +358,21 @@ def test_d23_launcher_exposes_p0_without_new_training(tmp_path):
     assert command[2] == "scripts/analyze_p0_head_pareto.py"
     assert "--d2b-dir" in command
     assert str(tmp_path / "d2b") in command
+
+
+def test_p0_candidate_lookup_is_scoped_by_communication_round():
+    rows = [
+        {
+            "communication_round": round_id,
+            "method": "scalar",
+            "gamma": 0.6,
+            "tau": 1.0,
+            "head_accuracy": float(round_id),
+        }
+        for round_id in (20, 50, 80)
+    ]
+
+    selected = _lookup(rows, 50, "scalar", 0.6, 1.0)
+
+    assert selected["communication_round"] == 50
+    assert selected["head_accuracy"] == 50.0
