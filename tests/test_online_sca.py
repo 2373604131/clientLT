@@ -5,6 +5,7 @@ import torch
 from utils.class_residual import ClassResidualHead, mask_class_residual_gradients
 from utils.class_separable_aggregation import (
     D4ATracker,
+    aggregate_class_residual_fedavg_rows,
     aggregate_class_residual_rows,
     class_supporters,
 )
@@ -42,6 +43,30 @@ def test_class_count_aggregation_and_unsupported_persistence():
     assert rows[0]["supporter_count"] == 2
     assert rows[1]["retained_previous_row"] is True
     assert torch.equal(result["frozen"], previous["frozen"])
+
+
+def test_residual_fedavg_uses_all_selected_clients_with_sample_weights():
+    previous, shared, local, counts = _states()
+    result, rows = aggregate_class_residual_fedavg_rows(
+        shared,
+        previous,
+        local,
+        [0, 1],
+        counts,
+        [0, 1],
+        client_weights={0: 0.25, 1: 0.75},
+    )
+    assert torch.allclose(
+        result["class_residual.weight"][0], torch.tensor([4.0, 6.0])
+    )
+    # Neither client supports class 1, but ordinary FedAvg still aggregates
+    # their complete local copies instead of invoking SCA persistence.
+    assert torch.allclose(
+        result["class_residual.weight"][1], torch.tensor([175.0, 175.0])
+    )
+    assert torch.allclose(result["class_residual.bias"][1], torch.tensor(175.0))
+    assert rows[1]["supporter_count"] == 0
+    assert rows[1]["retained_previous_row"] is False
 
 
 def test_support_threshold_is_training_metadata_only():

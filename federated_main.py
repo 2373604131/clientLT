@@ -30,8 +30,10 @@ from utils.lora_aggregation import (
 )
 from utils.class_separable_aggregation import (
     D4ATracker,
+    RESIDUAL_AGGREGATION_MODES,
     SCA_BIAS_KEY,
     SCA_WEIGHT_KEY,
+    aggregate_class_residual_fedavg_rows,
     aggregate_class_residual_rows,
 )
 from utils.class_residual import set_class_residual_active_classes
@@ -827,6 +829,8 @@ def save_partition_summary(output_dir, client_class_counts, args, num_users, num
         "partition": args.partition,
         "method": args.trainer,
         "seed": args.seed,
+        "split_seed": getattr(args, "split_seed", None),
+        "dirichlet_beta": getattr(args, "beta", None),
         "num_clients": num_users,
         "num_classes": num_classes,
         "global_class_counts": [float(x) for x in global_counts.tolist()],
@@ -851,6 +855,7 @@ def save_partition_summary(output_dir, client_class_counts, args, num_users, num
         "client_sample_mean": client_sample_mean,
         "client_sample_std": client_sample_std,
         "client_sample_cv": client_sample_cv,
+        "client_sample_counts": [int(x) for x in client_sample_counts.tolist()],
         "specialization_lambda": (
             float(args.specialization_lambda) if hasattr(args, "specialization_lambda") else None
         ),
@@ -880,6 +885,9 @@ def save_partition_summary(output_dir, client_class_counts, args, num_users, num
         "per_tail_client_companion_samples": per_tail_client_companion_samples,
         "per_tail_client_purity": per_tail_client_purity,
         "cliplora_aggregation": getattr(args, "cliplora_aggregation", None),
+        "cliplora_residual_aggregation": getattr(
+            args, "cliplora_residual_aggregation", None
+        ),
     }
     with open(os.path.join(output_dir, "partition_summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
@@ -952,7 +960,18 @@ def append_round_metrics(output_dir, args, epoch, result, non_tail_acc, tail_acc
             "partition": args.partition,
             "aggregation": (
                 (
-                    "online_class_separable"
+                    (
+                        "online_class_separable"
+                        if str(
+                            getattr(
+                                args,
+                                "cliplora_residual_aggregation",
+                                "class_separable",
+                            )
+                        ).lower()
+                        == "class_separable"
+                        else "residual_fedavg"
+                    )
                     if bool(getattr(args, "cliplora_sca_enable", False))
                     else getattr(args, "cliplora_aggregation", "")
                 )
@@ -3054,6 +3073,9 @@ def main(args):
     cfg = setup_cfg(args)
     g0_probe = bool(getattr(args, "g0_probe_enable", False))
     sca_enabled = bool(getattr(args, "cliplora_sca_enable", False))
+    residual_aggregation = str(
+        getattr(args, "cliplora_residual_aggregation", "class_separable")
+    ).lower()
     d4a_enabled = bool(getattr(args, "cliplora_sca_d4_enable", False))
     if args.trainer == "ClipLora":
         args.cliplora_aggregation = str(args.cliplora_aggregation).lower()
@@ -3078,8 +3100,17 @@ def main(args):
             raise ValueError("SCA scale and learning-rate multiplier must be positive")
         if not 0.0 <= float(args.cliplora_sca_support_min_fraction) < 1.0:
             raise ValueError("SCA support_min_fraction must be in [0, 1)")
-    if d4a_enabled and not sca_enabled:
-        raise ValueError("D4-A logging requires --cliplora_sca_enable True")
+        if residual_aggregation not in RESIDUAL_AGGREGATION_MODES:
+            raise ValueError(
+                "Unknown residual aggregation mode "
+                f"{residual_aggregation!r}; choose from {RESIDUAL_AGGREGATION_MODES}"
+            )
+    if d4a_enabled and (
+        not sca_enabled or residual_aggregation != "class_separable"
+    ):
+        raise ValueError(
+            "D4-A logging requires the class-separable residual aggregation path"
+        )
     if g0_probe:
         from utils.g0_lora_probe import validate_g0_protocol
 
@@ -3286,16 +3317,39 @@ def main(args):
         if d4a_enabled:
             d4a_tracker = D4ATracker(args.output_dir, sca_tail_class_ids)
         sca_protocol = {
-            "schema_version": "online_class_separable_aggregation_v1",
+            "schema_version": "class_residual_factorial_v2",
             "seed": int(args.seed),
+            "split_seed": int(args.split_seed),
             "partition": str(args.partition),
             "tail_class_ids": [int(value) for value in sca_tail_class_ids],
+            "client_schedule_sha256": sha256_json(
+                client_schedule[:max_epoch] if client_schedule is not None else []
+            ),
+            "rounds": int(max_epoch),
+            "num_users": int(args.num_users),
+            "frac": float(args.frac),
+            "local_epochs": int(cfg.OPTIM.MAX_EPOCH),
+            "residual_scale": float(args.cliplora_sca_scale),
+            "residual_clamp": float(args.cliplora_sca_clamp),
+            "residual_lr_multiplier": float(args.cliplora_sca_lr_mult),
+            "residual_use_bias": bool(args.cliplora_sca_use_bias),
             "shared_stream": "sample-weighted FedAvg over vision-LoRA tensors",
-            "class_stream": "positive-support class-count-normalized residual-row aggregation",
+            "residual_aggregation": residual_aggregation,
+            "class_stream": (
+                "positive-support class-count-normalized residual-row aggregation"
+                if residual_aggregation == "class_separable"
+                else "ordinary sample-weighted FedAvg over all selected clients"
+            ),
             "support_min_fraction": float(args.cliplora_sca_support_min_fraction),
             "support_weighting": str(args.cliplora_sca_weighting),
-            "no_support_policy": "retain previous global row",
-            "uses_client_training_class_counts": True,
+            "no_support_policy": (
+                "retain previous global row"
+                if residual_aggregation == "class_separable"
+                else "none; aggregate all selected client copies"
+            ),
+            "uses_client_training_class_counts": (
+                residual_aggregation == "class_separable"
+            ),
             "uses_validation_or_test_for_aggregation": False,
             "d4a_enabled": bool(d4a_enabled),
             "d4a_metric_source": "official test, diagnostic only",
@@ -3309,8 +3363,9 @@ def main(args):
         ) as handle:
             json.dump(sca_protocol, handle, indent=2, sort_keys=True)
         print(
-            "Online SCA initialized: "
+            "Class residual experiment initialized: "
             f"tail_classes={sca_tail_class_ids} "
+            f"residual_aggregation={residual_aggregation} "
             f"support_min_fraction={args.cliplora_sca_support_min_fraction} "
             f"weighting={args.cliplora_sca_weighting} "
             f"d4a={d4a_enabled}"
@@ -4485,16 +4540,29 @@ def main(args):
                 )
                 sca_round_diagnostics = []
                 if sca_enabled:
-                    global_weights, sca_round_diagnostics = aggregate_class_residual_rows(
-                        global_weights,
-                        pre_global_weights,
-                        local_weights,
-                        idxs_users,
-                        client_class_counts,
-                        sca_tail_class_ids,
-                        min_fraction=float(args.cliplora_sca_support_min_fraction),
-                        weighting=args.cliplora_sca_weighting,
-                    )
+                    if residual_aggregation == "class_separable":
+                        global_weights, sca_round_diagnostics = aggregate_class_residual_rows(
+                            global_weights,
+                            pre_global_weights,
+                            local_weights,
+                            idxs_users,
+                            client_class_counts,
+                            sca_tail_class_ids,
+                            min_fraction=float(args.cliplora_sca_support_min_fraction),
+                            weighting=args.cliplora_sca_weighting,
+                        )
+                    else:
+                        global_weights, sca_round_diagnostics = (
+                            aggregate_class_residual_fedavg_rows(
+                                global_weights,
+                                pre_global_weights,
+                                local_weights,
+                                idxs_users,
+                                client_class_counts,
+                                sca_tail_class_ids,
+                                client_weights=aggregation_weights,
+                            )
+                        )
                 append_lora_aggregation_diagnostics(
                     args.output_dir,
                     epoch=epoch,
@@ -4518,7 +4586,8 @@ def main(args):
                         int(row["supporter_count"] > 0) for row in sca_round_diagnostics
                     )
                     print(
-                        "Online SCA aggregation audit: "
+                        "Class residual aggregation audit: "
+                        f"mode={residual_aggregation} "
                         f"class_coverage={sca_covered}/{len(sca_round_diagnostics)} "
                         f"retained_rows={len(sca_round_diagnostics) - sca_covered}"
                     )
@@ -5606,6 +5675,7 @@ if __name__ == "__main__":
     parser.add_argument('--cliplora_lr_policy', type=str, default='constant', choices=['constant', 'cosine'])
     parser.add_argument('--cliplora_precision', type=str, default='amp', choices=['amp', 'fp32', 'fp16'])
     parser.add_argument('--cliplora_sca_enable', type=str2bool, default=False, help='enable online class-separable residual aggregation')
+    parser.add_argument('--cliplora_residual_aggregation', type=str, default='class_separable', choices=list(RESIDUAL_AGGREGATION_MODES), help='server aggregation for the architecture-matched class residual head')
     parser.add_argument('--cliplora_sca_scale', type=float, default=10.0, help='fixed scale of the zero-initialized class residual logits')
     parser.add_argument('--cliplora_sca_clamp', type=float, default=3.0, help='absolute per-class residual-logit trust region; <=0 disables')
     parser.add_argument('--cliplora_sca_lr_mult', type=float, default=5.0, help='class residual learning-rate multiplier over shared LoRA')

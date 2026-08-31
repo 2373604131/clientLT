@@ -230,6 +230,104 @@ def _append_dirichlet_with_capacities(
             )
 
 
+def partition_fixed_marginal_dirichlet(
+    labels,
+    client_capacities,
+    num_classes,
+    alpha,
+    *,
+    rng=None,
+):
+    """Sample a Dirichlet-like coupling with exact row and column margins.
+
+    ``client_capacities`` fixes every client total ``n_k``.  Class totals
+    ``n_c`` are fixed automatically because every input example is assigned
+    exactly once.  A class-by-client Dirichlet preference matrix controls the
+    coupling while remaining client capacity keeps the requested row margins
+    exact.  This is intended as the matched topology control for Client-LT,
+    not as a replacement for the repository's legacy Dirichlet split.
+    """
+    if rng is None:
+        rng = np.random.RandomState(1)
+    labels = np.asarray(labels, dtype=np.int64)
+    capacities = np.asarray(client_capacities, dtype=np.int64)
+    if capacities.ndim != 1 or len(capacities) == 0:
+        raise ValueError("client_capacities must be a non-empty vector")
+    if np.any(capacities < 0):
+        raise ValueError(f"client_capacities must be non-negative: {capacities}")
+    if int(capacities.sum()) != int(len(labels)):
+        raise ValueError(
+            "client capacities must sum to the number of samples: "
+            f"{int(capacities.sum())} != {len(labels)}"
+        )
+    if float(alpha) <= 0:
+        raise ValueError(f"alpha must be > 0, got {alpha}")
+    if np.any(labels < 0) or np.any(labels >= int(num_classes)):
+        raise ValueError("labels contain a class outside [0, num_classes)")
+
+    num_clients = int(len(capacities))
+    preferences = rng.dirichlet(
+        np.repeat(float(alpha), num_clients), size=int(num_classes)
+    )
+    remaining = capacities.copy()
+    assignments = {client_id: [] for client_id in range(num_clients)}
+
+    # Interleave classes so no class is systematically forced into the last
+    # residual capacities. Within-class sample identity is shuffled first.
+    sample_order = []
+    for class_id in range(int(num_classes)):
+        indices = np.where(labels == class_id)[0].astype(np.int64)
+        rng.shuffle(indices)
+        sample_order.extend(indices.tolist())
+    rng.shuffle(sample_order)
+
+    initial = np.maximum(capacities.astype(np.float64), 1.0)
+    for sample_index in sample_order:
+        class_id = int(labels[int(sample_index)])
+        available = remaining > 0
+        if not np.any(available):
+            raise RuntimeError("Matched Dirichlet exhausted client capacity early")
+        # The capacity factor respects unequal Client-LT row margins while the
+        # Dirichlet draw preserves class-specific client preferences.
+        probabilities = (
+            preferences[class_id]
+            * available.astype(np.float64)
+            * (remaining.astype(np.float64) / initial)
+        )
+        total = float(probabilities.sum())
+        if total <= 0 or not np.isfinite(total):
+            probabilities = remaining.astype(np.float64)
+            total = float(probabilities.sum())
+        probabilities /= total
+        client_id = int(rng.choice(num_clients, p=probabilities))
+        assignments[client_id].append(int(sample_index))
+        remaining[client_id] -= 1
+
+    if np.any(remaining != 0):
+        raise RuntimeError(f"Matched Dirichlet left capacities unfilled: {remaining}")
+    net_map = {
+        client_id: np.asarray(indices, dtype=np.int64)
+        for client_id, indices in assignments.items()
+    }
+    _validate_partition_map(
+        labels,
+        net_map,
+        num_clients,
+        int(num_classes),
+        "matched-dirichlet",
+    )
+    actual_capacities = np.asarray(
+        [len(net_map[client_id]) for client_id in range(num_clients)],
+        dtype=np.int64,
+    )
+    if not np.array_equal(actual_capacities, capacities):
+        raise RuntimeError(
+            "Matched Dirichlet changed client margins: "
+            f"expected={capacities.tolist()} actual={actual_capacities.tolist()}"
+        )
+    return net_map
+
+
 def partition_client_longtail_controlled(
     labels,
     n_parties,
@@ -1492,6 +1590,58 @@ def partition_data_LT(
     # ----------------------------------------------------------
     # 客户端长尾划分（超简版）—— 触发方式：partition == "longtail-client"
     # ----------------------------------------------------------
+    elif partition == "matched-dirichlet":
+        # Construct the Client-LT reference only to obtain its exact client
+        # totals n_k, then resample p(k,c) with independent Dirichlet-like
+        # class preferences. Both conditions therefore share n_k and n_c.
+        num_classes = _get_num_classes(dataset, y_train, y_test)
+        reference_train = partition_client_longtail(
+            y_train,
+            n_parties,
+            num_classes,
+            head_client_ratio=head_client_ratio,
+            tail_client_ratio=tail_client_ratio,
+            head_class_ratio=head_class_ratio,
+            tail_class_ratio=tail_class_ratio,
+            specialization_lambda=specialization_lambda,
+            intra_group_alpha=intra_group_alpha,
+            head_leakage_scale=head_leakage_scale,
+            rng=np.random.RandomState(int(split_seed)),
+        )
+        reference_test = partition_client_longtail(
+            y_test,
+            n_parties,
+            num_classes,
+            head_client_ratio=head_client_ratio,
+            tail_client_ratio=tail_client_ratio,
+            head_class_ratio=head_class_ratio,
+            tail_class_ratio=tail_class_ratio,
+            specialization_lambda=specialization_lambda,
+            intra_group_alpha=intra_group_alpha,
+            head_leakage_scale=head_leakage_scale,
+            rng=np.random.RandomState(int(split_seed) + 1),
+        )
+        train_capacities = [
+            len(reference_train[client_id]) for client_id in range(n_parties)
+        ]
+        test_capacities = [
+            len(reference_test[client_id]) for client_id in range(n_parties)
+        ]
+        net_dataidx_map_train = partition_fixed_marginal_dirichlet(
+            y_train,
+            train_capacities,
+            num_classes,
+            beta,
+            rng=np.random.RandomState(int(split_seed) + 100003),
+        )
+        net_dataidx_map_test = partition_fixed_marginal_dirichlet(
+            y_test,
+            test_capacities,
+            num_classes,
+            beta,
+            rng=np.random.RandomState(int(split_seed) + 100004),
+        )
+
     elif partition == "client-longtail":
         num_classes = _get_num_classes(dataset, y_train, y_test)
         train_rng = np.random.RandomState(int(split_seed))

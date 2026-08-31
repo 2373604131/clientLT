@@ -23,6 +23,7 @@ import torch
 
 SCA_WEIGHT_KEY = "class_residual.weight"
 SCA_BIAS_KEY = "class_residual.bias"
+RESIDUAL_AGGREGATION_MODES = ("class_separable", "fedavg")
 
 
 def _selected_ids(selected_clients: Sequence[int]) -> list[int]:
@@ -172,6 +173,103 @@ def aggregate_class_residual_rows(
                 "retained_previous_row": retained,
                 "row_delta_norm": float(row_delta.norm().item()),
                 "max_supporter_weight": max(coefficients.values()) if coefficients else 0.0,
+            }
+        )
+
+    return aggregated, diagnostics
+
+
+def aggregate_class_residual_fedavg_rows(
+    state_after_shared_fedavg: Mapping[str, torch.Tensor],
+    previous_global_state: Mapping[str, torch.Tensor],
+    local_states,
+    selected_clients: Sequence[int],
+    client_class_counts,
+    class_ids: Sequence[int],
+    *,
+    client_weights: Mapping[int, float],
+    weight_key: str = SCA_WEIGHT_KEY,
+    bias_key: str = SCA_BIAS_KEY,
+) -> tuple[dict, list[dict]]:
+    """Aggregate the same residual rows with ordinary scalar FedAvg.
+
+    This is the architecture-matched control for class-separable aggregation:
+    local model, residual head, active classes, gradient mask, optimizer, and
+    client schedule are identical.  The only intervention is that every
+    selected client's residual table receives its ordinary sample-count
+    FedAvg coefficient, irrespective of class support.
+    """
+    selected = _selected_ids(selected_clients)
+    weights = {client_id: float(client_weights[client_id]) for client_id in selected}
+    if any(not math.isfinite(value) or value < 0 for value in weights.values()):
+        raise ValueError(f"Invalid residual FedAvg weights: {weights}")
+    weight_sum = sum(weights.values())
+    if not math.isclose(weight_sum, 1.0, rel_tol=1e-7, abs_tol=1e-7):
+        raise ValueError(
+            f"Residual FedAvg weights sum to {weight_sum}, expected 1"
+        )
+    if weight_key not in previous_global_state or weight_key not in state_after_shared_fedavg:
+        raise KeyError(f"Missing class residual tensor: {weight_key}")
+
+    aggregated = copy.deepcopy(state_after_shared_fedavg)
+    previous_weight = previous_global_state[weight_key]
+    if previous_weight.ndim != 2:
+        raise ValueError(f"{weight_key} must be [classes, feature_dim]")
+    has_bias = bias_key in previous_global_state
+    diagnostics = []
+
+    for class_id in [int(value) for value in class_ids]:
+        if class_id < 0 or class_id >= previous_weight.shape[0]:
+            raise IndexError(f"Class id {class_id} is outside residual table")
+        reference = previous_weight[class_id]
+        row = torch.zeros_like(reference, dtype=torch.float32)
+        for client_id in selected:
+            if weight_key not in local_states[client_id]:
+                raise KeyError(
+                    f"Client {client_id} state is missing {weight_key}"
+                )
+            row.add_(
+                local_states[client_id][weight_key][class_id]
+                .detach()
+                .to(reference.device, torch.float32),
+                alpha=weights[client_id],
+            )
+        aggregated[weight_key][class_id] = row.to(reference.dtype)
+
+        if has_bias:
+            reference_bias = previous_global_state[bias_key][class_id]
+            value = torch.zeros_like(reference_bias, dtype=torch.float32)
+            for client_id in selected:
+                value.add_(
+                    local_states[client_id][bias_key][class_id]
+                    .detach()
+                    .to(reference_bias.device, torch.float32),
+                    alpha=weights[client_id],
+                )
+            aggregated[bias_key][class_id] = value.to(reference_bias.dtype)
+
+        supporters = class_supporters(selected, client_class_counts, class_id)
+        row_delta = (
+            aggregated[weight_key][class_id].detach().float().cpu()
+            - previous_global_state[weight_key][class_id].detach().float().cpu()
+        )
+        diagnostics.append(
+            {
+                "class_id": class_id,
+                "supporter_count": len(supporters),
+                "supporter_ids": ",".join(str(value) for value in supporters),
+                "support_mass": sum(
+                    _count(client_class_counts, client_id, class_id)
+                    for client_id in supporters
+                ),
+                # Ordinary FedAvg has no special no-support branch. If all
+                # local rows remained unchanged this equality occurs only by
+                # arithmetic, not by a server retention rule.
+                "retained_previous_row": False,
+                "row_delta_norm": float(row_delta.norm().item()),
+                "max_supporter_weight": max(
+                    (weights[client_id] for client_id in supporters), default=0.0
+                ),
             }
         )
 
