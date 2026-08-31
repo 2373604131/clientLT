@@ -584,7 +584,6 @@ class SimpleTrainer(TrainerBase):
         # 创建字典来存储每个类别的预测结果
         class_correct = defaultdict(int)
         class_total = defaultdict(int)
-        class_margin_sum = defaultdict(float)
 
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(data_loader)):
@@ -638,6 +637,7 @@ class SimpleTrainer(TrainerBase):
 
         class_correct = defaultdict(int)
         class_total = defaultdict(int)
+        class_margin_sum = defaultdict(float)
 
         class_probabilities = defaultdict(list)
         inverse_probs = defaultdict(float)
