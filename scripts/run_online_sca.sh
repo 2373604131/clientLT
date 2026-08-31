@@ -9,6 +9,13 @@ DATA_ROOT="${DATA_ROOT:-DATA}"
 OUT_ROOT="${OUT_ROOT:-output/online_sca_seed42}"
 FREEZE="${FREEZE:-output/g0_d1_seed42/lora_freeze.json}"
 MATCHED_BETA="${MATCHED_BETA:-0.5}"
+EXTRA_ARGS=()
+if [[ "${SKIP_SUMMARY:-0}" == "1" ]]; then
+  EXTRA_ARGS+=(--skip-summary)
+fi
+if [[ "${SKIP_FACTORIAL_ANALYSIS:-0}" == "1" ]]; then
+  EXTRA_ARGS+=(--skip-factorial-analysis)
+fi
 
 exec "${PYTHON_BIN}" -u scripts/run_online_sca.py \
   --stage "${STAGE}" \
@@ -16,4 +23,5 @@ exec "${PYTHON_BIN}" -u scripts/run_online_sca.py \
   --data-root "${DATA_ROOT}" \
   --output-root "${OUT_ROOT}" \
   --freeze-file "${FREEZE}" \
-  --matched-beta "${MATCHED_BETA}"
+  --matched-beta "${MATCHED_BETA}" \
+  "${EXTRA_ARGS[@]}"

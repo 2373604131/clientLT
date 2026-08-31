@@ -308,6 +308,8 @@ def parse_args():
             "sca",
             "both",
             "clientlt-control",
+            "matched-control",
+            "matched-sca",
             "matched",
             "factorial-new",
             "factorial-all",
@@ -338,6 +340,16 @@ def parse_args():
         help="Dirichlet concentration for the fixed-marginal matched topology",
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--skip-summary",
+        action="store_true",
+        help="skip shared summary writes (useful for parallel condition runs)",
+    )
+    parser.add_argument(
+        "--skip-factorial-analysis",
+        action="store_true",
+        help="skip automatic four-cell analysis (run it once after parallel jobs finish)",
+    )
     return parser.parse_args()
 
 
@@ -357,6 +369,8 @@ def main():
         "sca": ["online_sca"],
         "both": ["fedavg", "online_sca"],
         "clientlt-control": ["residual_fedavg_clientlt"],
+        "matched-control": ["residual_fedavg_matched_dirichlet"],
+        "matched-sca": ["online_sca_matched_dirichlet"],
         "matched": [
             "residual_fedavg_matched_dirichlet",
             "online_sca_matched_dirichlet",
@@ -381,7 +395,8 @@ def main():
             )
         run(command, args.gpu, args.dry_run)
     if not args.dry_run:
-        summarize(args)
+        if not args.skip_summary:
+            summarize(args)
         factorial_files = [
             args.output_root / condition / "round_metrics.csv"
             for condition in (
@@ -391,7 +406,9 @@ def main():
                 "online_sca_matched_dirichlet",
             )
         ]
-        if all(path.exists() for path in factorial_files):
+        if not args.skip_factorial_analysis and all(
+            path.exists() for path in factorial_files
+        ):
             analysis_command = [
                 args.python_bin,
                 "-u",
@@ -400,7 +417,18 @@ def main():
                 str(args.output_root),
             ]
             subprocess.run(analysis_command, cwd=REPO_ROOT, check=True)
-        elif args.stage in {"clientlt-control", "matched", "factorial-new", "factorial-all"}:
+        elif (
+            not args.skip_factorial_analysis
+            and args.stage
+            in {
+                "clientlt-control",
+                "matched-control",
+                "matched-sca",
+                "matched",
+                "factorial-new",
+                "factorial-all",
+            }
+        ):
             missing = [str(path) for path in factorial_files if not path.exists()]
             print(
                 "Factorial analysis is not run yet; missing cells:\n  "

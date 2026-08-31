@@ -74,3 +74,22 @@ Outputs in `factorial_analysis/` are:
 
 The default primary metric is head-tail harmonic mean. Single-seed signs are
 screening evidence only; inferential claims require fresh seeds.
+
+## Three-GPU parallel run with automatic allocation exit
+
+If `online_sca/` already contains the completed Client-LT SCA run, the three
+missing cells can run concurrently on logical GPUs 0, 1, and 2. Parallel child
+processes disable shared summary writes; the foreground shell waits for every
+PID, writes the summaries once, and then exits the current interactive compute
+shell even if a child failed.
+
+Paste the following as one physical terminal line inside the rented compute
+shell (do not wrap it in `bash -c`, because that would exit only the child
+shell):
+
+```bash
+set -o pipefail; OUT_ROOT=output/online_sca_seed42_v2; FREEZE=output/g0_d1_seed42/lora_freeze.json; DATA_ROOT=DATA; LOG_DIR="$OUT_ROOT/parallel_logs"; mkdir -p "$LOG_DIR"; status=0; STAGE=clientlt-control GPU=0 OUT_ROOT="$OUT_ROOT" FREEZE="$FREEZE" DATA_ROOT="$DATA_ROOT" SKIP_SUMMARY=1 SKIP_FACTORIAL_ANALYSIS=1 bash scripts/run_online_sca.sh >"$LOG_DIR/clientlt_residual_fedavg.log" 2>&1 & p1=$!; STAGE=matched-control GPU=1 OUT_ROOT="$OUT_ROOT" FREEZE="$FREEZE" DATA_ROOT="$DATA_ROOT" SKIP_SUMMARY=1 SKIP_FACTORIAL_ANALYSIS=1 bash scripts/run_online_sca.sh >"$LOG_DIR/matched_residual_fedavg.log" 2>&1 & p2=$!; STAGE=matched-sca GPU=2 OUT_ROOT="$OUT_ROOT" FREEZE="$FREEZE" DATA_ROOT="$DATA_ROOT" SKIP_SUMMARY=1 SKIP_FACTORIAL_ANALYSIS=1 bash scripts/run_online_sca.sh >"$LOG_DIR/matched_sca.log" 2>&1 & p3=$!; wait "$p1" || status=$?; wait "$p2" || status=$?; wait "$p3" || status=$?; if [ "$status" -eq 0 ]; then python -u scripts/run_online_sca.py --stage summary --output-root "$OUT_ROOT" >"$LOG_DIR/summary.log" 2>&1 || status=$?; fi; if [ "$status" -eq 0 ]; then python -u scripts/analyze_sca_factorial.py --output-root "$OUT_ROOT" >"$LOG_DIR/factorial_analysis.log" 2>&1 || status=$?; fi; printf 'SCA factorial pipeline exit status: %s\nLogs: %s\n' "$status" "$LOG_DIR"; exit "$status"
+```
+
+`exit` releases only the shell in which the command is pasted. Verify that the
+prompt is the allocated compute node rather than a persistent login node.
