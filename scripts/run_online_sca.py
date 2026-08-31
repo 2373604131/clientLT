@@ -119,7 +119,15 @@ def run(command: list[str], gpu: str, dry_run: bool) -> None:
     if dry_run:
         return
     env = os.environ.copy()
-    env["CUDA_VISIBLE_DEVICES"] = str(gpu)
+    # Treat --gpu as a logical slot inside the Slurm allocation.  If Slurm
+    # exposes physical ids/UUIDs such as "2,3" or "GPU-...,GPU-...", preserve
+    # that mapping instead of accidentally escaping the allocated devices.
+    visible = [value.strip() for value in env.get("CUDA_VISIBLE_DEVICES", "").split(",") if value.strip()]
+    requested = str(gpu)
+    if visible and requested.isdigit() and int(requested) < len(visible):
+        env["CUDA_VISIBLE_DEVICES"] = visible[int(requested)]
+    else:
+        env["CUDA_VISIBLE_DEVICES"] = requested
     subprocess.run(command, cwd=REPO_ROOT, env=env, check=True)
 
 
