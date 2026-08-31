@@ -271,13 +271,19 @@ def envelope_auc(
     """Area of best objective attainable at each minimum-head threshold."""
     if not rows or x_high <= x_low:
         return math.nan
-    xs = torch.linspace(float(x_low), float(x_high), int(steps) + 1)
+    # Use float64 and a scale-aware endpoint tolerance. Float32 linspace can
+    # round its final threshold just above the largest observed head accuracy,
+    # incorrectly leaving the feasible set empty and turning the whole AUC NaN.
+    xs = torch.linspace(
+        float(x_low), float(x_high), int(steps) + 1, dtype=torch.float64
+    )
+    endpoint_tolerance = max(1e-8, abs(float(x_high)) * 1e-10)
     ys = []
     for value in xs.tolist():
         eligible = [
             float(row[objective])
             for row in rows
-            if float(row["head_accuracy"]) >= value - 1e-9
+            if float(row["head_accuracy"]) >= value - endpoint_tolerance
         ]
         ys.append(max(eligible) if eligible else math.nan)
     if any(not math.isfinite(value) for value in ys):

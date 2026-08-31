@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -30,6 +31,7 @@ from scripts.analyze_d3_boundary import (
 )
 from scripts.analyze_p0_head_pareto import (
     _lookup,
+    envelope_auc,
     match_class_to_scalar,
     pareto_frontier,
     recover_alternative_weights,
@@ -376,3 +378,20 @@ def test_p0_candidate_lookup_is_scoped_by_communication_round():
 
     assert selected["communication_round"] == 50
     assert selected["head_accuracy"] == 50.0
+
+
+def test_p0_envelope_auc_keeps_exact_upper_endpoint_feasible():
+    rows = [
+        {"head_accuracy": 45.03750011557713, "tail_accuracy": 80.0},
+        {"head_accuracy": 73.8000002130866, "tail_accuracy": 60.0},
+    ]
+
+    area = envelope_auc(
+        rows,
+        "tail_accuracy",
+        x_low=45.03750011557713,
+        x_high=73.8000002130866,
+    )
+
+    assert math.isfinite(area)
+    assert area > 0.0

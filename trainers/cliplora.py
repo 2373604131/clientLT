@@ -14,6 +14,11 @@ from clip import clip
 from clip.simple_tokenizer import SimpleTokenizer as _Tokenizer
 from utils.loralib.utils import mark_only_lora_as_trainable, apply_lora, get_lora_parameters, lora_state_dict, save_lora, load_lora
 from utils.cliplora_loss import fixed_denominator_cross_entropy
+from utils.class_residual import (
+    ClassResidualHead,
+    mask_class_residual_gradients,
+    unwrap_model,
+)
 
 
 _tokenizer = _Tokenizer()
@@ -133,6 +138,16 @@ class CustomCLIP(nn.Module):
         self.text_encoder = TextEncoder(clip_model)
         self.logit_scale = clip_model.logit_scale
         self.dtype = clip_model.dtype
+        self.sca_enabled = bool(getattr(cfg.TRAINER.CLIPLORA, "SCA_ENABLED", False))
+        self.class_residual = None
+        if self.sca_enabled:
+            self.class_residual = ClassResidualHead(
+                num_classes=len(classnames),
+                feature_dim=int(clip_model.visual.output_dim),
+                scale=float(getattr(cfg.TRAINER.CLIPLORA, "SCA_SCALE", 10.0)),
+                clamp=float(getattr(cfg.TRAINER.CLIPLORA, "SCA_CLAMP", 3.0)),
+                use_bias=bool(getattr(cfg.TRAINER.CLIPLORA, "SCA_USE_BIAS", True)),
+            )
 
         # 应用LoRA
         self.list_lora_layers = apply_lora(cfg, clip_model)
@@ -151,6 +166,9 @@ class CustomCLIP(nn.Module):
         logit_scale = self.logit_scale.exp()
         logits = logit_scale * image_features @ text_features.t()
 
+        if self.class_residual is not None:
+            logits = logits + self.class_residual(image_features).to(logits.dtype)
+
         return logits
 
 
@@ -168,7 +186,10 @@ def build_cliplora_model(cfg, classnames):
     print("Building custom CLIP")
     model = CustomCLIP(cfg, classnames, clip_model)
     for name, param in model.named_parameters():
-        param.requires_grad = "lora_" in name
+        param.requires_grad = "lora_" in name or (
+            bool(getattr(cfg.TRAINER.CLIPLORA, "SCA_ENABLED", False))
+            and name.startswith("class_residual.")
+        )
 
     trainable = [(name, param) for name, param in model.named_parameters() if param.requires_grad]
     if not trainable:
@@ -186,6 +207,7 @@ def build_cliplora_model(cfg, classnames):
         f"alpha={cfg.TRAINER.CLIPLORA.alpha} "
         f"params={list(cfg.TRAINER.CLIPLORA.params)} "
         f"dropout={cfg.TRAINER.CLIPLORA.dropout_rate} "
+        f"sca_enabled={bool(getattr(cfg.TRAINER.CLIPLORA, 'SCA_ENABLED', False))} "
         f"precision={cfg.TRAINER.COOP.PREC} "
         f"trainable_params={sum(param.numel() for _, param in trainable)}"
     )
@@ -196,14 +218,30 @@ def build_cliplora_model(cfg, classnames):
 
 def build_cliplora_optimizer_and_scheduler(model, cfg):
     """Use the same optimizer/scheduler factories as the federated trainer."""
-    optim = build_optimizer(get_lora_parameters(model), cfg.OPTIM)
+    lora_params = list(get_lora_parameters(model))
+    if bool(getattr(cfg.TRAINER.CLIPLORA, "SCA_ENABLED", False)):
+        core = unwrap_model(model)
+        residual_params = [
+            param for param in core.class_residual.parameters() if param.requires_grad
+        ]
+        param_groups = [
+            {"params": lora_params, "lr": float(cfg.OPTIM.LR)},
+            {
+                "params": residual_params,
+                "lr": float(cfg.OPTIM.LR)
+                * float(getattr(cfg.TRAINER.CLIPLORA, "SCA_LR_MULT", 5.0)),
+            },
+        ]
+        optim = build_optimizer(None, cfg.OPTIM, param_groups=param_groups)
+    else:
+        optim = build_optimizer(lora_params, cfg.OPTIM)
     sched = build_lr_scheduler(optim, cfg.OPTIM)
     return optim, sched
 
 
 def cliplora_optimizer_step(
     model, optimizer, scaler, precision, images, labels, loss_weight=None,
-    reject_nonfinite_amp=False,
+    reject_nonfinite_amp=False, post_backward=None,
 ):
     """One canonical ClipLora optimizer step, shared by trainer and audits."""
     if precision == "amp":
@@ -215,6 +253,9 @@ def cliplora_optimizer_step(
             raise FloatingPointError("Loss is infinite or NaN")
         optimizer.zero_grad()
         scaler.scale(loss).backward()
+        if post_backward is not None:
+            scaler.unscale_(optimizer)
+            post_backward()
         scaler.step(optimizer)
         scaler.update()
         new_scale = float(scaler.get_scale())
@@ -225,6 +266,8 @@ def cliplora_optimizer_step(
             raise FloatingPointError("Loss is infinite or NaN")
         optimizer.zero_grad()
         loss.backward()
+        if post_backward is not None:
+            post_backward()
         optimizer.step()
         old_scale = new_scale = None
     return output, loss, {
@@ -278,7 +321,18 @@ class ClipLora(TrainerX):
         image, label = self.parse_batch_train(batch)
         prec = self.cfg.TRAINER.COOP.PREC
         output, loss, _ = cliplora_optimizer_step(
-            self.model, self.optim, self.scaler, prec, image, label, batch.get("loss_weight")
+            self.model,
+            self.optim,
+            self.scaler,
+            prec,
+            image,
+            label,
+            batch.get("loss_weight"),
+            post_backward=(
+                (lambda: mask_class_residual_gradients(self.model, label))
+                if bool(getattr(self.cfg.TRAINER.CLIPLORA, "SCA_ENABLED", False))
+                else None
+            ),
         )
 
         loss_summary = {

@@ -28,6 +28,13 @@ from utils.lora_aggregation import (
     compute_lora_aggregation_weights,
     sample_weighted_client_weights,
 )
+from utils.class_separable_aggregation import (
+    D4ATracker,
+    SCA_BIAS_KEY,
+    SCA_WEIGHT_KEY,
+    aggregate_class_residual_rows,
+)
+from utils.class_residual import set_class_residual_active_classes
 from utils.stage3_runtime import STAGE3_CONDITIONS, Stage3FederatedRuntime
 from utils.cusp_minimal import (
     save_cusp_minimal_dump,
@@ -944,7 +951,11 @@ def append_round_metrics(output_dir, args, epoch, result, non_tail_acc, tail_acc
             "method": "FedTEF" if args.trainer == "FedTEF" else args.trainer,
             "partition": args.partition,
             "aggregation": (
-                getattr(args, "cliplora_aggregation", "")
+                (
+                    "online_class_separable"
+                    if bool(getattr(args, "cliplora_sca_enable", False))
+                    else getattr(args, "cliplora_aggregation", "")
+                )
                 if args.trainer == "ClipLora"
                 else ""
             ),
@@ -2938,6 +2949,11 @@ def extend_cfg(cfg, args):
     cfg.TRAINER.CLIPLORA.params = (
         args.cliplora_params if args.trainer == "ClipLora" else args.fedtef_lora_params
     )
+    cfg.TRAINER.CLIPLORA.SCA_ENABLED = bool(args.cliplora_sca_enable)
+    cfg.TRAINER.CLIPLORA.SCA_SCALE = float(args.cliplora_sca_scale)
+    cfg.TRAINER.CLIPLORA.SCA_CLAMP = float(args.cliplora_sca_clamp)
+    cfg.TRAINER.CLIPLORA.SCA_LR_MULT = float(args.cliplora_sca_lr_mult)
+    cfg.TRAINER.CLIPLORA.SCA_USE_BIAS = bool(args.cliplora_sca_use_bias)
 
 
     cfg.TRAINER.GLP_OT = CN()
@@ -3037,6 +3053,8 @@ def setup_cfg(args):
 def main(args):
     cfg = setup_cfg(args)
     g0_probe = bool(getattr(args, "g0_probe_enable", False))
+    sca_enabled = bool(getattr(args, "cliplora_sca_enable", False))
+    d4a_enabled = bool(getattr(args, "cliplora_sca_d4_enable", False))
     if args.trainer == "ClipLora":
         args.cliplora_aggregation = str(args.cliplora_aggregation).lower()
         if args.cliplora_aggregation != "fedavg" and bool(args.experimentD_enable):
@@ -3045,6 +3063,23 @@ def main(args):
                 "support-normalized training round. Run the end-to-end baseline "
                 "with --experimentD_enable False."
             )
+    if sca_enabled:
+        if args.trainer != "ClipLora" or args.model != "fedavg":
+            raise ValueError("Online SCA requires trainer=ClipLora and model=fedavg")
+        if args.encoder != "vision":
+            raise ValueError("Online SCA currently requires vision-only ClipLora")
+        if args.cliplora_aggregation != "fedavg":
+            raise ValueError("SCA keeps the shared LoRA path on ordinary FedAvg")
+        if bool(args.experimentD_enable) or bool(args.e1_enable) or bool(args.stage3_enable):
+            raise ValueError("SCA must run separately from Experiment D, E1, and Stage-3")
+        if not bool(args.isolate_local_optimizer_state):
+            raise ValueError("Online SCA requires isolated local optimizer state")
+        if float(args.cliplora_sca_scale) <= 0 or float(args.cliplora_sca_lr_mult) <= 0:
+            raise ValueError("SCA scale and learning-rate multiplier must be positive")
+        if not 0.0 <= float(args.cliplora_sca_support_min_fraction) < 1.0:
+            raise ValueError("SCA support_min_fraction must be in [0, 1)")
+    if d4a_enabled and not sca_enabled:
+        raise ValueError("D4-A logging requires --cliplora_sca_enable True")
     if g0_probe:
         from utils.g0_lora_probe import validate_g0_protocol
 
@@ -3237,6 +3272,49 @@ def main(args):
     save_partition_summary(args.output_dir, client_class_counts, args, args.num_users, n_cls)
     save_client_split_fingerprint(args.output_dir, local_trainer, args.num_users)
     global_class_counts = client_counts_to_tensor(client_class_counts, args.num_users, n_cls).sum(dim=0)
+    sca_tail_class_ids = []
+    d4a_tracker = None
+    if sca_enabled:
+        sca_tail_class_ids = get_lt_class_splits_from_counts(
+            global_class_counts, args.tail_class_ratio
+        )["tail"]
+        set_class_residual_active_classes(local_trainer.model, sca_tail_class_ids)
+        set_class_residual_active_classes(global_trainer.model, sca_tail_class_ids)
+        # active_mask is a model buffer and must be part of the common state
+        # loaded by every client at the beginning of its local lifecycle.
+        global_weights = copy.deepcopy(global_trainer.model.state_dict())
+        if d4a_enabled:
+            d4a_tracker = D4ATracker(args.output_dir, sca_tail_class_ids)
+        sca_protocol = {
+            "schema_version": "online_class_separable_aggregation_v1",
+            "seed": int(args.seed),
+            "partition": str(args.partition),
+            "tail_class_ids": [int(value) for value in sca_tail_class_ids],
+            "shared_stream": "sample-weighted FedAvg over vision-LoRA tensors",
+            "class_stream": "positive-support class-count-normalized residual-row aggregation",
+            "support_min_fraction": float(args.cliplora_sca_support_min_fraction),
+            "support_weighting": str(args.cliplora_sca_weighting),
+            "no_support_policy": "retain previous global row",
+            "uses_client_training_class_counts": True,
+            "uses_validation_or_test_for_aggregation": False,
+            "d4a_enabled": bool(d4a_enabled),
+            "d4a_metric_source": "official test, diagnostic only",
+            "d4a_controls_training": False,
+        }
+        os.makedirs(args.output_dir, exist_ok=True)
+        with open(
+            os.path.join(args.output_dir, "online_sca_protocol.json"),
+            "w",
+            encoding="utf-8",
+        ) as handle:
+            json.dump(sca_protocol, handle, indent=2, sort_keys=True)
+        print(
+            "Online SCA initialized: "
+            f"tail_classes={sca_tail_class_ids} "
+            f"support_min_fraction={args.cliplora_sca_support_min_fraction} "
+            f"weighting={args.cliplora_sca_weighting} "
+            f"d4a={d4a_enabled}"
+        )
     if g0_probe:
         from utils.g0_lora_probe import run_g0_local_probe
 
@@ -4307,12 +4385,22 @@ def main(args):
 
                 print("------------local train start epoch:", epoch, "-------------")
                 pre_global_weights = copy.deepcopy(global_weights)
-                lora_keys = get_trainable_state_keys(global_trainer.model)
-                non_lora_trainable = sorted(key for key in lora_keys if "lora_" not in key)
+                trainable_keys = get_trainable_state_keys(global_trainer.model)
+                sca_keys = sorted(
+                    key for key in trainable_keys if key in {SCA_WEIGHT_KEY, SCA_BIAS_KEY}
+                )
+                lora_keys = sorted(key for key in trainable_keys if "lora_" in key)
+                non_lora_trainable = sorted(
+                    key for key in trainable_keys if key not in set(lora_keys + sca_keys)
+                )
                 if non_lora_trainable:
                     raise RuntimeError(
-                        f"ClipLora exposed non-LoRA trainable state: {non_lora_trainable}"
+                        f"ClipLora exposed unexpected trainable state: {non_lora_trainable}"
                     )
+                if sca_enabled and SCA_WEIGHT_KEY not in sca_keys:
+                    raise RuntimeError("SCA is enabled but its residual weight is not trainable")
+                if not sca_enabled and sca_keys:
+                    raise RuntimeError(f"SCA is disabled but exposed trainable keys: {sca_keys}")
                 non_visual_lora = sorted(key for key in lora_keys if "image_encoder." not in key)
                 if non_visual_lora:
                     raise RuntimeError(
@@ -4395,6 +4483,18 @@ def main(args):
                     lora_keys,
                     aggregation_weights,
                 )
+                sca_round_diagnostics = []
+                if sca_enabled:
+                    global_weights, sca_round_diagnostics = aggregate_class_residual_rows(
+                        global_weights,
+                        pre_global_weights,
+                        local_weights,
+                        idxs_users,
+                        client_class_counts,
+                        sca_tail_class_ids,
+                        min_fraction=float(args.cliplora_sca_support_min_fraction),
+                        weighting=args.cliplora_sca_weighting,
+                    )
                 append_lora_aggregation_diagnostics(
                     args.output_dir,
                     epoch=epoch,
@@ -4413,6 +4513,15 @@ def main(args):
                     f"tail_coverage={aggregation_details['covered_tail_class_count']}/"
                     f"{aggregation_details['tail_class_count']}"
                 )
+                if sca_enabled:
+                    sca_covered = sum(
+                        int(row["supporter_count"] > 0) for row in sca_round_diagnostics
+                    )
+                    print(
+                        "Online SCA aggregation audit: "
+                        f"class_coverage={sca_covered}/{len(sca_round_diagnostics)} "
+                        f"retained_rows={len(sca_round_diagnostics) - sca_covered}"
+                    )
                 global_trainer.model.load_state_dict(global_weights, strict=True)
                 if stage3_runtime is not None:
                     if len(stage3_round_uploads) != len(idxs_users):
@@ -4471,12 +4580,27 @@ def main(args):
                         return
 
                 if not run_global_eval:
+                    if d4a_tracker is not None:
+                        d4a_tracker.record(epoch, sca_round_diagnostics)
                     print_skip_global_eval(epoch, args.global_eval_interval)
                     print("Epoch on server :", epoch)
                     continue
 
                 print("------------global test start-------------")
                 result = global_trainer.global_test(is_global=True, current_epoch=epoch)
+
+                if d4a_tracker is not None:
+                    d4a_margins = getattr(
+                        global_trainer, "last_global_test_class_margins", {}
+                    )
+                    d4a_metrics = {
+                        class_id: {
+                            "accuracy": float(result[3].get(class_id, math.nan)),
+                            "margin": float(d4a_margins.get(class_id, math.nan)),
+                        }
+                        for class_id in range(n_cls)
+                    }
+                    d4a_tracker.record(epoch, sca_round_diagnostics, d4a_metrics)
 
 
                 global_test_acc_list.append(result[0])
@@ -5481,6 +5605,14 @@ if __name__ == "__main__":
     parser.add_argument('--cliplora_params', type=str, nargs='+', default=['q', 'v'], choices=['q', 'k', 'v', 'o'])
     parser.add_argument('--cliplora_lr_policy', type=str, default='constant', choices=['constant', 'cosine'])
     parser.add_argument('--cliplora_precision', type=str, default='amp', choices=['amp', 'fp32', 'fp16'])
+    parser.add_argument('--cliplora_sca_enable', type=str2bool, default=False, help='enable online class-separable residual aggregation')
+    parser.add_argument('--cliplora_sca_scale', type=float, default=10.0, help='fixed scale of the zero-initialized class residual logits')
+    parser.add_argument('--cliplora_sca_clamp', type=float, default=3.0, help='absolute per-class residual-logit trust region; <=0 disables')
+    parser.add_argument('--cliplora_sca_lr_mult', type=float, default=5.0, help='class residual learning-rate multiplier over shared LoRA')
+    parser.add_argument('--cliplora_sca_use_bias', type=str2bool, default=False, help='learn one bias in each class residual row; disabled in the primary run to separate SCA from logit adjustment')
+    parser.add_argument('--cliplora_sca_support_min_fraction', type=float, default=0.0, help='minimum local class fraction for a selected client to support a row; 0 means positive count')
+    parser.add_argument('--cliplora_sca_weighting', type=str, default='class_count', choices=['class_count', 'uniform'], help='within-class supporter weighting')
+    parser.add_argument('--cliplora_sca_d4_enable', type=str2bool, default=False, help='log D4-A supporter absence and per-class degradation without controlling training')
     parser.add_argument('--e1_enable', type=str2bool, default=False, help='enable the frozen E1 strong-but-narrow per-round audit')
     parser.add_argument('--e1_protocol_file', type=str, default='output/e1_strength_breadth/protocol_v2/mechanism_validation_protocol.json')
     parser.add_argument('--e1_dino_artifact', type=str, default='output/e1_strength_breadth/frozen_eval/dino_tail_clusters.npz')

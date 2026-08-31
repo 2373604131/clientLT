@@ -584,6 +584,7 @@ class SimpleTrainer(TrainerBase):
         # 创建字典来存储每个类别的预测结果
         class_correct = defaultdict(int)
         class_total = defaultdict(int)
+        class_margin_sum = defaultdict(float)
 
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(data_loader)):
@@ -649,9 +650,14 @@ class SimpleTrainer(TrainerBase):
                 output = self.model_inference(input)
                 self.evaluator.process(output, labels)
                 pred = output.argmax(dim=1)
-                for l, p in zip(labels, pred):
+                true_logits = output.gather(1, labels.view(-1, 1)).squeeze(1)
+                other_logits = output.clone()
+                other_logits.scatter_(1, labels.view(-1, 1), -torch.inf)
+                true_margins = true_logits - other_logits.max(dim=1).values
+                for l, p, margin in zip(labels, pred, true_margins):
                     l_item = l.item()
                     class_total[l_item] += 1
+                    class_margin_sum[l_item] += float(margin.item())
                     if l_item == p.item():
                         class_correct[l_item] += 1
         #         image_features, ce_logits, text_features = self.model(input, return_features=True)
@@ -720,6 +726,12 @@ class SimpleTrainer(TrainerBase):
 
         class_accuracy = {
             cls: (class_correct.get(cls, 0) / max(total, 1)) * 100
+            for cls, total in class_total.items()
+        }
+        # Read-only side channel for D4-A. It is produced by the same test pass
+        # and is never consumed by optimization or server aggregation.
+        self.last_global_test_class_margins = {
+            cls: class_margin_sum.get(cls, 0.0) / max(total, 1)
             for cls, total in class_total.items()
         }
 
