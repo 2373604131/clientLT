@@ -5,7 +5,11 @@ from pathlib import Path
 
 import numpy as np
 
-from tools.functional_breadth_feasibility.matching import coverage_metrics, symmetric_relative_gap
+from tools.functional_breadth_feasibility.matching import (
+    constraint_aware_shortlist,
+    coverage_metrics,
+    symmetric_relative_gap,
+)
 from tools.functional_breadth_feasibility.p0_audit import run as run_p0
 from tools.functional_breadth_feasibility.protocol import frozen_protocol
 from tools.functional_breadth_feasibility.sampling import select_head_safety_ids
@@ -16,12 +20,26 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_protocol_is_no_training_and_private_only():
     protocol = frozen_protocol()
+    assert protocol["protocol_name"] == "FUNCTIONAL_BREADTH_FEASIBILITY_V3"
+    assert protocol["merge"]["shortlist_contrasts_per_tail"] == 24
     assert protocol["training"]["allowed"] is False
     assert protocol["training"]["missing_state_policy"] == "fail_without_retraining"
     assert protocol["evidence"]["test_split_access_allowed"] is False
     assert protocol["feasibility_gate"]["test_metrics_used_for_selection"] is False
     assert protocol["federated_deployment"]["server_deployable_method"] is False
     assert protocol["federated_deployment"]["privacy_claim"] is False
+
+
+def test_v3_preserves_preregistered_scientific_thresholds():
+    matching = frozen_protocol()["matching"]
+    assert matching == {
+        "exact": ["donor_count", "candidate_sample_count", "optimizer_steps"],
+        "actual_symmetric_relative_strength_gap_max": 0.20,
+        "relative_update_norm_gap_max": 0.10,
+        "absolute_head_margin_gain_gap_max": 0.10,
+        "absolute_direct_tail_cosine_gap_max": 0.15,
+        "minimum_actual_effective_breadth_gap": 1.0,
+    }
 
 
 def test_coverage_metrics_separates_strength_and_breadth():
@@ -31,6 +49,39 @@ def test_coverage_metrics_separates_strength_and_breadth():
     assert narrow["effective_breadth"] == 1.0
     assert np.isclose(broad["effective_breadth"], 4.0)
     assert symmetric_relative_gap(4.0, 4.0) == 0.0
+
+
+def test_constraint_aware_shortlist_filters_before_ranking_without_quartiles():
+    def row(a, b, strength, breadth, norm=1.0, head=0.0, cosine=0.0):
+        return {
+            "tail_class": 80, "candidate_a": a, "candidate_b": b,
+            "donor_count": 2, "candidate_sample_count": 24, "optimizer_steps": 6,
+            "predicted_positive_strength": strength,
+            "predicted_effective_breadth": breadth,
+            "predicted_update_l2": norm,
+            "predicted_head_margin_gain": head,
+            "predicted_direct_tail_cosine": cosine,
+        }
+
+    rows = [
+        row(0, 1, strength=1.0, breadth=1.0),
+        row(2, 3, strength=4.0, breadth=2.0),
+        row(8, 9, strength=4.05, breadth=3.0),
+        row(4, 5, strength=4.1, breadth=4.0),
+        row(6, 7, strength=10.0, breadth=9.0),
+    ]
+    selected, audit = constraint_aware_shortlist(rows, count=2, protocol=frozen_protocol())
+
+    assert len(selected) == 2
+    assert audit["predicted_feasible_contrasts"] >= 1
+    assert all(item["predicted_constraints_pass"] for item in selected)
+    assert all(item["predicted_breadth_gap"] >= 1.0 for item in selected)
+    assert all(item["predicted_strength_symmetric_relative_gap"] <= 0.20 for item in selected)
+    # The extreme 10-vs-1 strength contrast must never survive merely because
+    # it has the largest breadth difference.
+    assert not any(
+        item["broad_a"] == 6 and item["narrow_a"] == 0 for item in selected
+    )
 
 
 def test_runtime_has_no_training_or_test_store_access():

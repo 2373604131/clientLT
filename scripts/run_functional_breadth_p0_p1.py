@@ -29,11 +29,11 @@ def _data_dir(path: Path) -> Path:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run legacy frac=1 audit and no-training Functional Breadth feasibility"
+        description="Run legacy frac=1 audit and no-training Functional Breadth feasibility V3"
     )
     parser.add_argument("--stage", choices=["all", "p0", "p1"], default="all")
     parser.add_argument("--legacy-output-root", type=Path, default=Path("output"))
-    parser.add_argument("--output-root", type=Path, default=Path("output/functional_breadth_p0_p1_seed42_v2"))
+    parser.add_argument("--output-root", type=Path, default=Path("output/functional_breadth_p0_p1_seed42_v3"))
     parser.add_argument("--data-root", type=Path, default=Path("DATA"))
     parser.add_argument("--manifest-dir", type=Path, default=Path("output/carrier_access_audit/manifests"))
     parser.add_argument("--b-dir", type=Path, default=Path("output/carrier_access_audit/experiment_b"))
@@ -67,11 +67,11 @@ def main() -> None:
         )
         summaries["p1"] = run_p1(p1_args)
         print(json.dumps({
-            "stage": "P1", "status": "complete", "verdict": summaries["p1"]["verdict"],
+            "stage": "P1-V3", "status": "complete", "verdict": summaries["p1"]["verdict"],
             "matched_tail_classes": summaries["p1"]["matched_tail_classes"],
         }))
     combined = {
-        "schema_version": "functional_breadth_p0_p1_v2",
+        "schema_version": "functional_breadth_p0_p1_v3",
         "stages_requested": args.stage, "training_performed": False,
         "summaries": summaries,
     }
@@ -84,7 +84,7 @@ def main() -> None:
         ]
     if "p1" in summaries:
         lines += [
-            f"- P1 verdict: **{summaries['p1']['verdict']}**",
+            f"- P1 V3 verdict: **{summaries['p1']['verdict']}**",
             f"- P1 matched tail classes: **{summaries['p1']['matched_tail_classes']}/20**",
             "- P1 used gradients / optimizers / test data: **no / no / no**",
         ]

@@ -1,8 +1,9 @@
 # Phase 0 + Phase 1: Functional Breadth feasibility
 
-The current frozen protocol is V2. V2 fixes head-safety sampling for low-count
-LT classes by drawing from the original train split while excluding every
-Carrier-B training sample.
+The current frozen protocol is V3. V3 preserves every V2 scientific matching
+threshold and replaces only the failed shortlist heuristic. It hard-filters the
+complete pair-state contrast space before retaining 24 deterministic candidates
+per tail class for actual merged forward evaluation.
 
 This pipeline intentionally performs **no training**.
 
@@ -48,7 +49,11 @@ Phase 1 exports:
 - held-out head/non-target harm;
 - cosine to each direct-tail update;
 - all 3,160 two-candidate pair screens per tail class;
+- a complete-space constraint-screen summary per tail class;
+- 24 constraint-aware Broad/Narrow contrasts per tail class, interleaving
+  maximum-breadth and maximum-constraint-slack backups;
 - forward-evaluated actual merged boundary gains for the shortlist;
+- all actual contrast decisions, not only the selected class-level winner;
 - one Broad/Narrow match decision per tail class.
 
 `FEASIBLE` requires at least 12/20 tail classes to have an actual merged pair
@@ -61,8 +66,8 @@ does not claim an accuracy or retention benefit.
 From the repository root on one rented GPU:
 
 ```bash
-python -u scripts/run_functional_breadth_p0_p1.py --stage all --gpu 0
+python -u scripts/run_functional_breadth_p0_p1.py --stage p1 --gpu 0
 ```
 
 The combined report is written to
-`output/functional_breadth_p0_p1_seed42_v2/p0_p1_report.md`.
+`output/functional_breadth_p0_p1_seed42_v3/p0_p1_report.md`.

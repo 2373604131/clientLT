@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import itertools
 import math
-from collections import defaultdict
 
 import numpy as np
 
@@ -61,58 +60,193 @@ def enumerate_pair_screen(
     return rows
 
 
-def shortlist_contrasts(rows: list[dict], count: int) -> list[dict]:
+def constraint_aware_shortlist(
+    rows: list[dict], count: int, protocol: dict
+) -> tuple[list[dict], dict]:
+    """Search the complete pair-state contrast space before actual evaluation.
+
+    V2 compared only the lowest and highest breadth quartiles.  That heuristic
+    systematically coupled breadth with positive strength.  V3 instead applies
+    the preregistered scientific constraints as hard filters to every possible
+    Broad/Narrow contrast.  The filters use predicted private-train quantities
+    only; every shortlisted contrast is checked again with actual merged forward
+    passes by :func:`select_actual_match`.
+    """
+
     if not rows:
-        return []
-    ordered = sorted(rows, key=lambda row: row["predicted_effective_breadth"])
-    quartile = max(1, len(ordered) // 4)
-    narrow, broad = ordered[:quartile], ordered[-quartile:]
-    feature_names = (
-        "predicted_positive_strength", "predicted_update_l2",
-        "predicted_head_margin_gain", "predicted_direct_tail_cosine",
+        return [], {
+            "tail_class": "", "pair_states_screened": 0,
+            "pair_state_contrasts_possible": 0,
+            "predicted_feasible_contrasts": 0, "shortlisted_contrasts": 0,
+            "shortlisted_unique_pair_states": 0,
+        }
+    count = int(count)
+    if count < 1:
+        raise ValueError("constraint-aware shortlist count must be positive")
+
+    thresholds = protocol["matching"]
+    strength_max = float(thresholds["actual_symmetric_relative_strength_gap_max"])
+    norm_max = float(thresholds["relative_update_norm_gap_max"])
+    head_max = float(thresholds["absolute_head_margin_gain_gap_max"])
+    cosine_max = float(thresholds["absolute_direct_tail_cosine_gap_max"])
+    breadth_min = float(thresholds["minimum_actual_effective_breadth_gap"])
+
+    breadth = np.asarray(
+        [float(row["predicted_effective_breadth"]) for row in rows], dtype=np.float64
     )
-    scales = {}
-    for name in feature_names:
-        values = np.asarray([float(row[name]) for row in rows], dtype=np.float64)
-        scales[name] = float(values.std()) or 1.0
-    proposals = []
-    for broad_row in broad:
-        compatible = [row for row in narrow if (
-            row["candidate_sample_count"] == broad_row["candidate_sample_count"]
-            and row["optimizer_steps"] == broad_row["optimizer_steps"]
-        )]
-        if not compatible:
-            continue
-        narrow_row = min(compatible, key=lambda row: sum(
-            ((float(row[name]) - float(broad_row[name])) / scales[name]) ** 2
-            for name in feature_names
-        ))
-        distance = math.sqrt(sum(
-            ((float(narrow_row[name]) - float(broad_row[name])) / scales[name]) ** 2
-            for name in feature_names
-        ))
-        gap = float(broad_row["predicted_effective_breadth"] - narrow_row["predicted_effective_breadth"])
-        proposals.append({
-            "tail_class": int(broad_row["tail_class"]),
-            "broad_a": int(broad_row["candidate_a"]), "broad_b": int(broad_row["candidate_b"]),
-            "narrow_a": int(narrow_row["candidate_a"]), "narrow_b": int(narrow_row["candidate_b"]),
-            "predicted_breadth_gap": gap, "predicted_match_distance": distance,
-            "shortlist_score": gap - 0.10 * distance,
-        })
-    proposals.sort(key=lambda row: (-row["shortlist_score"], row["predicted_match_distance"]))
+    strength = np.asarray(
+        [float(row["predicted_positive_strength"]) for row in rows], dtype=np.float64
+    )
+    update_norm = np.asarray(
+        [float(row["predicted_update_l2"]) for row in rows], dtype=np.float64
+    )
+    head_gain = np.asarray(
+        [float(row["predicted_head_margin_gain"]) for row in rows], dtype=np.float64
+    )
+    cosine = np.asarray(
+        [float(row["predicted_direct_tail_cosine"]) for row in rows], dtype=np.float64
+    )
+    donor_count = np.asarray([int(row["donor_count"]) for row in rows], dtype=np.int64)
+    sample_count = np.asarray(
+        [int(row["candidate_sample_count"]) for row in rows], dtype=np.int64
+    )
+    optimizer_steps = np.asarray(
+        [int(row["optimizer_steps"]) for row in rows], dtype=np.int64
+    )
+
+    feasible = []
+    for broad_index, broad_row in enumerate(rows):
+        breadth_gap = breadth[broad_index] - breadth
+        strength_gap = (
+            2.0 * np.abs(strength[broad_index] - strength)
+            / (np.abs(strength[broad_index]) + np.abs(strength) + EPS)
+        )
+        norm_gap = (
+            2.0 * np.abs(update_norm[broad_index] - update_norm)
+            / (np.abs(update_norm[broad_index]) + np.abs(update_norm) + EPS)
+        )
+        head_gap = np.abs(head_gain[broad_index] - head_gain)
+        cosine_gap = np.abs(cosine[broad_index] - cosine)
+        budget_match = (
+            (donor_count[broad_index] == donor_count)
+            & (sample_count[broad_index] == sample_count)
+            & (optimizer_steps[broad_index] == optimizer_steps)
+        )
+        mask = (
+            (breadth_gap >= breadth_min)
+            & (strength_gap <= strength_max)
+            & (norm_gap <= norm_max)
+            & (head_gap <= head_max)
+            & (cosine_gap <= cosine_max)
+            & budget_match
+        )
+        for narrow_index in np.flatnonzero(mask).tolist():
+            narrow_row = rows[narrow_index]
+            normalized_utilization = (
+                float(strength_gap[narrow_index] / strength_max),
+                float(norm_gap[narrow_index] / norm_max),
+                float(head_gap[narrow_index] / head_max),
+                float(cosine_gap[narrow_index] / cosine_max),
+            )
+            max_utilization = max(normalized_utilization)
+            feasible.append({
+                "tail_class": int(broad_row["tail_class"]),
+                "broad_a": int(broad_row["candidate_a"]),
+                "broad_b": int(broad_row["candidate_b"]),
+                "narrow_a": int(narrow_row["candidate_a"]),
+                "narrow_b": int(narrow_row["candidate_b"]),
+                "predicted_breadth_gap": float(breadth_gap[narrow_index]),
+                "predicted_strength_symmetric_relative_gap": float(
+                    strength_gap[narrow_index]
+                ),
+                "predicted_update_norm_symmetric_relative_gap": float(
+                    norm_gap[narrow_index]
+                ),
+                "predicted_head_margin_gain_gap": float(head_gap[narrow_index]),
+                "predicted_direct_tail_cosine_gap": float(cosine_gap[narrow_index]),
+                "predicted_constraint_max_utilization": max_utilization,
+                "predicted_minimum_constraint_slack": 1.0 - max_utilization,
+                "predicted_match_distance": float(
+                    math.sqrt(sum(value * value for value in normalized_utilization))
+                ),
+                "predicted_budget_match": True,
+                "predicted_constraints_pass": True,
+            })
+
+    deterministic_key = lambda row: (
+        int(row["broad_a"]), int(row["broad_b"]),
+        int(row["narrow_a"]), int(row["narrow_b"]),
+    )
+    breadth_order = sorted(feasible, key=lambda row: (
+        -float(row["predicted_breadth_gap"]),
+        -float(row["predicted_minimum_constraint_slack"]),
+        float(row["predicted_match_distance"]),
+        deterministic_key(row),
+    ))
+    robustness_order = sorted(feasible, key=lambda row: (
+        -float(row["predicted_minimum_constraint_slack"]),
+        -float(row["predicted_breadth_gap"]),
+        float(row["predicted_match_distance"]),
+        deterministic_key(row),
+    ))
+
+    # Interleave two deterministic lanes: large separations make the feasibility
+    # contrast meaningful, while large constraint slack supplies backups that are
+    # less likely to cross a threshold after the actual merged forward pass.
     output, seen = [], set()
-    for row in proposals:
-        key = (row["broad_a"], row["broad_b"], row["narrow_a"], row["narrow_b"])
-        if key in seen:
-            continue
-        seen.add(key)
-        output.append(row)
-        if len(output) >= int(count):
+    cursors = {"breadth": 0, "robustness": 0}
+    orders = {"breadth": breadth_order, "robustness": robustness_order}
+    while len(output) < min(count, len(feasible)):
+        made_progress = False
+        for lane in ("breadth", "robustness"):
+            ordered = orders[lane]
+            while cursors[lane] < len(ordered):
+                row = ordered[cursors[lane]]
+                cursors[lane] += 1
+                key = deterministic_key(row)
+                if key in seen:
+                    continue
+                selected = dict(row)
+                selected["selection_lane"] = lane
+                selected["selection_rank"] = len(output) + 1
+                selected["shortlist_score"] = float(row["predicted_breadth_gap"])
+                output.append(selected)
+                seen.add(key)
+                made_progress = True
+                break
+            if len(output) >= min(count, len(feasible)):
+                break
+        if not made_progress:
             break
-    return output
+
+    selected_pairs = {
+        tuple(sorted(pair))
+        for proposal in output
+        for pair in (
+            (proposal["broad_a"], proposal["broad_b"]),
+            (proposal["narrow_a"], proposal["narrow_b"]),
+        )
+    }
+    selected_gaps = [float(row["predicted_breadth_gap"]) for row in output]
+    audit = {
+        "tail_class": int(rows[0]["tail_class"]),
+        "pair_states_screened": len(rows),
+        "pair_state_contrasts_possible": len(rows) * (len(rows) - 1) // 2,
+        "predicted_feasible_contrasts": len(feasible),
+        "shortlisted_contrasts": len(output),
+        "shortlisted_unique_pair_states": len(selected_pairs),
+        "shortlisted_breadth_gap_min": min(selected_gaps) if selected_gaps else "",
+        "shortlisted_breadth_gap_median": (
+            float(np.median(selected_gaps)) if selected_gaps else ""
+        ),
+        "shortlisted_breadth_gap_max": max(selected_gaps) if selected_gaps else "",
+    }
+    return output, audit
 
 
-def select_actual_match(proposals: list[dict], actual: dict[tuple[int, int, int], dict], protocol: dict) -> dict:
+def evaluate_actual_matches(
+    proposals: list[dict], actual: dict[tuple[int, int, int], dict], protocol: dict
+) -> list[dict]:
     thresholds = protocol["matching"]
     evaluated = []
     for proposal in proposals:
@@ -163,6 +297,12 @@ def select_actual_match(proposals: list[dict], actual: dict[tuple[int, int, int]
             ),
             **checks, "matched_pair_pass": all(checks.values()),
         })
+    return evaluated
+
+
+def select_evaluated_actual_match(evaluated: list[dict]) -> dict:
+    if not evaluated:
+        raise ValueError("No constraint-aware proposals were available for actual selection")
     passing = [row for row in evaluated if row["matched_pair_pass"]]
     chosen = max(passing, key=lambda row: row["actual_effective_breadth_gap"]) if passing else max(
         evaluated, key=lambda row: (
@@ -172,3 +312,11 @@ def select_actual_match(proposals: list[dict], actual: dict[tuple[int, int, int]
         )
     )
     return chosen
+
+
+def select_actual_match(
+    proposals: list[dict], actual: dict[tuple[int, int, int], dict], protocol: dict
+) -> dict:
+    return select_evaluated_actual_match(
+        evaluate_actual_matches(proposals, actual, protocol)
+    )

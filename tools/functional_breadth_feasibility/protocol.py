@@ -10,7 +10,7 @@ from tools.semantic_acquisition.common import stable_hash, write_json
 
 
 PROTOCOL = {
-    "protocol_name": "FUNCTIONAL_BREADTH_FEASIBILITY_V2",
+    "protocol_name": "FUNCTIONAL_BREADTH_FEASIBILITY_V3",
     "scope": "seed42_private_train_only_no_training_feasibility",
     "claim_boundary": (
         "This phase asks whether already-saved Carrier-B updates can form matched "
@@ -67,11 +67,14 @@ PROTOCOL = {
         "donor_count": 2,
         "rule": "theta0 + 0.5*delta_i + 0.5*delta_j",
         "pair_universe": "all unordered pairs of the 80 saved candidate updates",
-        "shortlist_contrasts_per_tail": 8,
+        "shortlist_contrasts_per_tail": 24,
         "shortlist_selection": (
-            "maximize predicted breadth separation after nearest-neighbor matching "
-            "on strength, update norm, head safety, and direct-tail cosine"
+            "hard-filter the complete pair-state contrast space with the frozen "
+            "matching thresholds, then deterministically interleave maximum-breadth "
+            "and maximum-constraint-slack candidates"
         ),
+        "shortlist_lanes": ["maximum_predicted_breadth_gap", "maximum_constraint_slack"],
+        "predicted_filter_reuses_actual_threshold_values": True,
         "actual_evaluation": "forward pass of shortlisted merged tensors on private train only",
     },
     "matching": {

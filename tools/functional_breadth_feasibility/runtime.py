@@ -28,10 +28,11 @@ from tools.carrier_access_audit.rewrite_runtime import _writer_state_path
 from tools.carrier_access_audit.runtime import _candidate_state_path, _combine_states
 from tools.client_update_audit.runtime import _prepare_model, _repository_cifar_transform
 from tools.functional_breadth_feasibility.matching import (
+    constraint_aware_shortlist,
     coverage_metrics,
     enumerate_pair_screen,
-    select_actual_match,
-    shortlist_contrasts,
+    evaluate_actual_matches,
+    select_evaluated_actual_match,
 )
 from tools.functional_breadth_feasibility.protocol import frozen_protocol, write_protocol
 from tools.functional_breadth_feasibility.sampling import select_head_safety_ids
@@ -426,7 +427,7 @@ def run(args) -> dict:
     for left in NON_TAIL_CLASSES:
         for right in range(left + 1, 80):
             pair_norms[(left, right)] = float((0.5 * deltas[left] + 0.5 * deltas[right]).norm().item())
-    pair_screen, proposals = [], []
+    pair_screen, proposals, constraint_screen_rows = [], [], []
     shortlist_count = int(frozen_protocol()["merge"]["shortlist_contrasts_per_tail"])
     for tail_class in TAIL_CLASSES:
         vectors = {
@@ -442,8 +443,18 @@ def run(args) -> dict:
             {candidate: inventory_by_candidate[candidate]["optimizer_steps_successful"] for candidate in NON_TAIL_CLASSES},
         )
         pair_screen.extend(rows)
-        proposals.extend(shortlist_contrasts(rows, shortlist_count))
+        selected, screen_audit = constraint_aware_shortlist(
+            rows, shortlist_count, frozen_protocol()
+        )
+        if len(selected) != shortlist_count:
+            raise RuntimeError(
+                f"Tail class {tail_class} has only {len(selected)} predicted-feasible "
+                f"contrasts; V3 requires {shortlist_count} actual-evaluation backups"
+            )
+        proposals.extend(selected)
+        constraint_screen_rows.append(screen_audit)
     write_csv(args.output_dir / "pair_screen.csv", pair_screen)
+    write_csv(args.output_dir / "constraint_screen_summary.csv", constraint_screen_rows)
     write_csv(args.output_dir / "contrast_shortlist.csv", proposals)
 
     unique_pairs = sorted({
@@ -475,14 +486,19 @@ def run(args) -> dict:
     write_csv(args.output_dir / "actual_merged_summary.csv", actual_summary_rows)
     write_csv(args.output_dir / "actual_merged_boundary_gains.csv", actual_boundary_rows)
 
-    matched_rows = []
+    matched_rows, actual_contrast_rows = [], []
     for tail_class in TAIL_CLASSES:
-        chosen = select_actual_match(
-            [row for row in proposals if int(row["tail_class"]) == tail_class],
-            actual_lookup, frozen_protocol(),
+        tail_proposals = [
+            row for row in proposals if int(row["tail_class"]) == tail_class
+        ]
+        tail_actual_contrasts = evaluate_actual_matches(
+            tail_proposals, actual_lookup, frozen_protocol(),
         )
+        actual_contrast_rows.extend(tail_actual_contrasts)
+        chosen = select_evaluated_actual_match(tail_actual_contrasts)
         chosen["selection_used_test_metrics"] = False
         matched_rows.append(chosen)
+    write_csv(args.output_dir / "actual_contrast_evaluations.csv", actual_contrast_rows)
     write_csv(args.output_dir / "matched_broad_narrow_pairs.csv", matched_rows)
     pass_count = sum(bool(row["matched_pair_pass"]) for row in matched_rows)
     minimum = int(frozen_protocol()["feasibility_gate"]["minimum_tail_classes_with_matched_broad_narrow_pair"])
@@ -490,11 +506,18 @@ def run(args) -> dict:
     result_names = (
         "head_safety_manifest.csv", "hard_boundary_manifest.csv", "candidate_state_inventory.csv",
         "candidate_update_tensors.pt", "private_boundary_gains.csv", "private_head_safety.csv",
-        "candidate_direct_tail_cosine.csv", "pair_screen.csv", "contrast_shortlist.csv",
+        "candidate_direct_tail_cosine.csv", "pair_screen.csv", "constraint_screen_summary.csv",
+        "contrast_shortlist.csv", "actual_contrast_evaluations.csv",
         "actual_merged_summary.csv", "actual_merged_boundary_gains.csv", "matched_broad_narrow_pairs.csv",
     )
+    predicted_feasible_total = sum(
+        int(row["predicted_feasible_contrasts"]) for row in constraint_screen_rows
+    )
+    actual_passing_contrasts = sum(
+        bool(row["matched_pair_pass"]) for row in actual_contrast_rows
+    )
     summary = {
-        "schema_version": "functional_breadth_feasibility_v2",
+        "schema_version": "functional_breadth_feasibility_v3",
         "verdict": verdict, "matched_tail_classes": pass_count,
         "required_tail_classes": minimum, "tail_classes_total": 20,
         "training_performed": False, "optimizer_steps": 0, "gradient_calls": 0,
@@ -502,6 +525,15 @@ def run(args) -> dict:
         "server_deployable_method": False, "privacy_claim": False,
         "candidate_states_reused": 80, "direct_tail_states_reused": 20,
         "candidate_pairs_screened_per_tail": 3160,
+        "complete_contrast_space_hard_filtered": True,
+        "shortlisted_contrasts_per_tail": shortlist_count,
+        "predicted_feasible_contrasts_total": predicted_feasible_total,
+        "predicted_feasible_contrasts_by_tail": {
+            str(row["tail_class"]): int(row["predicted_feasible_contrasts"])
+            for row in constraint_screen_rows
+        },
+        "actual_contrasts_evaluated": len(actual_contrast_rows),
+        "actual_passing_contrasts": actual_passing_contrasts,
         "actual_unique_pair_states_evaluated": len(unique_pairs),
         "protocol_hash": frozen_protocol()["protocol_hash"],
         "protocol_file_sha256": file_sha256(protocol_path),
@@ -518,9 +550,11 @@ def run(args) -> dict:
     }
     write_json(args.output_dir / "p1_summary.json", summary)
     lines = [
-        "# Phase 1 — Functional Breadth feasibility", "",
+        "# Phase 1 V3 — Functional Breadth feasibility", "",
         f"- Verdict: **{verdict}**",
         f"- Matched tail classes: **{pass_count}/20** (gate: at least {minimum})",
+        f"- Predicted-feasible full-space contrasts: **{predicted_feasible_total}**",
+        f"- Actual contrasts evaluated / passed: **{len(actual_contrast_rows)} / {actual_passing_contrasts}**",
         f"- Actual merged pair states evaluated: **{len(unique_pairs)}**",
         "- Training / gradient / optimizer calls: **0 / 0 / 0**",
         "- Test split accessed: **no**", "",
@@ -539,7 +573,7 @@ def guarded_run(args) -> dict:
     except Exception as exc:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
         write_json(failure, {
-            "stage": "P1", "error_type": type(exc).__name__, "error": str(exc),
+            "stage": "P1-V3", "error_type": type(exc).__name__, "error": str(exc),
             "training_was_not_attempted": True, "traceback": traceback.format_exc(),
         })
         raise
