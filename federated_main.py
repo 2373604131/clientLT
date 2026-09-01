@@ -657,6 +657,31 @@ def select_round_clients(args, epoch, client_schedule=None):
     return np.random.choice(range(args.num_users), m, replace=False)
 
 
+def append_selected_clients_audit(output_dir, epoch, client_ids):
+    """Persist the clients actually returned to the training loop.
+
+    The Stage-1 CAPT comparison uses this artifact to verify execution, rather
+    than trusting only the requested schedule path recorded by the launcher.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, "selected_clients.csv")
+    exists = os.path.exists(path)
+    with open(path, "a", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle, fieldnames=["epoch_index", "client_id", "selection_order"]
+        )
+        if not exists:
+            writer.writeheader()
+        for order, client_id in enumerate(client_ids):
+            writer.writerow(
+                {
+                    "epoch_index": int(epoch),
+                    "client_id": int(client_id),
+                    "selection_order": int(order),
+                }
+            )
+
+
 def get_client_class_counts(local_trainer, num_users, num_classes):
     client_class_counts = {}
     federated_train_x = getattr(local_trainer.dm.dataset, "federated_train_x", None)
@@ -3071,6 +3096,14 @@ def setup_cfg(args):
 
 def main(args):
     cfg = setup_cfg(args)
+    if int(getattr(args, "capt_fixed_global_agg_freq", 0)) < 0:
+        raise ValueError("--capt_fixed_global_agg_freq must be >= 0")
+    if int(getattr(args, "capt_fixed_global_agg_freq", 0)) > 0 and not (
+        args.trainer == "CAPT" and args.model == "cluster"
+    ):
+        raise ValueError(
+            "--capt_fixed_global_agg_freq is restricted to model=cluster, trainer=CAPT"
+        )
     g0_probe = bool(getattr(args, "g0_probe_enable", False))
     sca_enabled = bool(getattr(args, "cliplora_sca_enable", False))
     residual_aggregation = str(
@@ -3670,6 +3703,10 @@ def main(args):
 
                 m = max(int(args.frac * args.num_users), 1)
                 idxs_users = select_round_clients(args, epoch, client_schedule)
+                if int(args.capt_fixed_global_agg_freq) > 0:
+                    append_selected_clients_audit(
+                        args.output_dir, epoch, idxs_users
+                    )
                 print(f"Selected clients for this round: {idxs_users}")
 
                 for idx in idxs_users:
@@ -3689,11 +3726,21 @@ def main(args):
 
                 print("------------Client clustering start-------------")
 
-                # MAB parameter selection
-                intra_cluster_rounds = mab.get_value(mab.select_arm())
-                similarity_iters = mab.get_value(mab.select_arm())
-                dissimilarity_iters = mab.get_value(mab.select_arm())
-                global_agg_freq = mab.get_value(mab.select_arm())
+                # Stage-1 CAPT diagnostics may freeze the communication
+                # schedule. The default (0) preserves CAPT's original MAB
+                # behavior. A positive value prevents official-test metrics
+                # from changing future aggregation timing and guarantees a
+                # comparable final communication round across topologies.
+                if int(args.capt_fixed_global_agg_freq) > 0:
+                    intra_cluster_rounds = 1
+                    similarity_iters = 1
+                    dissimilarity_iters = 1
+                    global_agg_freq = int(args.capt_fixed_global_agg_freq)
+                else:
+                    intra_cluster_rounds = mab.get_value(mab.select_arm())
+                    similarity_iters = mab.get_value(mab.select_arm())
+                    dissimilarity_iters = mab.get_value(mab.select_arm())
+                    global_agg_freq = mab.get_value(mab.select_arm())
 
                 print(f"MAB selected parameters: intra_cluster_rounds={intra_cluster_rounds}, "
                       f"similarity_iters={similarity_iters}, dissimilarity_iters={dissimilarity_iters}, "
@@ -3807,16 +3854,24 @@ def main(args):
 
                     print("Epoch on server :", epoch)
 
-                    # Calculate reward and update MAB
-                    convergence_rate = mab.calculate_convergence_rate(global_test_acc_list)
-                    reward = mab.calculate_reward(accuracy, f1_score, convergence_rate)
+                    if int(args.capt_fixed_global_agg_freq) <= 0:
+                        # Original CAPT behavior. The fixed diagnostic mode
+                        # deliberately skips this official-test-controlled
+                        # scheduler update.
+                        convergence_rate = mab.calculate_convergence_rate(global_test_acc_list)
+                        reward = mab.calculate_reward(accuracy, f1_score, convergence_rate)
 
-                    mab.update(mab.get_arm_from_value(intra_cluster_rounds), reward, epoch)
-                    mab.update(mab.get_arm_from_value(similarity_iters), reward, epoch)
-                    mab.update(mab.get_arm_from_value(dissimilarity_iters), reward, epoch)
-                    mab.update(mab.get_arm_from_value(global_agg_freq), reward, epoch)
+                        mab.update(mab.get_arm_from_value(intra_cluster_rounds), reward, epoch)
+                        mab.update(mab.get_arm_from_value(similarity_iters), reward, epoch)
+                        mab.update(mab.get_arm_from_value(dissimilarity_iters), reward, epoch)
+                        mab.update(mab.get_arm_from_value(global_agg_freq), reward, epoch)
 
-                    print(f"Epoch {epoch}: Updated MAB schedulers with reward {reward}")
+                        print(f"Epoch {epoch}: Updated MAB schedulers with reward {reward}")
+                    else:
+                        print(
+                            "CAPT fixed aggregation diagnostic: official-test "
+                            "metrics did not control future training"
+                        )
 
 
                 else:
@@ -5663,6 +5718,7 @@ if __name__ == "__main__":
     parser.add_argument('--n_general', type=int, default=1, help="number of text encoder of text prompts")
     parser.add_argument('--n_disclusters', type=int, default=4, help="number of text encoder of text prompts")
     parser.add_argument('--n_simclusters', type=int, default=4, help="number of text encoder of text prompts")
+    parser.add_argument('--capt_fixed_global_agg_freq', type=int, default=0, help='CAPT diagnostic only: fixed positive global aggregation frequency; 0 preserves original test-controlled MAB schedule')
     parser.add_argument('--prompt_depth', type=int, default=9)
     # Standalone ClipLora mechanism experiment. Keep these separate from
     # FedTEF's optional shared-LoRA arguments so the effective config is clear.
