@@ -4,7 +4,7 @@
 >
 > 推荐用法：正文按 `---` 分隔，每一节可直接对应 1 页 PPT；“页面内容”放入幻灯片，“讲述备注”用于现场汇报，“视觉建议”可直接交给 PPT/图片生成工具。
 >
-> 故事约束：延续《客户端长尾日常讨论》的固定主线——**联邦长尾不仅有类别频率轴，还有客户端拓扑轴；拓扑通过聚合稀释与非支持更新干扰，影响稀有知识能否进入并留在全局模型中。** 后续实验不是推翻这条主线，而是把“稀释”进一步具体化为 **functional carrier access**，把“干扰”进一步具体化为 **signed rewriting / retention risk**。
+> 故事约束：联邦长尾不仅有类别频率轴，还有客户端拓扑轴。对预训练 VLM，更准确的问题不是“尾类知识能否从头形成”，而是**已有尾类能力经过联邦任务适配后，能够覆盖多少决策边界，以及这些功能能否进入并留在全局模型中。** 第一代 `semantic breadth` 与静态 representation breadth 假说已被否定；当前第二代候选是假设拓扑压缩了 **accessible functional coverage**，并在 shared rewriting 下造成保留风险。该假说仍需严格因果 gate，不能提前写成既定结论。
 
 ## 状态标记
 
@@ -23,7 +23,7 @@
 
 围绕方法部分，我们依次回答了五个问题：
 
-1. 尾类知识是**没有形成**，还是形成后**没有进入全局模型**？
+1. 预训练尾类能力在联邦适配中是没有被有效利用，还是写入后被持续改写？
 2. Client-LT 缺少的是语义邻居，还是更一般的**功能载体冗余**？
 3. 不含尾类的客户端是否真的与该类无关？
 4. 应该修复局部学习、聚合权重、决策边界，还是知识保存？
@@ -33,8 +33,8 @@
 
 > 我们已经从大量候选解释中，收敛到两个可操作的方法目标：
 >
-> **A. 提高尾类正向功能进入全局模型的 access；**  
-> **B. 在支持客户端缺席时，抑制有害 rewriting，保存已经形成的功能。**
+> **A. 提高互补正向功能进入并覆盖尾类困难边界的 access；**
+> **B. 在支持客户端缺席时，抑制有害 shared rewriting，保存已经适配出的功能。**
 
 ### 视觉建议
 
@@ -153,7 +153,7 @@ p(k\mid c)=\frac{N_{kc}}{n_c}.
 
 ### 本页结论
 
-> 主故事不变，但方法含义从“可靠性加权 + 正交保护”升级为“功能 access + 类别知识 preservation”。
+> 主故事不变，但方法含义从“可靠性加权 + 正交保护”升级为“functional coverage access + adaptation preservation”。
 
 ### 视觉建议
 
@@ -183,7 +183,7 @@ p(k\mid c)=\frac{N_{kc}}{n_c}.
 
 ### 本页结论
 
-> 研究路径完成了两次转向：`语义共现 → 功能 carrier`，`知识形成 → 知识保留`。
+> 研究路径完成了两次转向：`语义共现 → 功能边界覆盖`，`知识形成 → 预训练能力的适配与保留`。
 
 ### 视觉建议
 
@@ -647,21 +647,11 @@ Post-write D2：固定、范数匹配的客户端更新 replay。
 
 ---
 
-## 第 19 页｜当前路线 A：Online SCA——类别条件的写入与持久化
+## 第 19 页｜Online SCA：已完成的类别条件隔离对照
 
 ### 页面内容
 
-### 参数结构
-
-- 共享 LoRA：继续普通 FedAvg，学习通用视觉迁移；
-- 每个 tail 类增加一个零初始化、feature-conditioned residual row；
-- primary 版本关闭 residual bias，避免退化成 logit adjustment。
-
-### 本地更新
-
-对类别 \(c\) 的 residual row，仅当 minibatch 中出现正标签 \(c\) 时允许产生梯度。
-
-### 服务端聚合
+共享 LoRA 继续执行普通 sample-weighted FedAvg；每个 tail 类增加一个零初始化、feature-conditioned residual row。对类别 \(c\)，只有本地正标签出现时才允许该 row 产生梯度，服务端只在当轮 supporter 间聚合：
 
 \[
 r_c^{t+1}=
@@ -673,228 +663,316 @@ r_c^t, & S_c^t=\varnothing.
 \end{cases}
 \]
 
-其中 \(S_c^t\) 是第 \(t\) 轮实际支持类别 \(c\) 的参与客户端。
+它能够严格保证：
 
-### 它分别解决什么
+- supporter-only row aggregation：隔离类别条件 access/dilution；
+- non-supporter 不直接更新该 residual row：阻断 row-level rewriting；
+- no-support round：残差参数原样保留。
 
-- supporter-only row aggregation：解决 access/dilution；
-- non-supporter 不更新该 row：阻断直接类别条件 rewriting；
-- no-support round 保留旧 row：解决 absence preservation；
-- 共享 LoRA 保留跨类迁移能力：避免彻底切断 donor。
+它不能保证：
+
+- shared LoRA 中的尾类功能不被改写；
+- class-absent positive donor 被 residual stream 利用；
+- 参数保留等价于功能保留。
 
 ### 路线状态
 
-🟢 **当前最直接、最优先的机制方法。**  
-⚪ 仓库已有实现和协议，但尚无正式 2×2 科学结果。
+🟡 **保留为 support-metadata isolation control / relaxed-information mechanistic reference。**
+不再把它称为最终方法或性能 upper bound。
 
-### 视觉建议
+### 本页结论
 
-用双通道架构图：上方 shared LoRA 接收所有客户端；下方 class residual bank 中每一行只接受对应 supporter，缺席时显示锁形 `keep previous state`。
-
-### 证据与实现
-
-- [Online SCA 设计](docs/online_sca_d4a.md)
-- [SCA 2×2 协议](docs/sca_factorial_experiment.md)
-- [Class-separable aggregation](utils/class_separable_aggregation.py)
-- [Class residual module](utils/class_residual.py)
+> SCA 精确回答“显式类别 row 隔离能修复多少”，但它没有保护 shared functional substrate。
 
 ---
 
-## 第 20 页｜SCA 必须通过怎样的 2×2 因果验证
+## 第 20 页｜SCA 2×2 已完成：聚合收益具有拓扑特异性，但幅度有限
 
 ### 页面内容
 
-固定所有 \(n_k\)、\(n_c\)、初始化、训练预算和参与 schedule，只改变两个因素：
+固定 \(n_k\)、\(n_c\)、residual architecture、初始化、训练预算和参与 schedule；正式配置为 `30 clients, frac=0.4, 80 rounds, seed=42`。
 
-| | Residual FedAvg | Class-separable aggregation |
-|---|---:|---:|
-| Client-LT | A | B |
-| Fixed-marginal Dirichlet | C | D |
+以最终 round 的 Head–Tail H-mean 为主指标：
 
-主要检验量：
+| 拓扑 | Residual-FedAvg | SCA | SCA 净收益 |
+|---|---:|---:|---:|
+| Client-LT | 51.802 | 53.346 | **+1.544** |
+| Fixed-marginal Dirichlet | 62.496 | 62.221 | **−0.275** |
 
 \[
-\mathrm{DiD}=(B-A)-(D-C).
+\mathrm{DiD}=1.544-(-0.275)=\mathbf{+1.819\ pp}.
 \]
 
-### 四种可能结果
+协议审计通过：两个边际完全一致、四个 cell 内训练协议一致、只改变 topology 与 residual aggregation。
 
-1. **B−A 大、D−C 小、DiD 为正**：SCA 专门修复 Client-LT topology；
-2. **B−A 与 D−C 同样大**：SCA 是通用 class-wise head，不是 topology-specific；
-3. **A 已经接近 B**：主要收益来自 residual architecture，而不是 aggregation；
-4. **B 仍无增益**：当前 SCA 路线停止，不继续堆模块。
+### 证据边界
 
-必须报告：
-
-- tail/head/overall 与 H-mean；
-- zero-shot 到终点的变化；
-- 完整 round curve；
-- supporter-present 与 supporter-absent 轮次；
-- absence streak 与 retention；
-- 多 seed 均值与置信区间。
+- 这是单 seed 描述性结果，不能代替多 seed 推断；
+- SCA 的独立聚合贡献存在，但不是大幅性能救援；
+- Client-LT 上相对 CAPT 仍有显著 tail/H-mean 差距；
+- matched Dirichlet 上安全回退尚未实现，静态 SCA 略有负收益。
 
 ### 本页结论
 
-> 这个 2×2 不是普通消融，而是决定“方法是否真正 topology-aware”的关键因果实验。
+> SCA 证明 class-separable aggregation 对 Client-LT 有特异性作用，但不能独自解释或解决主要拓扑损失。
 
-### 视觉建议
+### 证据来源
 
-中心使用醒目的 2×2 方格；右侧放 DiD 公式和四个交通灯式判据。
-
----
-
-## 第 21 页｜当前路线 B：P-FCC / D-RTC——不上传类别统计的私有风险控制
-
-### 页面内容
-
-### P-FCC：Private Functional Compatibility Control
-
-1. 服务器使用上一轮匿名客户端更新构建 prototype bank；
-2. 客户端用少量私有样本评价候选 prototype；
-3. 选择功能上正向的 top-2 donor；
-4. 不上传类别列表、类别计数和私有 utility；
-5. 上传形状和范数保持与普通更新一致。
-
-### D-RTC：Degradation-triggered Restore-to-Competence
-
-1. 客户端保存自己观察到的最佳 incoming global functional reference；
-2. 用私有样本检测当前全局模型是否退化；
-3. 若退化，执行一次受控 restore gradient；
-4. 目标是支持客户端长期缺席后仍能恢复关键功能。
-
-### 当前证据
-
-- 方法动机由 Carrier B、Placement C、Rewrite D1/D2 共同支持；
-- 两轮 smoke：FedAvg tail `66.40`，random proposal `66.45`，combined `66.45`；
-- 两轮结果只证明运行正确，不能作为性能结论。
-
-### 路线状态
-
-🟢 **作为 privacy-preserving 路线继续保留。**  
-⚪ 需要完整多轮、与 SCA/CAPT 对照的正式 gate。
-
-### 视觉建议
-
-左右双栏：左侧 P-FCC 是“匿名 prototype → 私有评分 → donor 选择”；右侧 D-RTC 是“global degradation detector → local restore”。底部标注 `No class metadata upload`。
-
-### 证据与实现契约
-
-- [P-FCC / D-RTC 方法契约](docs/frozen_p_fcc_d_rtc_method_contract_v1.md)
+- [SCA factorial four-cell runs](output/online_sca_seed42_v2/)
 
 ---
 
-## 第 22 页｜两条路线不是竞争关系，而是不同信息约束下的解法
+## 第 21 页｜D4 与 Stage 2-C：参数保留不等于功能保留
 
 ### 页面内容
 
-| 方法层级 | 可用信息 | 优点 | 风险/代价 |
-|---|---|---|---|
-| CAPT / full SCA | 类别计数 \(N_{kc}\) | 最直接地实现类别条件 access/persistence | 类别分布暴露较多 |
-| Support-bit SCA | 是否支持类别 \(c\) | 信息量更低，仍可阻断无证据 row update | 仍需上传类别支持集合 |
-| P-FCC / D-RTC | 不上传类别元数据，仅私有功能评估 | 隐私边界最好，可利用缺类 donor | 选择噪声、计算和通信协议更复杂 |
+### D4：partial participation 下 absence 真实发生
 
-建议论文中的方法问题写成：
+- 正式 SCA 使用 `frac=0.4`，不是 full participation；
+- 1600 个 tail-class×round 中出现 235 个 no-support 事件；
+- no-support 时 residual row delta 精确为 0；
+- 但 235/235 的 margin 仍发生变化，152 次 accuracy 下降、160 次 margin 下降；
+- absence 事件平均 accuracy delta 为 `−1.719 pp`，margin delta 为 `−0.1405`。
 
-> 在 tail-evidence topology 高度集中时，需要多少类别信息，才能可靠地维持稀有知识？
+### Stage 2-C：退化主要来自 shared LoRA 的头类化
+
+清零 residual 后：
+
+| checkpoint | Head | Tail | H-mean |
+|---|---:|---:|---:|
+| round 3 | 67.70 | 68.80 | 68.25 |
+| round 20 | 70.75 | 26.30 | 38.35 |
+| round 50 | 73.49 | 22.80 | 34.80 |
+| round 80 | 73.90 | 22.10 | 34.02 |
+
+round 3→80：20/20 tail accuracy 与 20/20 tail margin 均下降；head 平均提高 `6.20 pp`，tail 平均下降 `46.70 pp`。
+
+与此同时，matched residual 在 round 20/50/80 持续提供约 `19–20 pp` H-mean 补偿。因此 residual 不是主要退化源，而是在补救已经变得 head-dominant 的 shared substrate。
 
 ### 本页结论
 
-> 如果 SCA 成功而无元数据方法失败，结论不是研究失败，而是识别出 Client-LT 下性能—隐私的信息边界。
+> 当前最强事实是 **shared functional adaptation scope erosion**：尾类能力早期已经存在，随后被共享更新系统性压缩。no-support policy 保存了参数，却没有保存其依赖的功能空间。
 
-### 视觉建议
+### 证据来源
 
-画一条横轴：左端“更多类别信息/更强控制”，右端“更少信息/更强隐私”；在轴上依次放 CAPT、SCA、support-bit、P-FCC/D-RTC。
-
----
-
-## 第 23 页｜目前最可靠的方法故事线
-
-### 页面内容
-
-### 观察
-
-固定全局长尾，改变 tail-evidence topology，PromptFL 与共享 LoRA 的尾类表现显著改变。
-
-### 机制 1：Access bottleneck
-
-Client-LT 将正向功能集中到少数 carrier；这些客户端在 FedAvg 中总权重较小，功能写入被稀释。
-
-### 机制 2：Retention bottleneck
-
-共享参数仍被缺类客户端更新；这些更新有正有负。carrier 少且长时间缺席时，负向 rewriting 更难被冗余 donor 抵消或被新 tail evidence 修复。
-
-### 方法
-
-- 类别信息可用：用 Online SCA 建立 class-conditional write/persist channel；
-- 类别信息不可用：用 P-FCC/D-RTC 的私有功能 gate 进行 signed routing 与 degradation-triggered restore。
-
-### 本页结论
-
-> **Client-LT 减少了稀有知识的功能载体冗余，使正向知识难以进入全局模型、已写入知识又更容易被持续改写；因此方法必须同时管理类别条件 access 与 preservation。**
-
-### 视觉建议
-
-整页使用一条完整故事链：`Fixed marginals, different coupling → fewer carriers → dilution + signed rewriting → retention risk → SCA / private control`。
+- [Stage 2-C summary](output/stage2c/stage2c_summary.json)
+- [Stage 2-C cross-swap](output/stage2c/cross_swap_summary.csv)
+- [Stage 2-C aggregation stages](output/stage2c/aggregation_stage_summary.csv)
 
 ---
 
-## 第 24 页｜明天汇报后最值得讨论的三个方法问题
+## 第 22 页｜第二代假说：Semantic Breadth → Functional Coverage Breadth
 
 ### 页面内容
 
-### 问题 1：主方法以 SCA 为中心，还是以无元数据的 P-FCC/D-RTC 为中心？
+第一代假说已经被分解并否定：
 
-- SCA 因果链最直接、实现最清晰；
-- P-FCC/D-RTC 的新颖性和隐私故事更强，但风险更高；
-- 建议先由 SCA 证明机制可解，再决定是否把无元数据版本提升为主方法。
+- V1：semantic co-location shrinkage 成立；
+- V2：semantic relatedness → functional formation 不成立；
+- E1：静态 embedding geometry narrowness 不成立。
 
-### 问题 2：方法究竟保护“标签类参数”，还是保护“功能状态”？
+第二代候选假说不再问“谁与 tail 语义相似或物理共现”，而是问：
 
-- SCA 保护显式类别 residual；
-- Carrier/rewrite 结果说明有益知识并不完全与标签支持重合；
-- 需要讨论 shared LoRA donor transfer 与 class residual protection 的分工。
+> 在整个联邦适配过程中，tail class 能够利用多少**互补的正向功能方向**，这些方向覆盖多少不同的困难决策边界？
 
-### 问题 3：论文贡献强调 benchmark，还是强调 rare-knowledge lifecycle？
+现有支持：
 
-- 若 2×2 出现方法排名反转：可以强调新的 evaluation axis；
-- 若 CAPT/SCA 都能解决：强调所需信息、隐私和参与约束；
-- 若强方法天然稳定：Client-LT 不宜作为独立主问题。
+- Carrier A：Dirichlet 的 effective carrier 与 functional coverage 更宽，但仍是有混杂的描述性对比；
+- Carrier B：semantic–effect Spearman 约 `0.148`，private functional signal–test effect 约 `0.837`；
+- Placement C：物理共现不是必要条件，merge 后 tail-conditioned readaptation 有效；
+- D1/D2：class-absent donor/rewriter 共存，private risk 能预测 replay forgetting；
+- Stage 2-C：shared tail competence 会在长期聚合中系统性收缩。
+
+### 当前允许使用的表述
+
+> **Client-LT may compress the set of complementary functional directions accessible to tail adaptation, yielding boundary-incomplete competence that is more vulnerable to subsequent shared rewriting.**
+
+### 当前不允许使用的表述
+
+> “Client-LT 已经被证明通过 Functional Breadth Scarcity 导致遗忘。”
 
 ### 本页结论
 
-> 当前最需要老师决定的不是再加哪个模块，而是主方法的信息假设和论文贡献的落点。
-
-### 视觉建议
-
-三张并列的问题卡片，每张卡片底部给出推荐倾向；保持讨论页风格，不放复杂数值。
+> Functional Breadth 是被失败实验筛出的高价值候选机制，不是对 Semantic Breadth 的换名包装。
 
 ---
 
-## 第 25 页｜下一步最短闭环
+## 第 23 页｜怎样把“功能强度”和“功能广度”严格分开
 
 ### 页面内容
 
-1. **先跑完 Online SCA 2×2 单 seed gate。**
-2. gate 通过后做多 seed，并补完整 round-level retention 统计。
-3. 与 FedAvg、support-normalized、CAPT、residual-FedAvg 统一比较。
-4. 做 full-count、support-bit、no-metadata 三档信息消融。
-5. 再决定是否投入完整 P-FCC/D-RTC 长程训练。
-6. CIFAR 因果闭环后，再扩展一个细粒度或专科机构式数据集。
+对 tail class \(c\)，使用**训练侧冻结**的 hard-negative boundary 集合
 
-### 停止条件
+\[
+\mathcal H_c=\{h_1,\ldots,h_M\}.
+\]
 
-- SCA 在 Client-LT 和 matched Dirichlet 上收益相同：降级为通用模块；
-- SCA 不能超过 residual-FedAvg：停止 class-separable aggregation；
-- P-FCC/D-RTC 不能超过随机 proposal 或 blind restore：停止隐私路线；
-- 只有极端三 specialist 构型掉点：重新评估 Client-LT 的研究价值。
+候选 donor 集合 \(S\) 经过实际服务器合并得到 \(u_S\)。必须测量真实合并后的边界变化，而不只使用各 donor 的理想最大值：
+
+\[
+g_{S,c,h}=m_{c,h}(\theta+u_S)-m_{c,h}(\theta).
+\]
+
+总正功能强度定义为
+
+\[
+G_c(S)=\sum_h w_h[g_{S,c,h}]_+.
+\]
+
+将正增益归一化为
+
+\[
+q_h=\frac{w_h[g_{S,c,h}]_+}
+{\sum_{h'}w_{h'}[g_{S,c,h'}]_+},
+\]
+
+再用有效覆盖数表示 breadth：
+
+\[
+B_c^{\mathrm{eff}}(S)=\exp\!\left(-\sum_hq_h\log q_h\right).
+\]
+
+实验目标是在严格匹配 \(G_c\) 后，只改变 \(B_c^{\mathrm{eff}}\)：
+
+- Broad：相同总 gain 分散覆盖更多 hard boundaries；
+- Narrow：相同总 gain 集中在少数 boundaries。
+
+原始 `max-over-donors` 指标可保留为 **potential set coverage**，但不能替代 actual merged coverage，因为 shared LoRA 合并后可能发生抵消。
 
 ### 本页结论
 
-> 现在需要的是少量高判别力实验，而不是继续扩展方法组件。
+> 只有在 strength 相同而 coverage 不同的条件下，才能证明“广度”本身有额外功能价值。
 
-### 视觉建议
+---
 
-画一个五步里程碑路线图，每一步带清晰 pass/fail gate；最后分叉到“论文主方法”或“停止/重定义”。
+## 第 24 页｜Functional Breadth 生死 gate：同一实验完成适配与保留检验
+
+### 页面内容
+
+### Stage A：Topology → Breadth 审计
+
+- 使用 factorial 中完全匹配边际的 Client-LT 与 Dirichlet；
+- 从相同 global LoRA、相同训练预算生成 class-absent candidate updates；
+- 使用训练侧/private probe 冻结 hard negatives 和 gain vectors；
+- 检验 Client-LT 是否在 actual merged functional coverage 上系统性更窄。
+
+这一步补上 Carrier A 尚未严格控制的箭头。
+
+### Stage B：Matched Broad vs Narrow adaptation
+
+从共同候选池构造两组 donor，严格匹配：
+
+- donor 数量、客户端质量与聚合 mass；
+- 总 update norm、optimizer steps；
+- 总正增益 \(G_c\)；
+- signed negative harm/head safety；
+- 最好匹配与 direct-tail update 的 cosine。
+
+两组执行实际 merge，再执行完全相同的 tail readaptation。测试集只在全部选择冻结后评估 accuracy、mean margin、worst-boundary margin。
+
+### Stage C：Matched rewrite replay
+
+- 不能根据测试结果事后把 Broad/Narrow 调齐；
+- 只能在 private calibration 上设置初始性能 caliper；
+- 对两者施加完全相同的 frozen class-absent rewrite sequence；
+- 报告 forgetting trajectory、AUC、survival rounds 与相对初始值退化。
+
+### 四种判定
+
+1. Broad 初始更好且更稳定：统一 adaptation + retention 机制；
+2. 初始接近、Broad 更稳定：只保留 robustness/retention breadth；
+3. Broad 初始更好、retention 相同：只保留 adaptation coverage；
+4. 二者均无差异：停止 Functional Breadth 主线。
+
+### 本页结论
+
+> 在完整长程方法开发前，先用一个严格匹配的因果实验决定 Functional Breadth 的生死。
+
+---
+
+## 第 25 页｜若 gate 通过，主方法如何自然产生
+
+### 页面内容
+
+### SCA 的身份
+
+- 保留为 support-metadata isolation control；
+- 证明显式类别 row 隔离能修复一部分 topology-specific damage；
+- 不称为 upper bound，因为它没有保护 shared LoRA，也排除了 class-absent donor。
+
+### P-FCC 的最小升级
+
+当前版本选择 top-2 scalar positive donor。若 breadth gate 通过，改为互补选择：
+
+\[
+j_1=\arg\max_j G_c(j),\qquad
+j_2=\arg\max_j \Delta B_c^{\mathrm{eff}}(j\mid j_1).
+\]
+
+即第二个 donor 不再追求第二大的标量 utility，而是补足第一位没有覆盖的困难边界。方法身份从 Positive Donor Selection 升级为 **Complementary Functional Consolidation**。
+
+### Retention 组件的条件
+
+只有 Stage C 证明 Broad/Narrow 的保留差异，或证明 private rewrite risk 能在真实长程轨迹中控制退化，才开发 D-RTC/Rewrite-Aware Retention；否则不把 retention 组件拼装进方法。
+
+### 隐私约束
+
+Functional Breadth gate 可以作为离线机制实验使用细粒度 gain vectors；最终方法不能默认上传带类别/边界含义的 \(g_{j,c,h}\)。互补选择必须在客户端私有完成，或使用安全聚合/匿名压缩信号，否则会破坏 no-class-metadata 叙事。
+
+### 本页结论
+
+> Gate 通过后，主方法应直接作用于正在退化的 shared functional stream，而不是继续堆 residual 参数。
+
+---
+
+## 第 26 页｜当前证据边界：已经证明什么，还没有证明什么
+
+### 已经证明/强支持
+
+- 固定边际后，coupling topology 是独立实验变量；
+- Client-LT 下 functional carrier 数量与自然 coverage 更窄；
+- semantic similarity 只提供弱 donor prior，private functional evidence 更可靠；
+- class-absent 更新具有 signed functional effect；
+- partial participation 产生真实 temporal absence；
+- residual parameter retention 不能阻止 shared functional rewriting；
+- shared LoRA 的尾类能力从早期强状态系统性退化为 head-dominant 状态。
+
+### 尚未证明
+
+- fixed-marginal topology 必然导致 functional breadth compression；
+- functional breadth 在总 gain 匹配后仍提高 tail adaptation；
+- low breadth 会因果性地导致更强 rewrite fragility；
+- complementary donor selection 在真实多轮 FL 中优于 top-scalar/random；
+- no-metadata 实现能在不泄露边界 utility 的条件下稳定工作。
+
+### 本页结论
+
+> 论文现在有一个有潜力的统一解释，但还缺决定性的中介变量干预，不应把相关证据提前升级为完整机制。
+
+---
+
+## 第 27 页｜从现在开始的最短闭环
+
+### 页面内容
+
+1. **冻结 Functional Breadth gate 协议，不开发新训练组件。**
+2. 先做 feasibility：现有 candidate updates 中能否为足够多 tail 类找到 strength/norm/budget 匹配、breadth 显著不同的 Broad/Narrow pair。
+3. feasibility 通过后，执行 Stage A 的 exact-topology breadth audit。
+4. 再执行 Stage B adaptation 与 Stage C frozen rewrite replay；全程禁止 test-driven selection。
+5. 只有 adaptation gate 通过，才实现 complementary P-FCC；只有 retention gate 通过，才实现 D-RTC。
+6. 新方法在 seed 42 通过后，才进入多 seed、普通 Dirichlet 与自然异质性泛化。
+
+### 明确停止条件
+
+- 无法在匹配总 gain/norm/budget 后制造 breadth separation：当前定义不可操作，停止；
+- Broad/Narrow adaptation 与 retention 都无差异：停止 Functional Breadth；
+- 只有 potential max coverage 不同、actual merged coverage 不变：停止当前 donor 合并表达；
+- complementary selection 不超过 top-scalar/random：不升级 P-FCC；
+- retention replay 通过但真实长程不通过：D-RTC 不能成为主组件。
+
+### 本页结论
+
+> 下一步不是再跑一条 80/100-round 方法，而是先用已有更新与 replay machinery 完成一个高判别力、可失败的机制 gate。
 
 ---
 
@@ -908,17 +986,20 @@ Client-LT 将正向功能集中到少数 carrier；这些客户端在 FedAvg 中
 | V1 | semantic co-location 是否收缩 | 两 seed + class bootstrap | 结构收缩成立 | 仅作为结构描述 |
 | V2/V3 | semantic shrinkage 是否导致 formation gap | 受控功能实验，fail-closed | 功能链失败，V3 不运行 | 停止 semantic restoration 主路线 |
 | E1 | 是否形成更窄知识 | 单 seed正式 gate | strong but not narrow | 停止 broad-representation 主路线 |
-| Carrier A | carrier 数量/覆盖是否缩减 | 20 类配对描述 | Dirichlet carrier 更宽 | 将“语义邻居”升级为 functional carrier |
+| Carrier A | carrier 数量/覆盖是否缩减 | 20 类自然拓扑描述；仍有 composition/exposure 混杂 | Dirichlet carrier 更宽，coverage 指标 20/20 同向 | 支持 Functional Breadth 候选；不能单独证明 topology 因果 |
 | Carrier B | donor 如何识别 | 80×20 等预算矩阵 | 语义弱、私有功能强 | 支持 private functional gate |
-| Placement C | 是否必须同客户端共现 | 三种 placement 对照 | readaptation 优于物理共现 | 支持 merge 后私有恢复 |
-| Rewrite D1 | 缺类更新是否能改写已写入类 | post-write 全候选扫描 | donor 与 rewriter 共存 | 需要 signed routing |
+| Placement C | 是否必须同客户端共现 | 三种 placement 对照 | separate merge 后 readaptation 的 margin/NLL 20/20 改善；总体 verdict 为 partial support | 物理共现非必要候选解释；避免普适化 |
+| Rewrite D1 | 缺类更新是否能改写已写入类 | post-write 全候选扫描 | donor 与 rewriter 共存；完整 turnover chain 未通过 | 需要 signed routing，但不宣称完整状态翻转链 |
 | Rewrite D2 | 私有风险能否预测遗忘 | 范数匹配 replay | risk predicts retention | 支持 protection/restore |
 | Support-normalized | access correction 是否有效 | LoRA 2×2 | 大幅恢复 tail，有 head 代价 | 必须保留为强基线 |
 | CUSP | 标量功能重加权能否解决 | oracle + 双拓扑 gate | oracle 强，functional 版本输给 class-wise | 当前版本停止 |
 | Boundary repair | 能否直接安全修边界 | safety gate | 目标可修，非目标不安全 | 停止 |
 | FedTEF | memory/tail stream/fusion 是否解决 | 多版本组件实验 | 多处 acquisition/routing/fusion 瓶颈 | 不再堆大系统 |
-| P-FCC/D-RTC | 无类别元数据能否私有控制 | 两轮 smoke | 仅证明运行正确 | 待完整 gate |
-| Online SCA | 类别条件持久化是否解决 topology | 实现+协议 | 尚无正式结果 | 当前第一优先级 |
+| P-FCC/D-RTC | 无类别元数据能否私有控制 | 两轮 smoke | 仅证明运行正确 | 暂停长程开发，等待 breadth/retention gate |
+| Online SCA factorial | 类别条件聚合是否具有 topology-specific 净收益 | fixed-marginal 2×2，单 seed | Client-LT H-mean `+1.544`，matched `−0.275`，DiD `+1.819` | 保留为机制对照，不作为最终主方法 |
+| D4 absence | no-support 时参数与功能是否同时保留 | 235 个 no-support 事件 | residual row 不变，但功能继续变化并倾向下降 | 证明 parameter persistence ≠ functional persistence |
+| Stage 2-C | shared 与 residual 谁导致后期退化 | 四时点 cross-swap + 三阶段分解，单 seed | shared-only tail `68.8→22.1`；residual 后期稳定补偿约 `19–20` H-mean | 转向 shared functional stream |
+| Functional Breadth gate | strength 匹配后 coverage 是否影响适配与保留 | 待冻结协议 | 尚无因果结果 | 当前唯一第一优先级 |
 
 ---
 
@@ -927,12 +1008,13 @@ Client-LT 将正向功能集中到少数 carrier；这些客户端在 FedAvg 中
 ## 建议使用
 
 - “固定类别总量和客户端总量后，改变联合分布的 coupling structure。”
-- “Client-LT 缩减了尾类的 functional carrier redundancy。”
+- “自然 Client-LT 对比中，尾类 functional carrier redundancy 与 coverage 更低；fixed-marginal 因果关系仍待验证。”
 - “支持客户端能够学习，但其正向功能的 aggregation access 不足。”
 - “缺类更新具有 signed rewriting：既存在 donor，也存在 rewriter。”
 - “私有功能风险可以预测后续 retention。”
-- “当前最可信主线是 rare-knowledge access and preservation。”
-- “SCA 是 relaxed-information setting；P-FCC/D-RTC 对应 no-class-metadata setting。”
+- “当前最可信事实是 functional access 不足与 shared adaptation erosion；Functional Breadth 是下一项待检验中介变量。”
+- “SCA 是 support-metadata isolation reference；P-FCC/D-RTC 对应待验证的 no-class-metadata 路线。”
+- “对预训练 VLM，应描述 task-specific functional adaptation scope compression，而不是知识从未形成。”
 
 ## 避免使用
 
@@ -941,7 +1023,9 @@ Client-LT 将正向功能集中到少数 carrier；这些客户端在 FedAvg 中
 - “Client-LT 一定学出更窄的表示”——E1 不支持。
 - “所有缺类客户端都在干扰”——D1 表明 donor/rewriter 共存。
 - “support-normalized 已经完全解决”——仍有 residual gap、head trade-off 和 absence 问题。
-- “SCA/P-FCC 已经验证有效”——当前尚无完整正式结果。
+- “SCA 已经解决功能保留”——SCA 只保留 residual 参数，Stage 2-C 表明 shared 功能仍会退化。
+- “Functional Breadth 已经被证明”——Carrier A/B/C 与 D1/D2 只构成兼容证据，缺少 matched breadth intervention。
+- “SCA 是性能 upper bound”——它排除了 class-absent donor，且不保护 shared LoRA，只能作为 relaxed-information mechanism reference。
 - “Client-LT 对所有模型都更难”——CAPT 是反例。
 
 ---
@@ -963,5 +1047,9 @@ Client-LT 将正向功能集中到少数 carrier；这些客户端在 FedAvg 中
 - [Retention D2](output/post_write_rewrite_audit/analysis_d2/d2_summary.json)
 - [Online SCA](docs/online_sca_d4a.md)
 - [SCA factorial](docs/sca_factorial_experiment.md)
+- [SCA factorial four-cell runs](output/online_sca_seed42_v2/)
+- [D4 per-class absence trajectory](output/d4a_per_class_round.csv)
+- [Stage 2-C summary](output/stage2c/stage2c_summary.json)
+- [Stage 2-C cross-swap](output/stage2c/cross_swap_summary.csv)
+- [Stage 2-C aggregation stages](output/stage2c/aggregation_stage_summary.csv)
 - [P-FCC / D-RTC](docs/frozen_p_fcc_d_rtc_method_contract_v1.md)
-
