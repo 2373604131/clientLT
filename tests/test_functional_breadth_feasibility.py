@@ -8,6 +8,7 @@ import numpy as np
 from tools.functional_breadth_feasibility.matching import coverage_metrics, symmetric_relative_gap
 from tools.functional_breadth_feasibility.p0_audit import run as run_p0
 from tools.functional_breadth_feasibility.protocol import frozen_protocol
+from tools.functional_breadth_feasibility.sampling import select_head_safety_ids
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +45,28 @@ def test_runtime_has_no_training_or_test_store_access():
     assert "torch.optim" not in source
     assert "test_labels" not in source
     assert 'split != "train"' in source
+
+
+def test_head_safety_uses_raw_train_complement_when_lt_remainder_is_too_small():
+    # Class 0 has five raw-train examples. Four are in the federated LT pool,
+    # leaving only one. Class 1 supplies a larger outside-LT complement.
+    labels = np.asarray([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1], dtype=np.int64)
+    selected = select_head_safety_ids(
+        labels, lt_raw_ids=[0, 1], used_sample_ids=["train:2", "train:3"],
+        class_ids=[0, 1], samples_per_class=1,
+    )
+    assert selected[0] == [4]
+    assert selected[1][0] in {5, 6, 7, 8, 9, 10}
+    assert not ({0, 1, 2, 3} & set(selected[0]))
+
+
+def test_head_safety_allows_unused_lt_examples_when_a_head_class_saturates_raw_train():
+    labels = np.asarray([0, 0, 0, 1, 1], dtype=np.int64)
+    selected = select_head_safety_ids(
+        labels, lt_raw_ids=[0, 1, 2], used_sample_ids=["train:0", "train:1"],
+        class_ids=[0], samples_per_class=1,
+    )
+    assert selected[0] == [2]
 
 
 def test_p0_parses_and_deduplicates_frac1_logs(tmp_path):

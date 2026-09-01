@@ -33,7 +33,7 @@ def main() -> None:
     )
     parser.add_argument("--stage", choices=["all", "p0", "p1"], default="all")
     parser.add_argument("--legacy-output-root", type=Path, default=Path("output"))
-    parser.add_argument("--output-root", type=Path, default=Path("output/functional_breadth_p0_p1_seed42"))
+    parser.add_argument("--output-root", type=Path, default=Path("output/functional_breadth_p0_p1_seed42_v2"))
     parser.add_argument("--data-root", type=Path, default=Path("DATA"))
     parser.add_argument("--manifest-dir", type=Path, default=Path("output/carrier_access_audit/manifests"))
     parser.add_argument("--b-dir", type=Path, default=Path("output/carrier_access_audit/experiment_b"))
@@ -71,7 +71,7 @@ def main() -> None:
             "matched_tail_classes": summaries["p1"]["matched_tail_classes"],
         }))
     combined = {
-        "schema_version": "functional_breadth_p0_p1_v1",
+        "schema_version": "functional_breadth_p0_p1_v2",
         "stages_requested": args.stage, "training_performed": False,
         "summaries": summaries,
     }

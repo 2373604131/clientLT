@@ -34,8 +34,8 @@ from tools.functional_breadth_feasibility.matching import (
     shortlist_contrasts,
 )
 from tools.functional_breadth_feasibility.protocol import frozen_protocol, write_protocol
+from tools.functional_breadth_feasibility.sampling import select_head_safety_ids
 from tools.semantic_acquisition.common import (
-    deterministic_choice,
     file_sha256,
     stable_hash,
     tensor_mapping_hash,
@@ -148,24 +148,23 @@ def _private_tail_manifest(execution: pd.DataFrame) -> pd.DataFrame:
 def _head_safety_manifest(
     store: TrainOnlyCifarRawStore, execution: pd.DataFrame, samples_per_class: int
 ) -> list[dict]:
-    labels, raw_ids = _exact_lt_train_pool(store)
+    _, lt_raw_ids = _exact_lt_train_pool(store)
     used = set(
         execution.drop_duplicates("base_sample_id").base_sample_id.astype(str).tolist()
     )
+    selected = select_head_safety_ids(
+        store.train_labels, lt_raw_ids, used, NON_TAIL_CLASSES, samples_per_class
+    )
+    lt_raw_set = {int(value) for value in lt_raw_ids.tolist()}
     output = []
     for class_id in NON_TAIL_CLASSES:
-        pool = [
-            int(raw_ids[position]) for position in np.flatnonzero(labels == class_id)
-            if f"train:{int(raw_ids[position])}" not in used
-        ]
-        chosen = deterministic_choice(
-            pool, samples_per_class, "functional-breadth-head-safety", 42, class_id
-        )
-        for slot, raw_id in enumerate(chosen):
+        for slot, raw_id in enumerate(selected[class_id]):
             output.append({
                 "data_seed": 42, "role": "heldout_head_safety", "class_id": class_id,
                 "slot": slot, "raw_train_index": raw_id,
                 "base_sample_id": f"train:{raw_id}", "label": class_id,
+                "excluded_from_all_carrier_b_training": True,
+                "outside_federated_lt_pool": bool(raw_id not in lt_raw_set),
             })
     return output
 
@@ -495,7 +494,7 @@ def run(args) -> dict:
         "actual_merged_summary.csv", "actual_merged_boundary_gains.csv", "matched_broad_narrow_pairs.csv",
     )
     summary = {
-        "schema_version": "functional_breadth_feasibility_v1",
+        "schema_version": "functional_breadth_feasibility_v2",
         "verdict": verdict, "matched_tail_classes": pass_count,
         "required_tail_classes": minimum, "tail_classes_total": 20,
         "training_performed": False, "optimizer_steps": 0, "gradient_calls": 0,

@@ -1,5 +1,9 @@
 # Phase 0 + Phase 1: Functional Breadth feasibility
 
+The current frozen protocol is V2. V2 fixes head-safety sampling for low-count
+LT classes by drawing from the original train split while excluding every
+Carrier-B training sample.
+
 This pipeline intentionally performs **no training**.
 
 ## Phase 0
@@ -25,8 +29,12 @@ Phase 1 is a CUDA forward-only analysis. It requires these completed artifacts:
 If any prerequisite is absent or stale, Phase 1 fails. It never calls the
 Carrier-B or D1 training routines to recreate missing data.
 
-All selection and evaluation evidence comes from frozen or deterministically
-held-out **CIFAR-100-LT training samples**. A train-only data store rejects every
+All selection and evaluation evidence comes from the CIFAR-100 **training**
+split. Tail evidence uses the frozen Carrier-B private samples; head-safety
+probes are sampled from the original train split after excluding every
+Carrier-B candidate/private sample, making them disjoint from every candidate
+update. Outside-LT examples are preferred, while unused in-LT examples remain
+available for saturated head classes. A train-only data store rejects every
 non-train sample ID and never opens the CIFAR test file.
 
 This centralized access is acceptable for a simulator-side mechanism audit, but
@@ -57,4 +65,4 @@ python -u scripts/run_functional_breadth_p0_p1.py --stage all --gpu 0
 ```
 
 The combined report is written to
-`output/functional_breadth_p0_p1_seed42/p0_p1_report.md`.
+`output/functional_breadth_p0_p1_seed42_v2/p0_p1_report.md`.

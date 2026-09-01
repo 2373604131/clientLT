@@ -10,7 +10,7 @@ from tools.semantic_acquisition.common import stable_hash, write_json
 
 
 PROTOCOL = {
-    "protocol_name": "FUNCTIONAL_BREADTH_FEASIBILITY_V1",
+    "protocol_name": "FUNCTIONAL_BREADTH_FEASIBILITY_V2",
     "scope": "seed42_private_train_only_no_training_feasibility",
     "claim_boundary": (
         "This phase asks whether already-saved Carrier-B updates can form matched "
@@ -36,13 +36,14 @@ PROTOCOL = {
         "gradient_or_optimizer_calls": 0,
     },
     "evidence": {
-        "selection_split": "CIFAR-100-LT private train only",
+        "selection_split": "CIFAR-100 train only",
         "test_split_access_allowed": False,
         "tail_samples": "five frozen Carrier-B private-tail samples per class",
         "head_safety_samples_per_class": 3,
         "head_safety_source": (
-            "deterministic held-out examples from the exact LT train pool, excluding "
-            "all Carrier-B candidate and private-tail manifest samples"
+            "deterministic examples from the original CIFAR train split after excluding "
+            "every Carrier-B candidate/private training sample; outside-LT examples are "
+            "preferred but unused in-LT examples are allowed for saturated head classes"
         ),
     },
     "boundaries": {
