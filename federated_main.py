@@ -37,6 +37,10 @@ from utils.class_separable_aggregation import (
     aggregate_class_residual_rows,
 )
 from utils.class_residual import set_class_residual_active_classes
+from utils.stage2c_temporal import (
+    Stage2CTemporalDiagnostic,
+    parse_stage2c_rounds,
+)
 from utils.stage3_runtime import STAGE3_CONDITIONS, Stage3FederatedRuntime
 from utils.cusp_minimal import (
     save_cusp_minimal_dump,
@@ -3110,6 +3114,8 @@ def main(args):
         getattr(args, "cliplora_residual_aggregation", "class_separable")
     ).lower()
     d4a_enabled = bool(getattr(args, "cliplora_sca_d4_enable", False))
+    stage2c_enabled = bool(getattr(args, "cliplora_stage2c_enable", False))
+    stage2c_rounds = []
     if args.trainer == "ClipLora":
         args.cliplora_aggregation = str(args.cliplora_aggregation).lower()
         if args.cliplora_aggregation != "fedavg" and bool(args.experimentD_enable):
@@ -3144,6 +3150,25 @@ def main(args):
         raise ValueError(
             "D4-A logging requires the class-separable residual aggregation path"
         )
+    if stage2c_enabled:
+        stage2c_rounds = parse_stage2c_rounds(
+            getattr(args, "cliplora_stage2c_rounds", "3,20,50,80"),
+            args.round,
+        )
+        if not sca_enabled or residual_aggregation != "class_separable":
+            raise ValueError(
+                "Stage 2-C requires online class-separable SCA, not Residual-FedAvg"
+            )
+        if args.trainer != "ClipLora" or args.model != "fedavg":
+            raise ValueError("Stage 2-C requires trainer=ClipLora and model=fedavg")
+        if str(args.partition) != "client-longtail":
+            raise ValueError("Stage 2-C currently diagnoses the Client-LT topology only")
+        if int(args.global_eval_interval) != 1:
+            raise ValueError(
+                "Stage 2-C requires --global_eval_interval 1 to preserve the original trajectory"
+            )
+        if not getattr(args, "client_schedule_file", ""):
+            raise ValueError("Stage 2-C requires the frozen client schedule file")
     if g0_probe:
         from utils.g0_lora_probe import validate_g0_protocol
 
@@ -3338,6 +3363,7 @@ def main(args):
     global_class_counts = client_counts_to_tensor(client_class_counts, args.num_users, n_cls).sum(dim=0)
     sca_tail_class_ids = []
     d4a_tracker = None
+    stage2c_runtime = None
     if sca_enabled:
         sca_tail_class_ids = get_lt_class_splits_from_counts(
             global_class_counts, args.tail_class_ratio
@@ -3403,6 +3429,58 @@ def main(args):
             f"weighting={args.cliplora_sca_weighting} "
             f"d4a={d4a_enabled}"
         )
+        if stage2c_enabled:
+            stage2c_trainable_keys = get_trainable_state_keys(global_trainer.model)
+            stage2c_shared_keys = sorted(
+                key for key in stage2c_trainable_keys if "lora_" in key
+            )
+            stage2c_residual_keys = sorted(
+                key for key in stage2c_trainable_keys
+                if key in {SCA_WEIGHT_KEY, SCA_BIAS_KEY}
+            )
+            if not stage2c_shared_keys or SCA_WEIGHT_KEY not in stage2c_residual_keys:
+                raise RuntimeError(
+                    "Stage 2-C could not identify both shared LoRA and residual states"
+                )
+            stage2c_protocol = dict(sca_protocol)
+            stage2c_protocol.update({
+                "diagnostic_name": "Stage 2-C temporal mismatch",
+                "checkpoint_partition": "fixed + shared_lora + class_residual",
+                "model": str(args.model),
+                "trainer": str(args.trainer),
+                "dataset": str(args.dataset),
+                "encoder": str(args.encoder),
+                "lora_position": str(args.cliplora_position),
+                "lora_rank": int(args.cliplora_rank),
+                "lora_alpha": int(args.cliplora_alpha),
+                "lora_params": [str(value) for value in args.cliplora_params],
+                "lora_dropout_rate": float(args.cliplora_dropout_rate),
+                "lora_lr_policy": str(args.cliplora_lr_policy),
+                "precision": str(args.cliplora_precision),
+                "learning_rate": float(args.lr),
+                "client_schedule_file": str(args.client_schedule_file),
+                "aggregation_stages": [
+                    "pre_aggregation",
+                    "after_shared",
+                    "after_full",
+                ],
+                "zero_residual_definition": "all residual tensors set to exact zero",
+            })
+            stage2c_runtime = Stage2CTemporalDiagnostic(
+                output_dir=args.output_dir,
+                checkpoint_rounds=stage2c_rounds,
+                shared_keys=stage2c_shared_keys,
+                residual_keys=stage2c_residual_keys,
+                class_counts=global_class_counts.detach().cpu().tolist(),
+                tail_ratio=args.tail_class_ratio,
+                protocol=stage2c_protocol,
+                substantive_drop=float(args.cliplora_stage2c_substantive_drop),
+            )
+            print(
+                "Stage 2-C initialized: rounds={} output={}".format(
+                    stage2c_rounds, stage2c_runtime.root
+                )
+            )
     if g0_probe:
         from utils.g0_lora_probe import run_g0_local_probe
 
@@ -4516,6 +4594,28 @@ def main(args):
                     raise RuntimeError(
                         f"Vision-only ClipLora exposed non-visual LoRA state: {non_visual_lora}"
                     )
+                stage2c_selected_round = (
+                    stage2c_runtime is not None
+                    and stage2c_runtime.is_selected(epoch + 1)
+                )
+                if stage2c_selected_round:
+                    print(
+                        "------------Stage 2-C pre-aggregation diagnostic: round {}-------------".format(
+                            epoch + 1
+                        )
+                    )
+                    stage2c_pre_result, _, _ = stage2c_runtime.evaluate_state(
+                        global_trainer,
+                        pre_global_weights,
+                        communication_round=epoch + 1,
+                        label="pre_aggregation",
+                    )
+                    stage2c_runtime.record_stage(
+                        epoch + 1,
+                        "pre_aggregation",
+                        stage2c_pre_result,
+                        getattr(global_trainer, "last_global_test_class_margins", {}),
+                    )
                 stage3_round_uploads = []
                 for idx in idxs_users:
                     local_trainer.model.load_state_dict(global_weights, strict=True)
@@ -4593,6 +4693,24 @@ def main(args):
                     lora_keys,
                     aggregation_weights,
                 )
+                if stage2c_selected_round:
+                    print(
+                        "------------Stage 2-C after-shared diagnostic: round {}-------------".format(
+                            epoch + 1
+                        )
+                    )
+                    stage2c_shared_result, _, _ = stage2c_runtime.evaluate_state(
+                        global_trainer,
+                        global_weights,
+                        communication_round=epoch + 1,
+                        label="after_shared",
+                    )
+                    stage2c_runtime.record_stage(
+                        epoch + 1,
+                        "after_shared",
+                        stage2c_shared_result,
+                        getattr(global_trainer, "last_global_test_class_margins", {}),
+                    )
                 sca_round_diagnostics = []
                 if sca_enabled:
                     if residual_aggregation == "class_separable":
@@ -4618,6 +4736,8 @@ def main(args):
                                 client_weights=aggregation_weights,
                             )
                         )
+                if stage2c_selected_round:
+                    stage2c_runtime.save_checkpoint(epoch + 1, global_weights)
                 append_lora_aggregation_diagnostics(
                     args.output_dir,
                     epoch=epoch,
@@ -4712,6 +4832,14 @@ def main(args):
 
                 print("------------global test start-------------")
                 result = global_trainer.global_test(is_global=True, current_epoch=epoch)
+
+                if stage2c_selected_round:
+                    stage2c_runtime.record_stage(
+                        epoch + 1,
+                        "after_full",
+                        result,
+                        getattr(global_trainer, "last_global_test_class_margins", {}),
+                    )
 
                 if d4a_tracker is not None:
                     d4a_margins = getattr(
@@ -5365,7 +5493,14 @@ def main(args):
 
                 print("Epoch on server :", epoch)
 
-
+    if stage2c_runtime is not None:
+        print("------------Stage 2-C offline cross-swap start-------------")
+        stage2c_summary = stage2c_runtime.run_cross_swap(
+            global_trainer,
+            restore_state=global_weights,
+        )
+        print(json.dumps(stage2c_summary, indent=2, sort_keys=True))
+        print("------------Stage 2-C offline cross-swap finish-------------")
 
     print("------------Specific info-------------")
 
@@ -5739,6 +5874,9 @@ if __name__ == "__main__":
     parser.add_argument('--cliplora_sca_support_min_fraction', type=float, default=0.0, help='minimum local class fraction for a selected client to support a row; 0 means positive count')
     parser.add_argument('--cliplora_sca_weighting', type=str, default='class_count', choices=['class_count', 'uniform'], help='within-class supporter weighting')
     parser.add_argument('--cliplora_sca_d4_enable', type=str2bool, default=False, help='log D4-A supporter absence and per-class degradation without controlling training')
+    parser.add_argument('--cliplora_stage2c_enable', type=str2bool, default=False, help='enable read-only temporal checkpoint, aggregation-stage, and cross-swap diagnostics')
+    parser.add_argument('--cliplora_stage2c_rounds', type=str, default='3,20,50,80', help='one-based rounds saved and diagnosed by Stage 2-C')
+    parser.add_argument('--cliplora_stage2c_substantive_drop', type=float, default=2.0, help='post-training H-mean drop threshold (percentage points) used only to label the next diagnostic route')
     parser.add_argument('--e1_enable', type=str2bool, default=False, help='enable the frozen E1 strong-but-narrow per-round audit')
     parser.add_argument('--e1_protocol_file', type=str, default='output/e1_strength_breadth/protocol_v2/mechanism_validation_protocol.json')
     parser.add_argument('--e1_dino_artifact', type=str, default='output/e1_strength_breadth/frozen_eval/dino_tail_clusters.npz')
