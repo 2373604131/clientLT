@@ -12,6 +12,7 @@ import json
 import hashlib
 import logging
 import math
+from pathlib import Path
 from utils.fed_utils import average_weights
 from utils.experiment_d import (
     append_client_update_norms,
@@ -57,6 +58,11 @@ from utils.boundary_audit import (
 from utils.boundary_gate import BoundaryGateConfig, build_boundary_candidates
 from utils.v0_oracle import save_v0_round_dump
 from utils.aggregation_crush import append_aggregation_crush, should_log_aggregation_crush
+from utils.functional_coverage_validation import (
+    FunctionalCoverageDiagnostic,
+    load_common_lora_anchor,
+    parse_validation_rounds,
+)
 from loss.prompt_loss import PromptLoss, update_class_priors
 
 from trainers.capt import MABScheduler
@@ -3115,6 +3121,9 @@ def main(args):
     ).lower()
     d4a_enabled = bool(getattr(args, "cliplora_sca_d4_enable", False))
     stage2c_enabled = bool(getattr(args, "cliplora_stage2c_enable", False))
+    functional_coverage_enabled = bool(
+        getattr(args, "functional_coverage_validation_enable", False)
+    )
     stage2c_rounds = []
     if args.trainer == "ClipLora":
         args.cliplora_aggregation = str(args.cliplora_aggregation).lower()
@@ -3169,6 +3178,48 @@ def main(args):
             )
         if not getattr(args, "client_schedule_file", ""):
             raise ValueError("Stage 2-C requires the frozen client schedule file")
+    if functional_coverage_enabled:
+        parse_validation_rounds(
+            getattr(args, "functional_coverage_validation_rounds", "1,10,20,40,60,80"),
+            args.round,
+        )
+        if args.trainer != "ClipLora" or args.model != "fedavg":
+            raise ValueError(
+                "Functional-coverage validation requires trainer=ClipLora and model=fedavg"
+            )
+        if str(args.partition) not in {"client-longtail", "matched-dirichlet"}:
+            raise ValueError(
+                "Functional-coverage validation is restricted to Client-LT and matched Dirichlet"
+            )
+        if args.cliplora_aggregation != "fedavg" or sca_enabled:
+            raise ValueError(
+                "Functional-coverage validation requires plain LoRA FedAvg without SCA"
+            )
+        if args.encoder != "vision" or args.cliplora_precision != "fp32":
+            raise ValueError(
+                "Functional-coverage validation requires vision-only FP32 ClipLora"
+            )
+        if not bool(args.isolate_local_optimizer_state) or not bool(
+            args.federated_single_scheduler_step
+        ):
+            raise ValueError(
+                "Functional-coverage validation requires the frozen federated optimizer protocol"
+            )
+        if not getattr(args, "client_schedule_file", ""):
+            raise ValueError("Functional-coverage validation requires a fixed client schedule")
+        anchor_path = Path(
+            str(getattr(args, "functional_coverage_theta0_file", "")).strip()
+        )
+        if not str(anchor_path) or not anchor_path.is_file():
+            raise FileNotFoundError(
+                "Functional-coverage validation requires an existing --functional_coverage_theta0_file"
+            )
+        if bool(args.experimentD_enable) or bool(args.e1_enable) or bool(
+            getattr(args, "stage3_enable", False)
+        ) or stage2c_enabled:
+            raise ValueError(
+                "Functional-coverage validation must run without Experiment D, E1, Stage-2C, or Stage-3"
+            )
     if g0_probe:
         from utils.g0_lora_probe import validate_g0_protocol
 
@@ -3364,6 +3415,43 @@ def main(args):
     sca_tail_class_ids = []
     d4a_tracker = None
     stage2c_runtime = None
+    functional_coverage_runtime = None
+    if functional_coverage_enabled:
+        functional_coverage_rounds = parse_validation_rounds(
+            args.functional_coverage_validation_rounds,
+            max_epoch,
+        )
+        anchor_state, anchor_hash = load_common_lora_anchor(
+            (global_trainer.model, local_trainer.model),
+            Path(args.functional_coverage_theta0_file),
+        )
+        global_weights = copy.deepcopy(global_trainer.model.state_dict())
+        functional_lora_keys = sorted(anchor_state)
+        functional_tail_classes = get_lt_class_splits_from_counts(
+            global_class_counts, args.tail_class_ratio
+        )["tail"]
+        functional_coverage_runtime = FunctionalCoverageDiagnostic(
+            output_dir=args.output_dir,
+            data_root=args.root,
+            model=global_trainer.model,
+            initial_state=global_weights,
+            lora_keys=functional_lora_keys,
+            anchor_hash=anchor_hash,
+            tail_classes=functional_tail_classes,
+            selected_rounds=functional_coverage_rounds,
+            samples_per_class=args.functional_coverage_samples_per_class,
+            imbalance_factor=args.imb_factor,
+            imbalance_type=args.imb_type,
+            seed=args.seed,
+            partition=args.partition,
+            gain_epsilon=args.functional_coverage_gain_epsilon,
+            eval_batch_size=args.functional_coverage_eval_batch_size,
+        )
+        print(
+            "Functional-coverage validation initialized: "
+            f"rounds={functional_coverage_rounds} tail_classes={functional_tail_classes} "
+            f"anchor={anchor_hash}"
+        )
     if sca_enabled:
         sca_tail_class_ids = get_lt_class_splits_from_counts(
             global_class_counts, args.tail_class_ratio
@@ -4766,6 +4854,17 @@ def main(args):
                         f"class_coverage={sca_covered}/{len(sca_round_diagnostics)} "
                         f"retained_rows={len(sca_round_diagnostics) - sca_covered}"
                     )
+                if functional_coverage_runtime is not None and (
+                    functional_coverage_runtime.is_selected(epoch + 1)
+                ):
+                    functional_coverage_runtime.record_round(
+                        model=global_trainer.model,
+                        communication_round=epoch + 1,
+                        pre_state=pre_global_weights,
+                        local_states=local_weights,
+                        post_state=global_weights,
+                        selected_clients=idxs_users,
+                    )
                 global_trainer.model.load_state_dict(global_weights, strict=True)
                 if stage3_runtime is not None:
                     if len(stage3_round_uploads) != len(idxs_users):
@@ -5877,6 +5976,12 @@ if __name__ == "__main__":
     parser.add_argument('--cliplora_stage2c_enable', type=str2bool, default=False, help='enable read-only temporal checkpoint, aggregation-stage, and cross-swap diagnostics')
     parser.add_argument('--cliplora_stage2c_rounds', type=str, default='3,20,50,80', help='one-based rounds saved and diagnosed by Stage 2-C')
     parser.add_argument('--cliplora_stage2c_substantive_drop', type=float, default=2.0, help='post-training H-mean drop threshold (percentage points) used only to label the next diagnostic route')
+    parser.add_argument('--functional_coverage_validation_enable', type=str2bool, default=False, help='log the read-only dual-topology functional-coverage validation')
+    parser.add_argument('--functional_coverage_validation_rounds', type=str, default='1,10,20,40,60,80', help='one-based rounds for functional-coverage logging; must include the final round')
+    parser.add_argument('--functional_coverage_theta0_file', type=str, default='', help='frozen common LoRA initialization shared by both topology runs')
+    parser.add_argument('--functional_coverage_samples_per_class', type=int, default=10, help='held-out train probes per tail class')
+    parser.add_argument('--functional_coverage_gain_epsilon', type=float, default=0.0, help='strict positive-gain threshold for a covered boundary')
+    parser.add_argument('--functional_coverage_eval_batch_size', type=int, default=100, help='GPU batch size for read-only train-probe forwards')
     parser.add_argument('--e1_enable', type=str2bool, default=False, help='enable the frozen E1 strong-but-narrow per-round audit')
     parser.add_argument('--e1_protocol_file', type=str, default='output/e1_strength_breadth/protocol_v2/mechanism_validation_protocol.json')
     parser.add_argument('--e1_dino_artifact', type=str, default='output/e1_strength_breadth/frozen_eval/dino_tail_clusters.npz')
