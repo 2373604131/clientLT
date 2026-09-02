@@ -31,7 +31,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run legacy frac=1 audit and no-training Functional Breadth feasibility V3"
     )
-    parser.add_argument("--stage", choices=["all", "p0", "p1"], default="all")
+    parser.add_argument(
+        "--stage", choices=["all", "p0", "p1", "p1-finalize"], default="all"
+    )
     parser.add_argument("--legacy-output-root", type=Path, default=Path("output"))
     parser.add_argument("--output-root", type=Path, default=Path("output/functional_breadth_p0_p1_seed42_v3"))
     parser.add_argument("--data-root", type=Path, default=Path("DATA"))
@@ -69,6 +71,22 @@ def main() -> None:
         print(json.dumps({
             "stage": "P1-V3", "status": "complete", "verdict": summaries["p1"]["verdict"],
             "matched_tail_classes": summaries["p1"]["matched_tail_classes"],
+        }))
+    if args.stage == "p1-finalize":
+        from tools.functional_breadth_feasibility.runtime import (
+            guarded_finalize_existing as finalize_p1,
+        )
+
+        finalize_args = SimpleNamespace(
+            output_dir=args.output_root / "p1_functional_breadth",
+            manifest_dir=args.manifest_dir, b_dir=args.b_dir, d1_dir=args.d1_dir,
+        )
+        summaries["p1"] = finalize_p1(finalize_args)
+        print(json.dumps({
+            "stage": "P1-V3-FINALIZE", "status": "complete",
+            "verdict": summaries["p1"]["verdict"],
+            "matched_tail_classes": summaries["p1"]["matched_tail_classes"],
+            "cuda_used": False,
         }))
     combined = {
         "schema_version": "functional_breadth_p0_p1_v3",

@@ -12,6 +12,10 @@ If report/CSV finalization fails after those forwards, rerunning the same V3
 output directory reuses the completed cache instead of evaluating the merged
 states again.
 
+When all merged forwards are already present, `--stage p1-finalize` performs
+only cache validation, matching, and report generation. It does not initialize
+the model or require CUDA.
+
 ## Phase 0
 
 Phase 0 recursively audits legacy `run.log`/`log.txt` files and retains only

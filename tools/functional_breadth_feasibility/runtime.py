@@ -10,6 +10,7 @@ import csv
 import importlib.util
 import io
 import json
+import math
 import pickle
 import traceback
 from collections import defaultdict
@@ -415,6 +416,123 @@ def _write_actual_merge_cache(
     ])
 
 
+def _finalize_outputs(
+    args,
+    protocol_path: Path,
+    proposals: list[dict],
+    constraint_screen_rows: list[dict],
+    actual_lookup: dict[tuple[int, int, int], dict],
+    unique_pairs: list[tuple[int, int]],
+    neighbor_metadata: dict,
+    tensor_artifact: Path,
+    theta0_hash: str,
+    cached_actual_rows: int,
+    cached_pair_states: int,
+    newly_evaluated_pairs: int,
+) -> dict:
+    matched_rows, actual_contrast_rows = [], []
+    for tail_class in TAIL_CLASSES:
+        tail_proposals = [
+            row for row in proposals if int(row["tail_class"]) == tail_class
+        ]
+        tail_actual_contrasts = evaluate_actual_matches(
+            tail_proposals, actual_lookup, frozen_protocol(),
+        )
+        actual_contrast_rows.extend(tail_actual_contrasts)
+        chosen = dict(select_evaluated_actual_match(tail_actual_contrasts))
+        chosen["selection_used_test_metrics"] = False
+        matched_rows.append(chosen)
+    write_csv(args.output_dir / "actual_contrast_evaluations.csv", actual_contrast_rows)
+    write_csv(args.output_dir / "matched_broad_narrow_pairs.csv", matched_rows)
+    pass_count = sum(bool(row["matched_pair_pass"]) for row in matched_rows)
+    minimum = int(
+        frozen_protocol()["feasibility_gate"][
+            "minimum_tail_classes_with_matched_broad_narrow_pair"
+        ]
+    )
+    verdict = (
+        "FEASIBLE" if pass_count >= minimum
+        else "PARTIAL" if pass_count > 0 else "INFEASIBLE"
+    )
+    result_names = (
+        "head_safety_manifest.csv", "hard_boundary_manifest.csv",
+        "candidate_state_inventory.csv", "candidate_update_tensors.pt",
+        "private_boundary_gains.csv", "private_head_safety.csv",
+        "candidate_direct_tail_cosine.csv", "pair_screen.csv",
+        "constraint_screen_summary.csv", "contrast_shortlist.csv",
+        "actual_contrast_evaluations.csv", "actual_merged_summary.csv",
+        "actual_merged_boundary_gains.csv", "matched_broad_narrow_pairs.csv",
+    )
+    missing = [name for name in result_names if not (args.output_dir / name).is_file()]
+    if missing:
+        raise FileNotFoundError(
+            "Cannot finalize P1 V3 because artifacts are missing: " + ", ".join(missing)
+        )
+    predicted_feasible_total = sum(
+        int(row["predicted_feasible_contrasts"]) for row in constraint_screen_rows
+    )
+    actual_passing_contrasts = sum(
+        bool(row["matched_pair_pass"]) for row in actual_contrast_rows
+    )
+    shortlist_count = int(frozen_protocol()["merge"]["shortlist_contrasts_per_tail"])
+    summary = {
+        "schema_version": "functional_breadth_feasibility_v3",
+        "verdict": verdict, "matched_tail_classes": pass_count,
+        "required_tail_classes": minimum, "tail_classes_total": 20,
+        "training_performed": False, "optimizer_steps": 0, "gradient_calls": 0,
+        "test_split_accessed": False, "selection_used_test_metrics": False,
+        "server_deployable_method": False, "privacy_claim": False,
+        "candidate_states_reused": 80, "direct_tail_states_reused": 20,
+        "candidate_pairs_screened_per_tail": 3160,
+        "complete_contrast_space_hard_filtered": True,
+        "shortlisted_contrasts_per_tail": shortlist_count,
+        "predicted_feasible_contrasts_total": predicted_feasible_total,
+        "predicted_feasible_contrasts_by_tail": {
+            str(row["tail_class"]): int(row["predicted_feasible_contrasts"])
+            for row in constraint_screen_rows
+        },
+        "actual_contrasts_evaluated": len(actual_contrast_rows),
+        "actual_passing_contrasts": actual_passing_contrasts,
+        "actual_unique_pair_states_evaluated": len(unique_pairs),
+        "actual_cached_metric_rows_reused": cached_actual_rows,
+        "actual_cached_pair_states_reused": cached_pair_states,
+        "actual_pair_states_forward_evaluated_this_run": newly_evaluated_pairs,
+        "protocol_hash": frozen_protocol()["protocol_hash"],
+        "protocol_file_sha256": file_sha256(protocol_path),
+        "parent_manifest_contract_hash": file_sha256(
+            args.manifest_dir / "manifest_contract.json"
+        ),
+        "parent_b_contract_hash": file_sha256(args.b_dir / "runtime_contract.json"),
+        "parent_d1_contract_hash": file_sha256(args.d1_dir / "runtime_contract.json"),
+        "theta0_hash": theta0_hash, "neighbor_metadata": neighbor_metadata,
+        "candidate_update_tensor_sha256": file_sha256(tensor_artifact),
+        "result_hashes": {
+            name: file_sha256(args.output_dir / name) for name in result_names
+        },
+        "interpretation": (
+            "FEASIBLE means the saved shared-LoRA candidate library contains "
+            "private-train matched Broad/Narrow pairs. It does not yet show that "
+            "breadth improves adaptation or retention."
+        ),
+    }
+    write_json(args.output_dir / "p1_summary.json", summary)
+    lines = [
+        "# Phase 1 V3 — Functional Breadth feasibility", "",
+        f"- Verdict: **{verdict}**",
+        f"- Matched tail classes: **{pass_count}/20** (gate: at least {minimum})",
+        f"- Predicted-feasible full-space contrasts: **{predicted_feasible_total}**",
+        f"- Actual contrasts evaluated / passed: **{len(actual_contrast_rows)} / {actual_passing_contrasts}**",
+        f"- Actual merged pair states evaluated: **{len(unique_pairs)}**",
+        "- Training / gradient / optimizer calls: **0 / 0 / 0**",
+        "- Test split accessed: **no**", "",
+        "A pass only authorizes the next Broad/Narrow adaptation gate; it is not evidence of test improvement.",
+    ]
+    (args.output_dir / "p1_report.md").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8"
+    )
+    return summary
+
+
 def run(args) -> dict:
     args.output_dir = Path(args.output_dir)
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -627,85 +745,137 @@ def run(args) -> dict:
         actual_lookup, actual_boundary_lookup,
     )
 
-    matched_rows, actual_contrast_rows = [], []
-    for tail_class in TAIL_CLASSES:
-        tail_proposals = [
-            row for row in proposals if int(row["tail_class"]) == tail_class
-        ]
-        tail_actual_contrasts = evaluate_actual_matches(
-            tail_proposals, actual_lookup, frozen_protocol(),
+    return _finalize_outputs(
+        args=args,
+        protocol_path=protocol_path,
+        proposals=proposals,
+        constraint_screen_rows=constraint_screen_rows,
+        actual_lookup=actual_lookup,
+        unique_pairs=unique_pairs,
+        neighbor_metadata=neighbor_metadata,
+        tensor_artifact=tensor_artifact,
+        theta0_hash=tensor_mapping_hash(theta0),
+        cached_actual_rows=cached_actual_rows,
+        cached_pair_states=cached_pair_states,
+        newly_evaluated_pairs=newly_evaluated_pairs,
+    )
+
+
+def finalize_existing(args) -> dict:
+    """Finalize a completed V3 actual-forward cache without CUDA or model setup."""
+
+    args.output_dir = Path(args.output_dir)
+    protocol_path = write_protocol(args.output_dir)
+    required = (
+        "candidate_state_inventory.csv", "candidate_update_tensors.pt",
+        "private_boundary_gains.csv", "private_head_safety.csv",
+        "candidate_direct_tail_cosine.csv", "pair_screen.csv",
+        "constraint_screen_summary.csv", "contrast_shortlist.csv",
+        "actual_merged_summary.csv", "actual_merged_boundary_gains.csv",
+        "head_safety_manifest.csv", "hard_boundary_manifest.csv",
+    )
+    missing = [name for name in required if not (args.output_dir / name).is_file()]
+    if missing:
+        raise FileNotFoundError(
+            "P1 V3 finalize-only cannot reconstruct missing forward artifacts: "
+            + ", ".join(missing)
         )
-        actual_contrast_rows.extend(tail_actual_contrasts)
-        chosen = dict(select_evaluated_actual_match(tail_actual_contrasts))
-        chosen["selection_used_test_metrics"] = False
-        matched_rows.append(chosen)
-    write_csv(args.output_dir / "actual_contrast_evaluations.csv", actual_contrast_rows)
-    write_csv(args.output_dir / "matched_broad_narrow_pairs.csv", matched_rows)
-    pass_count = sum(bool(row["matched_pair_pass"]) for row in matched_rows)
-    minimum = int(frozen_protocol()["feasibility_gate"]["minimum_tail_classes_with_matched_broad_narrow_pair"])
-    verdict = "FEASIBLE" if pass_count >= minimum else ("PARTIAL" if pass_count > 0 else "INFEASIBLE")
-    result_names = (
-        "head_safety_manifest.csv", "hard_boundary_manifest.csv", "candidate_state_inventory.csv",
-        "candidate_update_tensors.pt", "private_boundary_gains.csv", "private_head_safety.csv",
-        "candidate_direct_tail_cosine.csv", "pair_screen.csv", "constraint_screen_summary.csv",
-        "contrast_shortlist.csv", "actual_contrast_evaluations.csv",
-        "actual_merged_summary.csv", "actual_merged_boundary_gains.csv", "matched_broad_narrow_pairs.csv",
-    )
-    predicted_feasible_total = sum(
-        int(row["predicted_feasible_contrasts"]) for row in constraint_screen_rows
-    )
-    actual_passing_contrasts = sum(
-        bool(row["matched_pair_pass"]) for row in actual_contrast_rows
-    )
-    summary = {
-        "schema_version": "functional_breadth_feasibility_v3",
-        "verdict": verdict, "matched_tail_classes": pass_count,
-        "required_tail_classes": minimum, "tail_classes_total": 20,
-        "training_performed": False, "optimizer_steps": 0, "gradient_calls": 0,
-        "test_split_accessed": False, "selection_used_test_metrics": False,
-        "server_deployable_method": False, "privacy_claim": False,
-        "candidate_states_reused": 80, "direct_tail_states_reused": 20,
-        "candidate_pairs_screened_per_tail": 3160,
-        "complete_contrast_space_hard_filtered": True,
-        "shortlisted_contrasts_per_tail": shortlist_count,
-        "predicted_feasible_contrasts_total": predicted_feasible_total,
-        "predicted_feasible_contrasts_by_tail": {
-            str(row["tail_class"]): int(row["predicted_feasible_contrasts"])
-            for row in constraint_screen_rows
-        },
-        "actual_contrasts_evaluated": len(actual_contrast_rows),
-        "actual_passing_contrasts": actual_passing_contrasts,
-        "actual_unique_pair_states_evaluated": len(unique_pairs),
-        "actual_cached_metric_rows_reused": cached_actual_rows,
-        "actual_cached_pair_states_reused": cached_pair_states,
-        "actual_pair_states_forward_evaluated_this_run": newly_evaluated_pairs,
-        "protocol_hash": frozen_protocol()["protocol_hash"],
-        "protocol_file_sha256": file_sha256(protocol_path),
-        "parent_manifest_contract_hash": file_sha256(args.manifest_dir / "manifest_contract.json"),
-        "parent_b_contract_hash": file_sha256(args.b_dir / "runtime_contract.json"),
-        "parent_d1_contract_hash": file_sha256(args.d1_dir / "runtime_contract.json"),
-        "theta0_hash": tensor_mapping_hash(theta0), "neighbor_metadata": neighbor_metadata,
-        "candidate_update_tensor_sha256": file_sha256(tensor_artifact),
-        "result_hashes": {name: file_sha256(args.output_dir / name) for name in result_names},
-        "interpretation": (
-            "FEASIBLE means the saved shared-LoRA candidate library contains private-train matched "
-            "Broad/Narrow pairs. It does not yet show that breadth improves adaptation or retention."
-        ),
+    for path in (
+        args.manifest_dir / "manifest_contract.json",
+        args.b_dir / "runtime_contract.json",
+        args.d1_dir / "runtime_contract.json",
+    ):
+        if not Path(path).is_file():
+            raise FileNotFoundError(path)
+
+    pair_screen = pd.read_csv(args.output_dir / "pair_screen.csv").to_dict("records")
+    proposals = pd.read_csv(args.output_dir / "contrast_shortlist.csv").to_dict("records")
+    constraint_screen_rows = pd.read_csv(
+        args.output_dir / "constraint_screen_summary.csv"
+    ).to_dict("records")
+    shortlist_count = int(frozen_protocol()["merge"]["shortlist_contrasts_per_tail"])
+    proposal_counts = pd.Series(
+        [int(row["tail_class"]) for row in proposals]
+    ).value_counts().to_dict()
+    if proposal_counts != {tail: shortlist_count for tail in TAIL_CLASSES}:
+        raise RuntimeError(f"Incomplete P1 V3 shortlist: {proposal_counts}")
+    if len(constraint_screen_rows) != len(TAIL_CLASSES):
+        raise RuntimeError("Incomplete P1 V3 constraint-screen summary")
+
+    unique_pairs = sorted({
+        tuple(sorted((int(pair[0]), int(pair[1]))))
+        for proposal in proposals
+        for pair in (
+            (proposal["broad_a"], proposal["broad_b"]),
+            (proposal["narrow_a"], proposal["narrow_b"]),
+        )
+    })
+    needed_tail_by_pair = defaultdict(set)
+    for proposal in proposals:
+        tail_class = int(proposal["tail_class"])
+        needed_tail_by_pair[
+            tuple(sorted((int(proposal["broad_a"]), int(proposal["broad_b"]))))
+        ].add(tail_class)
+        needed_tail_by_pair[
+            tuple(sorted((int(proposal["narrow_a"]), int(proposal["narrow_b"]))))
+        ].add(tail_class)
+    requested_actual_keys = {
+        (tail_class, pair[0], pair[1])
+        for pair, tail_classes in needed_tail_by_pair.items()
+        for tail_class in tail_classes
     }
-    write_json(args.output_dir / "p1_summary.json", summary)
-    lines = [
-        "# Phase 1 V3 — Functional Breadth feasibility", "",
-        f"- Verdict: **{verdict}**",
-        f"- Matched tail classes: **{pass_count}/20** (gate: at least {minimum})",
-        f"- Predicted-feasible full-space contrasts: **{predicted_feasible_total}**",
-        f"- Actual contrasts evaluated / passed: **{len(actual_contrast_rows)} / {actual_passing_contrasts}**",
-        f"- Actual merged pair states evaluated: **{len(unique_pairs)}**",
-        "- Training / gradient / optimizer calls: **0 / 0 / 0**",
-        "- Test split accessed: **no**", "",
-        "A pass only authorizes the next Broad/Narrow adaptation gate; it is not evidence of test improvement.",
-    ]
-    (args.output_dir / "p1_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return summary
+    pair_screen_lookup = {
+        (int(row["tail_class"]), int(row["candidate_a"]), int(row["candidate_b"])): row
+        for row in pair_screen
+    }
+    neighbors, neighbor_metadata = load_preregistered_neighbors(TAIL_CLASSES)
+    actual_lookup, actual_boundary_lookup = _load_actual_merge_cache(
+        args.output_dir / "actual_merged_summary.csv",
+        args.output_dir / "actual_merged_boundary_gains.csv",
+        requested_actual_keys, pair_screen_lookup, neighbors,
+    )
+    if set(actual_lookup) != requested_actual_keys or set(actual_boundary_lookup) != requested_actual_keys:
+        missing_keys = sorted(requested_actual_keys - set(actual_lookup))
+        raise RuntimeError(
+            "P1 V3 actual cache is incomplete; use the GPU p1 stage to resume: "
+            f"{missing_keys[:10]}"
+        )
+
+    inventory = pd.read_csv(args.output_dir / "candidate_state_inventory.csv")
+    theta_hashes = set(inventory.theta0_hash.astype(str).tolist())
+    if len(inventory) != 80 or len(theta_hashes) != 1:
+        raise RuntimeError("P1 V3 candidate inventory is incomplete or mixes theta0 states")
+    tensor_artifact = args.output_dir / "candidate_update_tensors.pt"
+    return _finalize_outputs(
+        args=args,
+        protocol_path=protocol_path,
+        proposals=proposals,
+        constraint_screen_rows=constraint_screen_rows,
+        actual_lookup=actual_lookup,
+        unique_pairs=unique_pairs,
+        neighbor_metadata=neighbor_metadata,
+        tensor_artifact=tensor_artifact,
+        theta0_hash=next(iter(theta_hashes)),
+        cached_actual_rows=len(actual_lookup),
+        cached_pair_states=len(unique_pairs),
+        newly_evaluated_pairs=0,
+    )
+
+
+def guarded_finalize_existing(args) -> dict:
+    failure = Path(args.output_dir) / "failure.json"
+    if failure.is_file():
+        failure.unlink()
+    try:
+        return finalize_existing(args)
+    except Exception as exc:
+        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+        write_json(failure, {
+            "stage": "P1-V3-FINALIZE", "error_type": type(exc).__name__,
+            "error": str(exc), "training_was_not_attempted": True,
+            "cuda_was_not_used": True, "traceback": traceback.format_exc(),
+        })
+        raise
 
 
 def guarded_run(args) -> dict:
