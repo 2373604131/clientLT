@@ -296,6 +296,7 @@ def evaluate_actual_matches(
                 broad["direct_tail_cosine"] - narrow["direct_tail_cosine"]
             ),
             **checks, "matched_pair_pass": all(checks.values()),
+            "selection_used_test_metrics": False,
         })
     return evaluated
 

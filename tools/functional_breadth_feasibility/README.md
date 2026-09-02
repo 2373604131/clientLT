@@ -7,6 +7,11 @@ per tail class for actual merged forward evaluation.
 
 This pipeline intentionally performs **no training**.
 
+Actual merged forward results are checkpointed and self-validated on restart.
+If report/CSV finalization fails after those forwards, rerunning the same V3
+output directory reuses the completed cache instead of evaluating the merged
+states again.
+
 ## Phase 0
 
 Phase 0 recursively audits legacy `run.log`/`log.txt` files and retains only

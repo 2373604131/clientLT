@@ -8,6 +8,7 @@ import numpy as np
 from tools.functional_breadth_feasibility.matching import (
     constraint_aware_shortlist,
     coverage_metrics,
+    evaluate_actual_matches,
     symmetric_relative_gap,
 )
 from tools.functional_breadth_feasibility.p0_audit import run as run_p0
@@ -82,6 +83,30 @@ def test_constraint_aware_shortlist_filters_before_ranking_without_quartiles():
     assert not any(
         item["broad_a"] == 6 and item["narrow_a"] == 0 for item in selected
     )
+
+
+def test_actual_contrast_rows_have_uniform_test_selection_field():
+    proposal = {
+        "tail_class": 80, "broad_a": 0, "broad_b": 1,
+        "narrow_a": 2, "narrow_b": 3, "predicted_breadth_gap": 2.0,
+    }
+
+    def actual(a, b, strength, breadth):
+        return {
+            "tail_class": 80, "candidate_a": a, "candidate_b": b,
+            "actual_positive_strength": strength,
+            "actual_effective_breadth": breadth,
+            "update_l2": 1.0, "actual_head_margin_gain": 0.0,
+            "direct_tail_cosine": 0.0, "candidate_sample_count": 24,
+            "optimizer_steps": 6,
+        }
+
+    rows = evaluate_actual_matches([proposal], {
+        (80, 0, 1): actual(0, 1, 4.0, 4.0),
+        (80, 2, 3): actual(2, 3, 4.0, 2.0),
+    }, frozen_protocol())
+    assert rows[0]["matched_pair_pass"] is True
+    assert rows[0]["selection_used_test_metrics"] is False
 
 
 def test_runtime_has_no_training_or_test_store_access():

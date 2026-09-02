@@ -322,6 +322,99 @@ def _actual_pair_metrics(
     return metrics, gain_rows
 
 
+def _actual_cache_key(row) -> tuple[int, int, int]:
+    left, right = sorted((int(row["candidate_a"]), int(row["candidate_b"])))
+    return int(row["tail_class"]), left, right
+
+
+def _load_actual_merge_cache(
+    summary_path: Path,
+    boundary_path: Path,
+    requested_keys: set[tuple[int, int, int]],
+    pair_screen_lookup: dict[tuple[int, int, int], dict],
+    neighbors: dict[int, list[int]],
+) -> tuple[dict[tuple[int, int, int], dict], dict[tuple[int, int, int], list[dict]]]:
+    """Load and self-validate completed/partial actual-forward rows.
+
+    The V3 runtime writes expensive merged forward results before final matching.
+    A later CSV/report failure must therefore be resumable without repeating the
+    forward passes.  Cached rows are accepted only when their boundary vectors,
+    derived coverage metrics, budgets, and exact merged update norm agree with
+    the newly regenerated V3 screen.
+    """
+
+    summary_path, boundary_path = Path(summary_path), Path(boundary_path)
+    if not summary_path.is_file() and not boundary_path.is_file():
+        return {}, {}
+    if not summary_path.is_file() or not boundary_path.is_file():
+        raise RuntimeError("Incomplete P1 V3 actual-merge cache: one CSV is missing")
+
+    summary_rows = pd.read_csv(summary_path).to_dict("records")
+    boundary_rows = pd.read_csv(boundary_path).to_dict("records")
+    summary_lookup = {}
+    for row in summary_rows:
+        key = _actual_cache_key(row)
+        if key not in requested_keys:
+            continue
+        if key in summary_lookup:
+            raise RuntimeError(f"Duplicate cached actual summary row: {key}")
+        summary_lookup[key] = row
+    boundary_lookup = defaultdict(list)
+    for row in boundary_rows:
+        key = _actual_cache_key(row)
+        if key in requested_keys:
+            boundary_lookup[key].append(row)
+
+    valid_summary, valid_boundaries = {}, {}
+    for key, summary in summary_lookup.items():
+        rows = sorted(
+            boundary_lookup.get(key, []),
+            key=lambda row: int(row["semantic_neighbor_rank"]),
+        )
+        tail_class = key[0]
+        if len(rows) != 10 or [int(row["semantic_neighbor_rank"]) for row in rows] != list(range(1, 11)):
+            continue
+        if [int(row["boundary_neighbor_class"]) for row in rows] != list(neighbors[tail_class]):
+            raise RuntimeError(f"Cached hard-boundary order differs for {key}")
+        gains = [float(row["actual_merged_boundary_gain"]) for row in rows]
+        derived = coverage_metrics(gains)
+        for name, value in derived.items():
+            observed = float(summary[f"actual_{name}"])
+            if not math.isclose(observed, float(value), rel_tol=1e-9, abs_tol=1e-12):
+                raise RuntimeError(f"Cached actual metric mismatch for {key}/{name}")
+        predicted = pair_screen_lookup[key]
+        if not math.isclose(
+            float(summary["update_l2"]), float(predicted["predicted_update_l2"]),
+            rel_tol=1e-6, abs_tol=1e-10,
+        ):
+            raise RuntimeError(f"Cached actual update norm differs for {key}")
+        if (
+            int(summary["candidate_sample_count"]) != int(predicted["candidate_sample_count"])
+            or int(summary["optimizer_steps"]) != int(predicted["optimizer_steps"])
+        ):
+            raise RuntimeError(f"Cached actual budget differs for {key}")
+        valid_summary[key] = summary
+        valid_boundaries[key] = rows
+    return valid_summary, valid_boundaries
+
+
+def _write_actual_merge_cache(
+    summary_path: Path,
+    boundary_path: Path,
+    actual_lookup: dict[tuple[int, int, int], dict],
+    boundary_lookup: dict[tuple[int, int, int], list[dict]],
+) -> None:
+    keys = sorted(actual_lookup)
+    write_csv(summary_path, [actual_lookup[key] for key in keys])
+    write_csv(boundary_path, [
+        row
+        for key in keys
+        for row in sorted(
+            boundary_lookup[key], key=lambda value: int(value["semantic_neighbor_rank"])
+        )
+    ])
+
+
 def run(args) -> dict:
     args.output_dir = Path(args.output_dir)
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -467,8 +560,42 @@ def run(args) -> dict:
     for proposal in proposals:
         needed_tail_by_pair[tuple(sorted((proposal["broad_a"], proposal["broad_b"])))].add(int(proposal["tail_class"]))
         needed_tail_by_pair[tuple(sorted((proposal["narrow_a"], proposal["narrow_b"])))].add(int(proposal["tail_class"]))
-    actual_lookup, actual_summary_rows, actual_boundary_rows = {}, [], []
+    requested_actual_keys = {
+        (tail_class, pair[0], pair[1])
+        for pair, tail_classes in needed_tail_by_pair.items()
+        for tail_class in tail_classes
+    }
+    pair_screen_lookup = {
+        (int(row["tail_class"]), int(row["candidate_a"]), int(row["candidate_b"])): row
+        for row in pair_screen
+    }
+    actual_summary_path = args.output_dir / "actual_merged_summary.csv"
+    actual_boundary_path = args.output_dir / "actual_merged_boundary_gains.csv"
+    actual_lookup, actual_boundary_lookup = _load_actual_merge_cache(
+        actual_summary_path, actual_boundary_path, requested_actual_keys,
+        pair_screen_lookup, neighbors,
+    )
+    cached_actual_rows = len(actual_lookup)
+    cached_pair_states = sum(
+        all(
+            (tail_class, pair[0], pair[1]) in actual_lookup
+            and (tail_class, pair[0], pair[1]) in actual_boundary_lookup
+            for tail_class in needed_tail_by_pair[pair]
+        )
+        for pair in unique_pairs
+    )
+    newly_evaluated_pairs = 0
     for index, pair in enumerate(unique_pairs, start=1):
+        pair_keys = {
+            (tail_class, pair[0], pair[1])
+            for tail_class in needed_tail_by_pair[pair]
+        }
+        if pair_keys.issubset(actual_lookup) and pair_keys.issubset(actual_boundary_lookup):
+            print(json.dumps({
+                "stage": "P1-actual-merge", "pair": pair, "index": index,
+                "total": len(unique_pairs), "status": "cache-hit",
+            }))
+            continue
         state = _combine_states(theta0, [(candidates[pair[0]], 0.5), (candidates[pair[1]], 0.5)])
         all_metrics, gain_rows = _actual_pair_metrics(
             pair, state, model, store, transform, private_rows, head_rows,
@@ -477,14 +604,28 @@ def run(args) -> dict:
         )
         for tail_class in sorted(needed_tail_by_pair[pair]):
             row = all_metrics[tail_class]
-            actual_lookup[(tail_class, pair[0], pair[1])] = row
-            actual_summary_rows.append(row)
-            actual_boundary_rows.extend([
+            key = (tail_class, pair[0], pair[1])
+            actual_lookup[key] = row
+            actual_boundary_lookup[key] = [
                 gain for gain in gain_rows if int(gain["tail_class"]) == tail_class
-            ])
-        print(json.dumps({"stage": "P1-actual-merge", "pair": pair, "index": index, "total": len(unique_pairs)}))
-    write_csv(args.output_dir / "actual_merged_summary.csv", actual_summary_rows)
-    write_csv(args.output_dir / "actual_merged_boundary_gains.csv", actual_boundary_rows)
+            ]
+        newly_evaluated_pairs += 1
+        if newly_evaluated_pairs % 25 == 0:
+            _write_actual_merge_cache(
+                actual_summary_path, actual_boundary_path,
+                actual_lookup, actual_boundary_lookup,
+            )
+        print(json.dumps({
+            "stage": "P1-actual-merge", "pair": pair, "index": index,
+            "total": len(unique_pairs), "status": "forward-evaluated",
+        }))
+    if set(actual_lookup) != requested_actual_keys:
+        missing = sorted(requested_actual_keys - set(actual_lookup))
+        raise RuntimeError(f"P1 V3 actual merge remains incomplete: {missing[:10]}")
+    _write_actual_merge_cache(
+        actual_summary_path, actual_boundary_path,
+        actual_lookup, actual_boundary_lookup,
+    )
 
     matched_rows, actual_contrast_rows = [], []
     for tail_class in TAIL_CLASSES:
@@ -495,7 +636,7 @@ def run(args) -> dict:
             tail_proposals, actual_lookup, frozen_protocol(),
         )
         actual_contrast_rows.extend(tail_actual_contrasts)
-        chosen = select_evaluated_actual_match(tail_actual_contrasts)
+        chosen = dict(select_evaluated_actual_match(tail_actual_contrasts))
         chosen["selection_used_test_metrics"] = False
         matched_rows.append(chosen)
     write_csv(args.output_dir / "actual_contrast_evaluations.csv", actual_contrast_rows)
@@ -535,6 +676,9 @@ def run(args) -> dict:
         "actual_contrasts_evaluated": len(actual_contrast_rows),
         "actual_passing_contrasts": actual_passing_contrasts,
         "actual_unique_pair_states_evaluated": len(unique_pairs),
+        "actual_cached_metric_rows_reused": cached_actual_rows,
+        "actual_cached_pair_states_reused": cached_pair_states,
+        "actual_pair_states_forward_evaluated_this_run": newly_evaluated_pairs,
         "protocol_hash": frozen_protocol()["protocol_hash"],
         "protocol_file_sha256": file_sha256(protocol_path),
         "parent_manifest_contract_hash": file_sha256(args.manifest_dir / "manifest_contract.json"),
