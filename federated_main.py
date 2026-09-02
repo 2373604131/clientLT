@@ -60,6 +60,7 @@ from utils.v0_oracle import save_v0_round_dump
 from utils.aggregation_crush import append_aggregation_crush, should_log_aggregation_crush
 from utils.functional_coverage_validation import (
     FunctionalCoverageDiagnostic,
+    current_common_lora_anchor,
     load_common_lora_anchor,
     parse_validation_rounds,
 )
@@ -3008,6 +3009,11 @@ def extend_cfg(cfg, args):
     cfg.TRAINER.CLIPLORA.SCA_CLAMP = float(args.cliplora_sca_clamp)
     cfg.TRAINER.CLIPLORA.SCA_LR_MULT = float(args.cliplora_sca_lr_mult)
     cfg.TRAINER.CLIPLORA.SCA_USE_BIAS = bool(args.cliplora_sca_use_bias)
+    cfg.TRAINER.CLIPLORA.COMMON_INIT_SEED = int(
+        args.functional_coverage_common_init_seed
+        if bool(args.functional_coverage_validation_enable)
+        else -1
+    )
 
 
     cfg.TRAINER.GLP_OT = CN()
@@ -3207,13 +3213,6 @@ def main(args):
             )
         if not getattr(args, "client_schedule_file", ""):
             raise ValueError("Functional-coverage validation requires a fixed client schedule")
-        anchor_path = Path(
-            str(getattr(args, "functional_coverage_theta0_file", "")).strip()
-        )
-        if not str(anchor_path) or not anchor_path.is_file():
-            raise FileNotFoundError(
-                "Functional-coverage validation requires an existing --functional_coverage_theta0_file"
-            )
         if bool(args.experimentD_enable) or bool(args.e1_enable) or bool(
             getattr(args, "stage3_enable", False)
         ) or stage2c_enabled:
@@ -3421,10 +3420,29 @@ def main(args):
             args.functional_coverage_validation_rounds,
             max_epoch,
         )
-        anchor_state, anchor_hash = load_common_lora_anchor(
-            (global_trainer.model, local_trainer.model),
-            Path(args.functional_coverage_theta0_file),
+        anchor_source = (
+            "deterministic_current_architecture_seed_"
+            f"{int(args.functional_coverage_common_init_seed)}"
         )
+        theta0_text = str(args.functional_coverage_theta0_file).strip()
+        if theta0_text and Path(theta0_text).is_file():
+            try:
+                anchor_state, anchor_hash = load_common_lora_anchor(
+                    (global_trainer.model, local_trainer.model), Path(theta0_text)
+                )
+                anchor_source = f"compatible_external_file:{Path(theta0_text).resolve()}"
+            except RuntimeError as exc:
+                print(
+                    "Functional-coverage theta0 is incompatible with the frozen LoRA "
+                    f"architecture; using deterministic current-architecture initialization. {exc}"
+                )
+                anchor_state, anchor_hash = current_common_lora_anchor(
+                    (global_trainer.model, local_trainer.model)
+                )
+        else:
+            anchor_state, anchor_hash = current_common_lora_anchor(
+                (global_trainer.model, local_trainer.model)
+            )
         global_weights = copy.deepcopy(global_trainer.model.state_dict())
         functional_lora_keys = sorted(anchor_state)
         functional_tail_classes = get_lt_class_splits_from_counts(
@@ -3437,6 +3455,7 @@ def main(args):
             initial_state=global_weights,
             lora_keys=functional_lora_keys,
             anchor_hash=anchor_hash,
+            anchor_source=anchor_source,
             tail_classes=functional_tail_classes,
             selected_rounds=functional_coverage_rounds,
             samples_per_class=args.functional_coverage_samples_per_class,
@@ -5979,6 +5998,7 @@ if __name__ == "__main__":
     parser.add_argument('--functional_coverage_validation_enable', type=str2bool, default=False, help='log the read-only dual-topology functional-coverage validation')
     parser.add_argument('--functional_coverage_validation_rounds', type=str, default='1,10,20,40,60,80', help='one-based rounds for functional-coverage logging; must include the final round')
     parser.add_argument('--functional_coverage_theta0_file', type=str, default='', help='frozen common LoRA initialization shared by both topology runs')
+    parser.add_argument('--functional_coverage_common_init_seed', type=int, default=424242, help='topology-independent LoRA initialization seed used when no compatible theta0 is supplied')
     parser.add_argument('--functional_coverage_samples_per_class', type=int, default=10, help='held-out train probes per tail class')
     parser.add_argument('--functional_coverage_gain_epsilon', type=float, default=0.0, help='strict positive-gain threshold for a covered boundary')
     parser.add_argument('--functional_coverage_eval_batch_size', type=int, default=100, help='GPU batch size for read-only train-probe forwards')

@@ -61,11 +61,6 @@ def prepare(args) -> dict:
         )
     validate_schedule(schedule, args.rounds, 30, args.frac)
     config = read_frozen_lora(args.freeze_file)
-    if not args.theta0_file.is_file():
-        raise FileNotFoundError(
-            f"Missing common LoRA theta0: {args.theta0_file}. "
-            "Use the frozen seed-42 anchor already produced by E1."
-        )
     protocol = {
         "schema_version": "functional_coverage_validation_launcher_v1",
         "single_question": (
@@ -83,7 +78,14 @@ def prepare(args) -> dict:
         "samples_per_tail_class": args.samples_per_class,
         "model": "ClipLora vision-only ordinary FedAvg",
         "lora_config": config,
-        "common_theta0": str(args.theta0_file.resolve()),
+        "common_initialization": {
+            "mode": "topology_independent_current_architecture_seed",
+            "seed": args.common_init_seed,
+            "optional_external_theta0": (
+                str(args.theta0_file.resolve()) if args.theta0_file is not None else ""
+            ),
+            "incompatible_external_policy": "explicitly_log_and_use_seeded_current_architecture",
+        },
         "schedule_file": str(schedule_path.resolve()),
         "schedule_sha256": _sha256_json(schedule),
         "primary_metrics": [
@@ -103,7 +105,16 @@ def prepare(args) -> dict:
     if protocol_path.exists():
         existing = json.loads(protocol_path.read_text(encoding="utf-8"))
         if existing != protocol:
-            raise RuntimeError(f"Refusing to change frozen protocol: {protocol_path}")
+            completed = any(
+                (args.output_root / name / "round_metrics.csv").is_file()
+                for name in ("clientlt", "matched_dirichlet")
+            )
+            if completed:
+                raise RuntimeError(f"Refusing to change a started frozen protocol: {protocol_path}")
+            protocol_path.write_text(
+                json.dumps(protocol, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
     else:
         protocol_path.write_text(
             json.dumps(protocol, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
@@ -219,8 +230,13 @@ def common_command(args, partition: str, output_dir: Path, config: dict) -> list
         "True",
         "--functional_coverage_validation_rounds",
         args.coverage_rounds,
-        "--functional_coverage_theta0_file",
-        str(args.theta0_file),
+        "--functional_coverage_common_init_seed",
+        str(args.common_init_seed),
+        *(
+            ["--functional_coverage_theta0_file", str(args.theta0_file)]
+            if args.theta0_file is not None
+            else []
+        ),
         "--functional_coverage_samples_per_class",
         str(args.samples_per_class),
         "--functional_coverage_gain_epsilon",
@@ -286,11 +302,8 @@ def main() -> None:
         type=Path,
         default=Path("output/g0_d1_seed42/lora_freeze.json"),
     )
-    parser.add_argument(
-        "--theta0-file",
-        type=Path,
-        default=Path("output/e1_strength_breadth/protocol_v2/theta0_seed42.pt"),
-    )
+    parser.add_argument("--theta0-file", type=Path, default=None)
+    parser.add_argument("--common-init-seed", type=int, default=424242)
     parser.add_argument("--python-bin", default=sys.executable)
     parser.add_argument("--gpu", default="0")
     parser.add_argument("--rounds", type=int, default=80)
@@ -322,4 +335,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

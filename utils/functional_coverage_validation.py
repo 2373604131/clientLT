@@ -101,7 +101,8 @@ def load_common_lora_anchor(models, path: Path) -> tuple[dict[str, torch.Tensor]
     """Load one frozen trainable initialization into both global/local models."""
     anchor = _lora_state_from_payload(path)
     for model in models:
-        model_keys = {key for key in model.state_dict() if "lora_" in key}
+        model_state = model.state_dict()
+        model_keys = {key for key in model_state if "lora_" in key}
         if model_keys != set(anchor):
             missing = sorted(model_keys - set(anchor))
             extra = sorted(set(anchor) - model_keys)
@@ -109,11 +110,42 @@ def load_common_lora_anchor(models, path: Path) -> tuple[dict[str, torch.Tensor]
                 "Frozen LoRA anchor does not match the current architecture: "
                 f"missing={missing}, extra={extra}"
             )
+        shape_mismatches = {
+            key: {"model": tuple(model_state[key].shape), "anchor": tuple(anchor[key].shape)}
+            for key in sorted(model_keys)
+            if tuple(model_state[key].shape) != tuple(anchor[key].shape)
+        }
+        if shape_mismatches:
+            raise RuntimeError(
+                "Frozen LoRA anchor tensor shapes do not match the current architecture: "
+                f"{shape_mismatches}"
+            )
+    for model in models:
         result = model.load_state_dict(anchor, strict=False)
         unexpected = [key for key in result.unexpected_keys if "lora_" in key]
         if unexpected:
             raise RuntimeError(f"Unexpected frozen LoRA keys: {unexpected}")
     return anchor, tensor_mapping_hash(anchor)
+
+
+def current_common_lora_anchor(models) -> tuple[dict[str, torch.Tensor], str]:
+    """Verify that independently built global/local models share one LoRA init."""
+    states = []
+    for model in models:
+        state = {
+            str(key): value.detach().cpu().clone()
+            for key, value in model.state_dict().items()
+            if "lora_" in str(key)
+        }
+        if not state:
+            raise RuntimeError("Current ClipLora model exposes no LoRA tensors")
+        states.append(state)
+    hashes = [tensor_mapping_hash(state) for state in states]
+    if len(set(hashes)) != 1:
+        raise RuntimeError(
+            "Deterministic common initialization failed: global/local LoRA hashes differ"
+        )
+    return states[0], hashes[0]
 
 
 class _TrainOnlyCifar100:
@@ -159,6 +191,7 @@ class FunctionalCoverageDiagnostic:
         initial_state,
         lora_keys: Sequence[str],
         anchor_hash: str,
+        anchor_source: str,
         tail_classes: Sequence[int],
         selected_rounds: Sequence[int],
         samples_per_class: int,
@@ -284,6 +317,7 @@ class FunctionalCoverageDiagnostic:
             "selected_client_pool": "all selected clients, including class-absent donors",
             "gain_epsilon": self.gain_epsilon,
             "common_lora_anchor_sha256": anchor_hash,
+            "common_lora_anchor_source": str(anchor_source),
             "lora_keys": self.lora_keys,
             "probe_manifest_hash": stable_hash(probe_rows),
             "boundary_weight_hash": stable_hash(weight_rows),

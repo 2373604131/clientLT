@@ -178,6 +178,17 @@ def build_cliplora_model(cfg, classnames):
     Mechanism experiments use this entry point so their model construction and
     trainable-parameter semantics cannot drift from the federated trainer.
     """
+    common_init_seed = int(
+        getattr(cfg.TRAINER.CLIPLORA, "COMMON_INIT_SEED", -1)
+    )
+    if common_init_seed >= 0:
+        # The data partition is constructed before the model and consumes a
+        # topology-dependent amount of RNG. Reset only for the preregistered
+        # dual-topology validation so LoRA A matrices are tensor-identical.
+        torch.manual_seed(common_init_seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(common_init_seed)
+        print(f"ClipLora deterministic common initialization seed: {common_init_seed}")
     print(f"Loading CLIP (backbone: {cfg.MODEL.BACKBONE.NAME})")
     clip_model = load_clip_to_cpu(cfg)
     if cfg.TRAINER.COOP.PREC in ("fp32", "amp"):
