@@ -91,7 +91,9 @@ def prepare(args) -> dict:
         "common_init_seed": int(args.common_init_seed),
         "schedule_file": str(schedule_path.resolve()),
         "schedule_sha256": _sha256_json(schedule),
-        "partial_baseline_root": str(args.partial_root.resolve()),
+        "partial_baseline_root": (
+            str(args.partial_root.resolve()) if args.partial_root is not None else None
+        ),
         "primary_metrics_only": [
             "final_tail_accuracy_gap_pp",
             "best_to_final_drop_gap_pp",
@@ -284,7 +286,11 @@ def main() -> None:
     parser.add_argument(
         "--partial-root",
         type=Path,
-        default=Path("output/functional_coverage_validation_seed42"),
+        default=None,
+        help=(
+            "Optional frozen frac=0.4 result root. Omit it to analyze only the two "
+            "required frac=1.0 runs."
+        ),
     )
     parser.add_argument("--data-root", type=Path, default=Path("DATA"))
     parser.add_argument(

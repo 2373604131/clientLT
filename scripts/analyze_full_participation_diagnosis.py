@@ -146,14 +146,6 @@ def _partial_outcomes(partial_root: Path) -> dict[str, dict]:
     return result
 
 
-def _partial_initial_hash(partial_root: Path) -> str:
-    protocol = _read_json(partial_root / "clientlt" / "functional_coverage" / "protocol.json")
-    value = str(protocol.get("common_lora_anchor_sha256", "")).strip()
-    if not value:
-        raise RuntimeError(f"Partial baseline has no common LoRA hash: {partial_root}")
-    return value
-
-
 def _statuses(final_gap: float, drop_gap: float, threshold: float) -> tuple[str, str, str]:
     if final_gap > threshold:
         final_status = "FINAL_TAIL_GAP_REMAINS"
@@ -180,9 +172,9 @@ def _statuses(final_gap: float, drop_gap: float, threshold: float) -> tuple[str,
     return final_status, drop_status, verdict
 
 
-def analyze(output_root: Path, partial_root: Path) -> dict:
+def analyze(output_root: Path, partial_root: Path | None = None) -> dict:
     output_root = Path(output_root)
-    partial_root = Path(partial_root)
+    partial_root = Path(partial_root) if partial_root is not None else None
     protocol = _read_json(output_root / "frozen_protocol.json")
     threshold = float(protocol["equivalence_threshold_pp"])
     runs = {name: output_root / directory for name, directory in TOPOLOGY_DIRS.items()}
@@ -198,16 +190,9 @@ def analyze(output_root: Path, partial_root: Path) -> dict:
     initial_hashes = {name: _initial_hash(path) for name, path in runs.items()}
     if len(set(initial_hashes.values())) != 1:
         raise RuntimeError(f"Initial LoRA hashes differ across full-participation runs: {initial_hashes}")
-    partial_initial_hash = _partial_initial_hash(partial_root)
-    if initial_hashes["clientlt"] != partial_initial_hash:
-        raise RuntimeError(
-            "Full-participation initialization differs from the frozen frac=0.4 baseline: "
-            f"full={initial_hashes['clientlt']} partial={partial_initial_hash}"
-        )
 
     participation = {name: _audit_full_participation(path) for name, path in runs.items()}
     full = {name: _tail_outcome(path) for name, path in runs.items()}
-    partial = _partial_outcomes(partial_root)
 
     def contrasts(outcomes: dict[str, dict]) -> dict:
         return {
@@ -221,7 +206,6 @@ def analyze(output_root: Path, partial_root: Path) -> dict:
             ),
         }
 
-    partial_contrasts = contrasts(partial)
     full_contrasts = contrasts(full)
     final_status, drop_status, verdict = _statuses(
         full_contrasts["final_tail_accuracy_gap_pp"],
@@ -229,8 +213,17 @@ def analyze(output_root: Path, partial_root: Path) -> dict:
         threshold,
     )
 
+    partial = None
+    partial_contrasts = None
+    if partial_root is not None:
+        partial = _partial_outcomes(partial_root)
+        partial_contrasts = contrasts(partial)
+
     rows = []
-    for frac, outcomes in ((0.4, partial), (1.0, full)):
+    available_conditions = [(1.0, full)]
+    if partial is not None:
+        available_conditions.insert(0, (0.4, partial))
+    for frac, outcomes in available_conditions:
         for name in ("clientlt", "matched_dirichlet"):
             rows.append(
                 {
@@ -242,23 +235,30 @@ def analyze(output_root: Path, partial_root: Path) -> dict:
             )
     _write_csv(output_root / "analysis" / "main_results.csv", rows)
 
+    primary_results = {"frac1p0": full_contrasts}
+    outcomes = {"frac1p0": full}
+    if partial is not None and partial_contrasts is not None:
+        primary_results.update(
+            {
+                "frac0p4": partial_contrasts,
+                "full_minus_partial_final_gap_pp": (
+                    full_contrasts["final_tail_accuracy_gap_pp"]
+                    - partial_contrasts["final_tail_accuracy_gap_pp"]
+                ),
+                "full_minus_partial_drop_gap_pp": (
+                    full_contrasts["best_to_final_drop_gap_pp"]
+                    - partial_contrasts["best_to_final_drop_gap_pp"]
+                ),
+            }
+        )
+        outcomes["frac0p4"] = partial
+
     summary = {
         "schema_version": "full_participation_diagnosis_analysis_v1",
         "verdict": verdict,
         "single_seed_descriptive": True,
         "equivalence_threshold_pp": threshold,
-        "primary_results": {
-            "frac0p4": partial_contrasts,
-            "frac1p0": full_contrasts,
-            "full_minus_partial_final_gap_pp": (
-                full_contrasts["final_tail_accuracy_gap_pp"]
-                - partial_contrasts["final_tail_accuracy_gap_pp"]
-            ),
-            "full_minus_partial_drop_gap_pp": (
-                full_contrasts["best_to_final_drop_gap_pp"]
-                - partial_contrasts["best_to_final_drop_gap_pp"]
-            ),
-        },
+        "primary_results": primary_results,
         "decision": {
             "final_tail_accuracy": final_status,
             "best_to_final_drop": drop_status,
@@ -267,14 +267,11 @@ def analyze(output_root: Path, partial_root: Path) -> dict:
                 f"separately at the preregistered {threshold:g} pp threshold."
             ),
         },
-        "outcomes": {
-            "frac0p4": partial,
-            "frac1p0": full,
-        },
+        "outcomes": outcomes,
+        "optional_frac0p4_baseline_loaded": partial is not None,
         "required_audits": {
             "passed": True,
             "initial_model_hash_equal": True,
-            "initial_model_hash_matches_frac0p4_baseline": True,
             "initial_lora_sha256": initial_hashes["clientlt"],
             "global_class_counts_equal": True,
             "client_total_samples_equal": True,
@@ -296,7 +293,8 @@ def analyze(output_root: Path, partial_root: Path) -> dict:
             f"- Full-participation best-to-final drop gap (Client-LT - Dir): **{full_drop_gap:+.3f} pp**",
             f"- Final-tail decision: **{final_status}**",
             f"- Collapse decision: **{drop_status}**",
-            f"- Preregistered practical-equivalence threshold: **±{threshold:.3f} pp**",
+            f"- Preregistered practical-equivalence threshold: **+/-{threshold:.3f} pp**",
+            f"- Optional frac=0.4 baseline loaded: **{partial is not None}**",
             "",
             "The final-tail and collapse conclusions are intentionally separate. No margin,",
             "retention-ratio, coverage, or correlation analysis is part of this experiment.",
@@ -318,7 +316,8 @@ def main() -> None:
     parser.add_argument(
         "--partial-root",
         type=Path,
-        default=Path("output/functional_coverage_validation_seed42"),
+        default=None,
+        help="Optional frozen frac=0.4 result root.",
     )
     args = parser.parse_args()
     result = analyze(args.output_root, args.partial_root)

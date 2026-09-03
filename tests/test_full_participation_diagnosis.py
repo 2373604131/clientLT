@@ -99,6 +99,11 @@ def test_different_topologies_with_equal_nc_nk_pass_and_keep_decisions_separate(
     assert result["required_audits"]["global_class_counts_equal"] is True
     assert result["required_audits"]["client_total_samples_equal"] is True
 
+    full_only = analyze(output_root)
+    assert full_only["verdict"] == "FINAL_GAP_WITHOUT_EXTRA_COLLAPSE"
+    assert full_only["optional_frac0p4_baseline_loaded"] is False
+    assert set(full_only["primary_results"]) == {"frac1p0"}
+
 
 def test_full_runner_is_minimal_frac_one_plain_fedavg(tmp_path):
     args = SimpleNamespace(
