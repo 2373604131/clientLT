@@ -56,3 +56,27 @@ The result can directly link under-constrained specialization to reduced
 retention under one identical real class-absent shared update. It cannot assign
 all of the observed 13.85pp final accuracy gap to this mechanism.
 
+## V2 background-adjusted correction
+
+The completed V1 run showed that the class-absent background update directly
+increased the target margin by far more than either local tail update. Its
+original `G_post/G_local` ratio therefore became dominated by the unequal
+denominators and is not retention evidence. V1 artifacts and provenance remain
+unchanged, but its directional verdict is superseded.
+
+V2 adds only the missing background-only evaluation and uses:
+
+```text
+R*_c = [M(theta0 + delta_tail + delta_bg) - M(theta0 + delta_bg)]
+       / [M(theta0 + delta_tail) - M(theta0)]
+```
+
+No client is retrained. Run V2 on the same compute server while the V1
+`background_aggregate_states` directory is still present:
+
+```bash
+bash scripts/run_compatibility_retention_bridge_v2.sh
+```
+
+The corrected result is written separately to
+`output/compatibility_retention_bridge_v2`.
