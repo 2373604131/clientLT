@@ -3009,10 +3009,17 @@ def extend_cfg(cfg, args):
     cfg.TRAINER.CLIPLORA.SCA_CLAMP = float(args.cliplora_sca_clamp)
     cfg.TRAINER.CLIPLORA.SCA_LR_MULT = float(args.cliplora_sca_lr_mult)
     cfg.TRAINER.CLIPLORA.SCA_USE_BIAS = bool(args.cliplora_sca_use_bias)
+    explicit_cliplora_init_seed = int(
+        getattr(args, "cliplora_common_init_seed", -1)
+    )
     cfg.TRAINER.CLIPLORA.COMMON_INIT_SEED = int(
-        args.functional_coverage_common_init_seed
-        if bool(args.functional_coverage_validation_enable)
-        else -1
+        explicit_cliplora_init_seed
+        if explicit_cliplora_init_seed >= 0
+        else (
+            args.functional_coverage_common_init_seed
+            if bool(args.functional_coverage_validation_enable)
+            else -1
+        )
     )
 
 
@@ -3352,6 +3359,23 @@ def main(args):
     local_trainer = build_trainer(cfg)
     local_trainer.fed_before_train()
     validate_federated_train_loaders(local_trainer, args.num_users)
+
+    if (
+        args.trainer == "ClipLora"
+        and global_trainer is not None
+        and int(getattr(args, "cliplora_common_init_seed", -1)) >= 0
+    ):
+        _, common_init_hash = current_common_lora_anchor(
+            (global_trainer.model, local_trainer.model)
+        )
+        write_json(
+            Path(args.output_dir) / "cliplora_initialization_audit.json",
+            {
+                "common_init_seed": int(args.cliplora_common_init_seed),
+                "initial_lora_sha256": common_init_hash,
+                "global_local_initialization_equal": True,
+            },
+        )
 
     if trainable_only_gate:
         global_trainer = local_trainer
@@ -5983,6 +6007,7 @@ if __name__ == "__main__":
     parser.add_argument('--cliplora_params', type=str, nargs='+', default=['q', 'v'], choices=['q', 'k', 'v', 'o'])
     parser.add_argument('--cliplora_lr_policy', type=str, default='constant', choices=['constant', 'cosine'])
     parser.add_argument('--cliplora_precision', type=str, default='amp', choices=['amp', 'fp32', 'fp16'])
+    parser.add_argument('--cliplora_common_init_seed', type=int, default=-1, help='topology-independent ClipLora initialization seed; negative preserves the legacy initialization path')
     parser.add_argument('--cliplora_sca_enable', type=str2bool, default=False, help='enable online class-separable residual aggregation')
     parser.add_argument('--cliplora_residual_aggregation', type=str, default='class_separable', choices=list(RESIDUAL_AGGREGATION_MODES), help='server aggregation for the architecture-matched class residual head')
     parser.add_argument('--cliplora_sca_scale', type=float, default=10.0, help='fixed scale of the zero-initialized class residual logits')
