@@ -40,15 +40,18 @@ python -u scripts/run_eri_phase0.py \
 
 结果包含 `analysis/round_signed_budgets.csv`、路径积分 completeness check，以及 `replay/frozen_replay_scores.csv`（FedAvg、support-normalized 和 100 个权重置换）。它不重训，也不把结果用于后续训练决策。
 
-## Phase 1：固定边际的主效应（10 个训练任务）
+## Phase 1：先做 seed-42 配对筛查，再扩展确认
 
-先提交两个 FedAvg case × 五个 seed。`eri_closure_slurm_array.sbatch` 默认申请 1 GPU、8 CPU、48 GB、24 小时；请按实际卡型和本地队列策略修改 SBATCH 行以及 module/conda 初始化部分。
+默认先提交两个 FedAvg case × seed 42。`eri_closure_2gpu.sbatch` 在一个节点内一次申请两张 GPU，并把 Client-LT、matched Dirichlet 两个进程分别固定到第 1、2 张已分配 GPU；两张卡不能同时满足时，整个作业保持排队。脚本不显式申请主机内存，让 N16R4 按两卡默认分配共 110 GB；不要增加 `--mem` 或 `--mem-per-*`。
 
 ```bash
-export ERI_STAGE=train
-export ERI_CASES=clientlt_fedavg,matched_dirichlet_fedavg
-export ERI_SEEDS=1,2,3,42,2026
-sbatch --array=0-9 scripts/eri_closure_slurm_array.sbatch
+bash scripts/submit_eri_slurm.sh
+```
+
+只有 seed-42 的固定边际、dump 重构和归因完整性检查通过后，才扩展四个新 seed：
+
+```bash
+ERI_LAUNCH_MODE=array ERI_SEEDS=1,2,3,2026 ERI_MAX_PARALLEL=4 bash scripts/submit_eri_slurm.sh
 ```
 
 全部完成后，先做固定边际验证。它会逐 seed 比较两个 topology 的每个 client 总量 `n_k` 和全局 class 总量 `n_c`；它**不会**错误地要求整个 client×class 矩阵相同，因为那正是 topology 操作量。
@@ -59,14 +62,12 @@ python -u scripts/run_eri_closure.py \
   --cases clientlt_fedavg matched_dirichlet_fedavg --seeds 1 2 3 42 2026
 ```
 
-再以相同数组设置运行路径积分归因；完成后对两个 FedAvg case 重放：
+再以相同 seed/case 设置运行路径积分归因；完成后对两个 FedAvg case 重放。seed-42 筛查可直接使用：
 
 ```bash
-export ERI_STAGE=analyze
-sbatch --array=0-9 scripts/eri_closure_slurm_array.sbatch
+ERI_STAGE=analyze bash scripts/submit_eri_slurm.sh
 
-export ERI_STAGE=replay
-sbatch --array=0-9 scripts/eri_closure_slurm_array.sbatch
+ERI_STAGE=replay bash scripts/submit_eri_slurm.sh
 ```
 
 `analyze` 与 `replay` 必须等待相应训练任务成功结束。建议在集群上使用 `--dependency=afterok:<jobid>`，例如 `sbatch --dependency=afterok:12345 --array=0-9 ...`。

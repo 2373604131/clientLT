@@ -34,3 +34,27 @@ def test_schedule_is_full_and_stable(tmp_path):
     text = path.read_text(encoding="utf-8")
     ensure_full_schedule(path, rounds=3, users=4, seed=42)
     assert path.read_text(encoding="utf-8") == text
+
+
+def test_n16r4_slurm_script_uses_per_gpu_default_memory():
+    script = (REPO_ROOT / "scripts" / "eri_closure_slurm_array.sbatch").read_text(encoding="utf-8")
+    active_directives = [line.strip() for line in script.splitlines() if line.startswith("#SBATCH")]
+    assert not any("--mem=" in line or "--mem-per-" in line for line in active_directives)
+    assert "#SBATCH --gres=gpu:1" in active_directives
+    assert 'ERI_SEEDS="${ERI_SEEDS:-42}"' in script
+
+
+def test_two_gpu_script_pins_exactly_two_condition_processes():
+    script = (REPO_ROOT / "scripts" / "eri_closure_2gpu.sbatch").read_text(encoding="utf-8")
+    active_directives = [line.strip() for line in script.splitlines() if line.startswith("#SBATCH")]
+    assert "#SBATCH --nodes=1" in active_directives
+    assert "#SBATCH --gres=gpu:2" in active_directives
+    assert not any("--mem=" in line or "--mem-per-" in line for line in active_directives)
+    assert 'export CUDA_VISIBLE_DEVICES="${GPU_TOKEN}"' in script
+    assert "for slot in 0 1; do" in script
+
+
+def test_submitter_defaults_to_same_node_two_gpu_mode():
+    script = (REPO_ROOT / "scripts" / "submit_eri_slurm.sh").read_text(encoding="utf-8")
+    assert 'ERI_LAUNCH_MODE="${ERI_LAUNCH_MODE:-two_gpu}"' in script
+    assert 'exec sbatch "${REPO_DIR}/scripts/eri_closure_2gpu.sbatch"' in script
