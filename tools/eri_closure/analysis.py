@@ -28,10 +28,12 @@ def load_round_dump(dump_dir: str | Path) -> tuple[dict, dict]:
     payload = torch.load(root / "round_state.pt", map_location="cpu", weights_only=False)
     metadata = json.loads((root / "metadata.json").read_text(encoding="utf-8"))
     required = {
-        "flatten_spec", "global_before_trainable", "global_after_fedavg_trainable",
+        "flatten_spec", "global_before_trainable",
         "local_trainable_states", "selected_client_ids", "client_class_counts",
     }
     missing = required - set(payload)
+    if not any(key in payload for key in ("global_after_trainable", "global_after_fedavg_trainable")):
+        missing.add("global_after_trainable")
     if missing:
         raise ValueError(f"Round dump lacks ERI-required fields {sorted(missing)}: {root}")
     return payload, metadata
@@ -145,7 +147,12 @@ class TrainOnlyFunctionalEvaluator:
 def payload_vectors(payload: Mapping) -> tuple[FlatSpec, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     spec = FlatSpec.from_dict(payload["flatten_spec"])
     before = flatten_state(payload["global_before_trainable"], spec)
-    after = flatten_state(payload["global_after_fedavg_trainable"], spec)
+    # Native ERI dumps use the aggregation-agnostic spelling. Accept the old
+    # FedAvg-specific alias so existing artifacts remain analyzable.
+    after_state = payload.get("global_after_trainable")
+    if after_state is None:
+        after_state = payload["global_after_fedavg_trainable"]
+    after = flatten_state(after_state, spec)
     local = torch.stack([flatten_state(state, spec) for state in payload["local_trainable_states"]])
     deltas = local - before[None, :]
     weights = torch.as_tensor(payload.get("server_weights", payload.get("fedavg_weights")), dtype=torch.float64)
@@ -280,7 +287,10 @@ def analyze_run(
     first_payload, first_metadata = load_round_dump(dumps[0])
     cfg, trainer = build_trainer_from_metadata(first_metadata, root / "model_build")
     reference_keys = tuple(FlatSpec.from_dict(first_payload["flatten_spec"]).keys)
-    for dump_dir in dumps:
+    total_dumps = len(dumps)
+    print(f"ERI attribution: {run_dir} ({total_dumps} audit rounds)", flush=True)
+    for dump_index, dump_dir in enumerate(dumps, start=1):
+        print(f"[{dump_index}/{total_dumps}] attributing {dump_dir.name}", flush=True)
         payload, metadata = load_round_dump(dump_dir)
         if tuple(FlatSpec.from_dict(payload["flatten_spec"]).keys) != reference_keys:
             raise RuntimeError(f"ERI dump parameter keys drift across audit rounds: {dump_dir}")
@@ -294,6 +304,11 @@ def analyze_run(
         all_client.extend(client); all_budget.extend(budget); all_validity.extend(validity)
         all_first_client.extend(report.pop("first_order_client_rows"))
         all_first_budget.extend(report.pop("first_order_budget_rows")); reports.append(report)
+        print(
+            f"[{dump_index}/{total_dumps}] completed {dump_dir.name}; "
+            f"max_completeness_error={report['max_absolute_completeness_error']:.6g}",
+            flush=True,
+        )
     _write_rows(root / "client_effects.csv", all_client)
     _write_rows(root / "round_signed_budgets.csv", all_budget)
     _write_rows(root / "attribution_validity.csv", all_validity)

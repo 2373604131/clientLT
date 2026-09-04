@@ -14,6 +14,7 @@ from tools.eri_closure.attribution import (
     rows_from_effects,
     signed_budgets,
 )
+from tools.eri_closure.analysis import load_round_dump, payload_vectors
 from tools.eri_closure.dump import load_eri_round_dump, save_eri_round_dump
 from tools.eri_closure.protocol import parse_eri_rounds
 from tools.eri_closure.summary import summarize
@@ -70,6 +71,12 @@ def test_round_dump_reconstructs_ordered_server_update(tmp_path):
     assert payload["selected_client_ids"] == [0, 1]
     assert metadata["reconstruction"]["passed"]
     assert payload["server_weights"].tolist() == pytest.approx([0.25, 0.75])
+
+    # Guard the on-disk writer/attribution-reader contract.
+    analysis_payload, _ = load_round_dump(path)
+    _, before_vector, after_vector, _, _ = payload_vectors(analysis_payload)
+    assert before_vector.tolist() == pytest.approx([0.0, 1.0])
+    assert after_vector.tolist() == pytest.approx([5.0, 7.5])
 
 
 def test_eri_round_parser_rejects_out_of_range():
