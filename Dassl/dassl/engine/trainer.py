@@ -638,6 +638,7 @@ class SimpleTrainer(TrainerBase):
         class_correct = defaultdict(int)
         class_total = defaultdict(int)
         class_margin_sum = defaultdict(float)
+        class_log_odds_sum = defaultdict(float)
 
         class_probabilities = defaultdict(list)
         inverse_probs = defaultdict(float)
@@ -654,10 +655,12 @@ class SimpleTrainer(TrainerBase):
                 other_logits = output.clone()
                 other_logits.scatter_(1, labels.view(-1, 1), -torch.inf)
                 true_margins = true_logits - other_logits.max(dim=1).values
-                for l, p, margin in zip(labels, pred, true_margins):
+                true_log_odds = true_logits - torch.logsumexp(other_logits, dim=1)
+                for l, p, margin, log_odds in zip(labels, pred, true_margins, true_log_odds):
                     l_item = l.item()
                     class_total[l_item] += 1
                     class_margin_sum[l_item] += float(margin.item())
+                    class_log_odds_sum[l_item] += float(log_odds.item())
                     if l_item == p.item():
                         class_correct[l_item] += 1
         #         image_features, ce_logits, text_features = self.model(input, return_features=True)
@@ -732,6 +735,13 @@ class SimpleTrainer(TrainerBase):
         # and is never consumed by optimization or server aggregation.
         self.last_global_test_class_margins = {
             cls: class_margin_sum.get(cls, 0.0) / max(total, 1)
+            for cls, total in class_total.items()
+        }
+        # Outcome-only side channel for ERI best-to-final-drop analysis. The
+        # matching ERI functional metric is train-probe only and is computed
+        # offline; this value is never consumed by optimisation or replay.
+        self.last_global_test_class_log_odds = {
+            cls: class_log_odds_sum.get(cls, 0.0) / max(total, 1)
             for cls, total in class_total.items()
         }
 

@@ -64,6 +64,8 @@ from utils.functional_coverage_validation import (
     load_common_lora_anchor,
     parse_validation_rounds,
 )
+from tools.eri_closure.dump import append_eri_test_metrics, save_eri_round_dump
+from tools.eri_closure.protocol import parse_eri_rounds
 from loss.prompt_loss import PromptLoss, update_class_priors
 
 from trainers.capt import MABScheduler
@@ -3137,6 +3139,29 @@ def main(args):
     functional_coverage_enabled = bool(
         getattr(args, "functional_coverage_validation_enable", False)
     )
+    eri_audit_enabled = bool(getattr(args, "eri_audit_enable", False))
+    eri_audit_round_ids = set()
+    if eri_audit_enabled:
+        eri_audit_round_ids = set(parse_eri_rounds(args.eri_audit_rounds, args.round))
+        if args.trainer != "ClipLora" or args.model != "fedavg":
+            raise ValueError("ERI closure audit requires trainer=ClipLora and model=fedavg")
+        if str(args.partition) not in {"client-longtail", "matched-dirichlet"}:
+            raise ValueError("ERI closure audit is restricted to Client-LT and matched Dirichlet")
+        if args.encoder != "vision" or args.cliplora_precision != "fp32":
+            raise ValueError("ERI closure audit requires vision-only FP32 ClipLora")
+        if abs(float(args.frac) - 1.0) > 1e-12:
+            raise ValueError("ERI closure audit requires full client participation")
+        if not bool(args.isolate_local_optimizer_state) or not bool(args.federated_single_scheduler_step):
+            raise ValueError("ERI closure audit requires the frozen local optimizer protocol")
+        if bool(args.cliplora_sca_enable) or bool(args.experimentD_enable) or bool(args.e1_enable) or bool(args.stage3_enable) or functional_coverage_enabled:
+            raise ValueError("ERI closure audit must run without SCA, Experiment D, E1, Stage-3, or functional-coverage logging")
+        if int(args.global_eval_interval) != 1:
+            raise ValueError("ERI closure audit requires --global_eval_interval 1 for BFD")
+        if not getattr(args, "client_schedule_file", ""):
+            raise ValueError("ERI closure audit requires an explicit fixed client schedule")
+        protocol_file = Path(str(args.eri_protocol_file))
+        if not protocol_file.is_file():
+            raise FileNotFoundError(f"ERI protocol file does not exist: {protocol_file}")
     stage2c_rounds = []
     if args.trainer == "ClipLora":
         args.cliplora_aggregation = str(args.cliplora_aggregation).lower()
@@ -4677,7 +4702,7 @@ def main(args):
                 idxs_users = select_round_clients(args, epoch, client_schedule)
                 print("idxs_users", idxs_users)
 
-                if epoch == 0 and not v0_dump:
+                if epoch == 0 and not v0_dump and not eri_audit_enabled:
                     if e1_evaluator is not None:
                         global_trainer.model.load_state_dict(global_weights, strict=True)
                         e1_evaluator.evaluate(global_trainer.model, round_id=0)
@@ -4965,6 +4990,25 @@ def main(args):
                     if int(epoch) + 1 == int(args.round):
                         return
 
+                if eri_audit_enabled and int(epoch) + 1 in eri_audit_round_ids:
+                    dump_dir = save_eri_round_dump(
+                        output_dir=args.output_dir,
+                        args=args,
+                        cfg=cfg,
+                        epoch=epoch,
+                        global_before=pre_global_weights,
+                        global_after=global_weights,
+                        local_weights=local_weights,
+                        selected_clients=idxs_users,
+                        client_sample_counts=datanumber_client,
+                        client_class_counts=client_class_counts,
+                        global_class_counts=global_class_counts,
+                        trainable_keys=lora_keys,
+                        server_weights=aggregation_weights,
+                        aggregation_details=aggregation_details,
+                    )
+                    print(f"ERI closure round dump saved: {dump_dir}")
+
                 if not run_global_eval:
                     if d4a_tracker is not None:
                         d4a_tracker.record(epoch, sca_round_diagnostics)
@@ -4974,6 +5018,13 @@ def main(args):
 
                 print("------------global test start-------------")
                 result = global_trainer.global_test(is_global=True, current_epoch=epoch)
+                if eri_audit_enabled:
+                    append_eri_test_metrics(
+                        args.output_dir,
+                        epoch=epoch,
+                        class_accuracy=result[3],
+                        class_log_odds=getattr(global_trainer, "last_global_test_class_log_odds", {}),
+                    )
 
                 if stage2c_selected_round:
                     stage2c_runtime.record_stage(
@@ -6058,6 +6109,9 @@ if __name__ == "__main__":
             'support set, then average the class-wise weight distributions.'
         ),
     )
+    parser.add_argument('--eri_audit_enable', type=str2bool, default=False, help='save on-trajectory ClipLora updates for the train-only Evidence--Rewrite Imbalance closure experiment')
+    parser.add_argument('--eri_audit_rounds', type=str, default='1,2,3,4,5,10,20,30,40,50,60,70,80,90,100', help='comma-separated one-based ERI dump rounds')
+    parser.add_argument('--eri_protocol_file', type=str, default='', help='frozen ERI protocol JSON; required when --eri_audit_enable True')
 
     args = parser.parse_args()
     if (
