@@ -6,7 +6,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.run_eri_closure import build_command, ensure_full_schedule, schedule_file
+from scripts.run_eri_closure import (
+    build_command,
+    ensure_client_schedule,
+    ensure_full_schedule,
+    run_dir,
+    schedule_file,
+)
 
 
 def _args(tmp_path):
@@ -15,7 +21,7 @@ def _args(tmp_path):
         rounds=100, local_epochs=3, lr=0.001, imb_factor=0.01, train_batch_size=32,
         test_batch_size=64, dirichlet_beta=0.5, specialization_lambda=0.75,
         intra_group_alpha=0.5, head_leakage_scale=3.0,
-        audit_rounds="1,10,100", num_workers=8,
+        audit_rounds="1,10,100", num_workers=8, frac=1.0,
     )
 
 
@@ -36,6 +42,31 @@ def test_schedule_is_full_and_stable(tmp_path):
     assert path.read_text(encoding="utf-8") == text
 
 
+def test_partial_schedule_is_shared_stable_and_isolated(tmp_path):
+    path = schedule_file(tmp_path, 42, 0.4, users=30, rounds=100)
+    ensure_client_schedule(path, rounds=100, users=30, frac=0.4, seed=42)
+    text = path.read_text(encoding="utf-8")
+    ensure_client_schedule(path, rounds=100, users=30, frac=0.4, seed=42)
+    payload = __import__("json").loads(path.read_text(encoding="utf-8"))
+    assert path.read_text(encoding="utf-8") == text
+    assert payload["clients_per_round"] == 12
+    assert all(len(row) == 12 and len(set(row)) == 12 for row in payload["schedule"])
+    assert run_dir(tmp_path, "clientlt_fedavg", 42, 0.4).parts[-5:] == (
+        "fractions", "frac0p4", "runs", "clientlt_fedavg", "seed42"
+    )
+
+
+def test_partial_runner_passes_frac_and_matching_schedule(tmp_path):
+    args = _args(tmp_path)
+    args.frac = 0.4
+    left = build_command(args, "clientlt_fedavg", 42)
+    right = build_command(args, "matched_dirichlet_fedavg", 42)
+    assert left[left.index("--frac") + 1] == "0.4"
+    assert left[left.index("--client_schedule_file") + 1] == right[
+        right.index("--client_schedule_file") + 1
+    ]
+
+
 def test_n16r4_slurm_script_uses_per_gpu_default_memory():
     script = (REPO_ROOT / "scripts" / "eri_closure_slurm_array.sbatch").read_text(encoding="utf-8")
     active_directives = [line.strip() for line in script.splitlines() if line.startswith("#SBATCH")]
@@ -52,6 +83,7 @@ def test_two_gpu_script_pins_exactly_two_condition_processes():
     assert not any("--mem=" in line or "--mem-per-" in line for line in active_directives)
     assert 'export CUDA_VISIBLE_DEVICES="${GPU_TOKEN}"' in script
     assert "for slot in 0 1; do" in script
+    assert '--frac "${ERI_FRAC}"' in script
 
 
 def test_submitter_defaults_to_same_node_two_gpu_mode():

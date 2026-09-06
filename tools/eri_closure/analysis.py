@@ -318,5 +318,11 @@ def analyze_run(
         "schema_version": "eri_attribution_v1", "run_dir": str(run_dir.resolve()),
         "protocol_dir": str(Path(protocol_dir).resolve()), "reports": reports,
         "data_access": "train-only probe manifest",
+        "run_identity": {
+            "seed": int(first_metadata.get("resolved_args", {}).get("seed", -1)),
+            "frac": float(first_metadata.get("resolved_args", {}).get("frac", 1.0)),
+            "partition": str(first_metadata.get("resolved_args", {}).get("partition", first_metadata.get("partition", ""))),
+            "cliplora_aggregation": str(first_metadata.get("resolved_args", {}).get("cliplora_aggregation", first_metadata.get("aggregation", "fedavg"))),
+        },
     })
     return root

@@ -34,7 +34,7 @@ def replay_dump(
     data_root: str | Path | None = None,
     quadrature_points: int = 8,
     device: str | None = None,
-    permutations: int = 100,
+    permutations: int = 20,
     permutation_seed: int = 20260904,
     cfg=None,
     trainer=None,
@@ -55,12 +55,27 @@ def replay_dump(
     # selected-client representation deliberately to preserve saved ordering.
     compact_counts = {index: count_rows[index] for index in range(len(selected))}
     compact_samples = [float(item) for item in payload["client_sample_counts"]]
-    compact_weights, details = support_normalized_client_weights(
-        list(range(len(selected))), compact_samples, compact_counts, tail
-    )
-    sn_weights = torch.tensor([compact_weights[index] for index in range(len(selected))], dtype=torch.float64)
-    if details["uncovered_tail_classes"]:
-        raise RuntimeError("Full-participation ERI replay requires tail coverage: " + str(details))
+    try:
+        compact_weights, details = support_normalized_client_weights(
+            list(range(len(selected))), compact_samples, compact_counts, tail
+        )
+        sn_weights = torch.tensor(
+            [compact_weights[index] for index in range(len(selected))], dtype=torch.float64
+        )
+    except ValueError as error:
+        if "No selected client supports any requested tail class" not in str(error):
+            raise
+        # No evidence-aware reweighting exists in this round. Preserve the
+        # trained FedAvg coefficients and expose the fallback in the manifest.
+        sn_weights = fedavg_weights.clone()
+        details = {
+            "tail_class_count": len(tail),
+            "covered_tail_class_count": 0,
+            "covered_tail_classes": [],
+            "uncovered_tail_classes": list(tail),
+            "client_supported_tail_classes": {index: 0 for index in range(len(selected))},
+            "fallback": "fedavg_no_selected_tail_support",
+        }
     client, budgets, validity, report = attribute_payload(
         payload, metadata, evaluator, weights=sn_weights,
         method="support_normalized_replay", quadrature_points=quadrature_points,
@@ -79,7 +94,13 @@ def replay_dump(
         rng.shuffle(values)
         methods.append((f"permuted_support_normalized_{permutation_id:03d}", torch.tensor(values, dtype=torch.float64)))
     score_rows = []
-    for method, weights in methods:
+    total_methods = len(methods)
+    for method_index, (method, weights) in enumerate(methods, start=1):
+        if method_index <= 2 or method_index == total_methods or method_index % 5 == 0:
+            print(
+                f"Replay {Path(dump_dir).name}: scoring {method_index}/{total_methods} ({method})",
+                flush=True,
+            )
         candidate = before + _candidate_delta(deltas, weights)
         for class_id in tail:
             after_value = evaluator.metric(candidate, class_id)
@@ -120,7 +141,11 @@ def replay_run(
     manifests = []
     first_payload, first_metadata = load_round_dump(dumps[0])
     cfg, trainer = build_trainer_from_metadata(first_metadata, root / "model_build")
-    for dump in dumps:
+    total_dumps = len(dumps)
+    print(f"ERI frozen replay: {run_dir} ({total_dumps} audit rounds)", flush=True)
+    for dump_index, dump in enumerate(dumps, start=1):
+        print(f"[{dump_index}/{total_dumps}] replaying {dump.name}", flush=True)
         manifests.append(replay_dump(dump, output_dir=root / dump.name, cfg=cfg, trainer=trainer, **kwargs))
+        print(f"[{dump_index}/{total_dumps}] completed replay {dump.name}", flush=True)
     write_json(root / "replay_manifest.json", {"schema_version": "eri_frozen_replay_v1", "rounds": manifests})
     return root

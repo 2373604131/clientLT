@@ -45,11 +45,14 @@ def test_four_signed_budgets_keep_supporter_harm_separate():
     assert budget["D"] == 5.0
     assert budget["R"] == 7.0
     assert budget["ERI"] == pytest.approx(7 / 7)
-    _, rows = rows_from_effects(
+    clients, rows = rows_from_effects(
         effects[None, :], [80], [2, 3, 5, 7], torch.tensor([[0] * 80 + [1], [0] * 80 + [1], [0] * 81, [0] * 81]),
         communication_round=1, method="test",
     )
     assert rows[0]["H"] == 3.0 and rows[0]["D"] == 5.0
+    assert [row["signed_role"] for row in clients] == [
+        "support_write", "support_harm", "donor", "rewriter"
+    ]
 
 
 def test_round_dump_reconstructs_ordered_server_update(tmp_path):
@@ -106,7 +109,7 @@ def test_summary_reports_paired_intervention_and_retention(tmp_path):
             with (run / "eri_closure" / "test_per_class_metrics.csv").open("w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=["communication_round", "class_id", "accuracy_percent", "mean_true_log_odds"])
                 writer.writeheader(); writer.writerow({"communication_round": 1, "class_id": 80, "accuracy_percent": 70, "mean_true_log_odds": 0}); writer.writerow({"communication_round": 2, "class_id": 80, "accuracy_percent": final, "mean_true_log_odds": 0})
-    result = summarize(tmp_path)
+    result = summarize(tmp_path, maintenance_start_round=1)
     with (result / "paired_intervention_effects.csv").open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     clientlt = next(row for row in rows if row["partition"] == "client-longtail")

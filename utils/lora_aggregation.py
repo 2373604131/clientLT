@@ -169,12 +169,28 @@ def compute_lora_aggregation_weights(
         raise ValueError("support_normalized aggregation requires client_class_counts")
     if tail_class_ids is None:
         raise ValueError("support_normalized aggregation requires tail_class_ids")
-    return support_normalized_client_weights(
-        selected,
-        datanumber_client,
-        client_class_counts,
-        tail_class_ids,
-    )
+    try:
+        return support_normalized_client_weights(
+            selected,
+            datanumber_client,
+            client_class_counts,
+            tail_class_ids,
+        )
+    except ValueError as error:
+        # Under partial participation an entire round can contain no tail
+        # evidence. There is then no support-conditioned direction to apply;
+        # ordinary FedAvg is the uniquely auditable no-information fallback.
+        if "No selected client supports any requested tail class" not in str(error):
+            raise
+        weights = sample_weighted_client_weights(selected, datanumber_client)
+        return weights, {
+            "tail_class_count": len(tail_class_ids),
+            "covered_tail_class_count": 0,
+            "covered_tail_classes": [],
+            "uncovered_tail_classes": [int(item) for item in tail_class_ids],
+            "client_supported_tail_classes": {client_id: 0 for client_id in selected},
+            "fallback": "fedavg_no_selected_tail_support",
+        }
 
 
 def aggregate_lora_state(

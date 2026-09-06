@@ -166,6 +166,12 @@ def rows_from_effects(
         )
         for ki, client_id in enumerate(selected_client_ids):
             value = float(effects[ci, ki].item())
+            if value > 0:
+                signed_role = "support_write" if support[ki] else "donor"
+            elif value < 0:
+                signed_role = "support_harm" if support[ki] else "rewriter"
+            else:
+                signed_role = "neutral"
             client_rows.append(
                 {
                     "communication_round": int(communication_round),
@@ -174,9 +180,7 @@ def rows_from_effects(
                     "client_id": int(client_id),
                     "supports_class": int(bool(support[ki].item())),
                     "functional_effect": value,
-                    "signed_role": "support_write" if support[ki] and value > 0 else (
-                        "donor" if value > 0 else ("rewriter" if value < 0 else "neutral")
-                    ),
+                    "signed_role": signed_role,
                 }
             )
     return client_rows, budget_rows

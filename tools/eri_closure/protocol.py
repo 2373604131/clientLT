@@ -108,7 +108,7 @@ def build_protocol(
         "audit_rounds": rounds,
         "probe_seed": int(seed),
         "quadrature": "Gauss-Legendre on [0, 1]; default 8 nodes",
-        "eri": "R / (W + H + epsilon), where H is class-absent positive refresh",
+        "eri": "R / (W + D + epsilon), where D is class-absent positive refresh",
         "primary_unit": "per tail class, per audited trajectory round",
     }
     protocol_path.write_text(json.dumps(protocol, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

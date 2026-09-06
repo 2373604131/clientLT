@@ -10,11 +10,14 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import os
 import shlex
 import subprocess
 import sys
 from pathlib import Path
+
+import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -47,43 +50,103 @@ def case_spec(case: str) -> tuple[str, str]:
         raise ValueError(f"Unknown ERI case {case}") from error
 
 
-def run_dir(root: Path, case: str, seed: int) -> Path:
-    return root / "runs" / case / f"seed{int(seed)}"
+def _validated_frac(frac: float) -> float:
+    value = float(frac)
+    if not math.isfinite(value) or not 0.0 < value <= 1.0:
+        raise ValueError(f"--frac must be finite and in (0, 1], got {frac!r}")
+    return value
 
 
-def schedule_file(root: Path, seed: int) -> Path:
-    return root / "protocol" / "schedules" / f"full_users30_rounds100_seed{int(seed)}.json"
+def frac_tag(frac: float) -> str:
+    value = _validated_frac(frac)
+    return "frac" + format(value, ".12g").replace(".", "p")
 
 
-def ensure_full_schedule(path: Path, *, rounds: int, users: int, seed: int) -> None:
-    """Write a deterministic all-client schedule before parallel workers start."""
+def run_dir(root: Path, case: str, seed: int, frac: float = 1.0) -> Path:
+    """Keep completed full-participation paths stable and isolate new fractions."""
+    base = root if math.isclose(_validated_frac(frac), 1.0) else root / "fractions" / frac_tag(frac)
+    return base / "runs" / case / f"seed{int(seed)}"
+
+
+def schedule_file(
+    root: Path,
+    seed: int,
+    frac: float = 1.0,
+    users: int = 30,
+    rounds: int = 100,
+) -> Path:
+    name = f"users{int(users)}_{frac_tag(frac)}_rounds{int(rounds)}_seed{int(seed)}.json"
+    return root / "protocol" / "schedules" / name
+
+
+def ensure_client_schedule(
+    path: Path,
+    *,
+    rounds: int,
+    users: int,
+    frac: float,
+    seed: int,
+) -> None:
+    """Write and validate a deterministic schedule shared by paired topologies."""
+    frac = _validated_frac(frac)
+    clients_per_round = max(int(frac * int(users)), 1)
     if path.exists():
         data = json.loads(path.read_text(encoding="utf-8"))
         schedule = data.get("schedule", data)
-        expected = list(range(int(users)))
-        if len(schedule) < int(rounds) or any(sorted(row) != expected for row in schedule[:rounds]):
-            raise ValueError(f"Existing schedule is not the required full-participation schedule: {path}")
+        if len(schedule) < int(rounds):
+            raise ValueError(f"Existing schedule has fewer than {rounds} rounds: {path}")
+        for round_index, row in enumerate(schedule[: int(rounds)], start=1):
+            clients = [int(item) for item in row]
+            if len(clients) != clients_per_round:
+                raise ValueError(
+                    f"Schedule round {round_index} has {len(clients)} clients, "
+                    f"expected {clients_per_round}: {path}"
+                )
+            if len(set(clients)) != len(clients):
+                raise ValueError(f"Schedule round {round_index} contains duplicates: {path}")
+            if any(client_id < 0 or client_id >= int(users) for client_id in clients):
+                raise ValueError(f"Schedule round {round_index} has invalid client ids: {path}")
         return
     path.parent.mkdir(parents=True, exist_ok=True)
+    if clients_per_round == int(users):
+        schedule = [list(range(int(users))) for _ in range(int(rounds))]
+    else:
+        rng = np.random.default_rng(int(seed))
+        schedule = [
+            [int(item) for item in rng.choice(int(users), clients_per_round, replace=False)]
+            for _ in range(int(rounds))
+        ]
     payload = {
-        "num_rounds": int(rounds), "num_users": int(users), "frac": 1.0,
-        "clients_per_round": int(users), "seed": int(seed),
-        "schedule": [list(range(int(users))) for _ in range(int(rounds))],
+        "num_rounds": int(rounds), "num_users": int(users), "frac": frac,
+        "clients_per_round": clients_per_round, "seed": int(seed),
+        "schedule": schedule,
     }
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    # The two same-node workers can reach this simultaneously. Both generate
+    # identical content; unique temporary files plus replace avoid partial JSON.
+    temporary = path.with_name(f"{path.name}.tmp.{os.getpid()}")
+    temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def ensure_full_schedule(path: Path, *, rounds: int, users: int, seed: int) -> None:
+    """Backward-compatible wrapper used by existing tests and callers."""
+    ensure_client_schedule(path, rounds=rounds, users=users, frac=1.0, seed=seed)
 
 
 def build_command(args, case: str, seed: int) -> list[str]:
     partition, aggregation = case_spec(case)
     protocol_file = args.output_root / "protocol" / "eri_protocol.json"
-    output = run_dir(args.output_root, case, seed)
+    output = run_dir(args.output_root, case, seed, args.frac)
+    frozen_schedule = schedule_file(
+        args.output_root, seed, args.frac, args.num_users, args.rounds
+    )
     command = [
         args.python_bin, "-u", "federated_main.py",
         "--root", str(args.data_root), "--model", "fedavg", "--trainer", "ClipLora",
         "--dataset", "cifar100_LT", "--seed", str(seed), "--split_seed", str(seed),
-        "--num_users", str(args.num_users), "--frac", "1.0", "--round", str(args.rounds),
+        "--num_users", str(args.num_users), "--frac", str(args.frac), "--round", str(args.rounds),
         "--local_epochs", str(args.local_epochs), "--client_schedule_seed", str(seed),
-        "--client_schedule_file", str(schedule_file(args.output_root, seed)),
+        "--client_schedule_file", str(frozen_schedule),
         "--isolate_local_optimizer_state", "True", "--federated_single_scheduler_step", "True",
         "--lr", str(args.lr), "--gamma", "1", "--n_ctx", "4", "--n_general", "1",
         "--ctx_init", "False", "--csc", "True",
@@ -130,7 +193,8 @@ def verify_fixed_marginals(args) -> Path:
         for left_case, right_case in case_pairs:
             if left_case not in selected_cases(args) or right_case not in selected_cases(args):
                 continue
-            left, right = run_dir(args.output_root, left_case, seed), run_dir(args.output_root, right_case, seed)
+            left = run_dir(args.output_root, left_case, seed, args.frac)
+            right = run_dir(args.output_root, right_case, seed, args.frac)
             left_csv, right_csv = left / "client_class_counts.csv", right / "client_class_counts.csv"
             if not left_csv.exists() or not right_csv.exists():
                 raise FileNotFoundError(f"Cannot verify fixed marginals; missing {left_csv} or {right_csv}")
@@ -146,10 +210,46 @@ def verify_fixed_marginals(args) -> Path:
                 raise RuntimeError(
                     f"Fixed client/global margins differ for seed={seed}, {left_case} vs {right_case}; ERI H1 is invalid."
                 )
-            records.append({"seed": seed, "left_case": left_case, "right_case": right_case, "fixed_nk_and_nc_verified": True})
+            left_selected = left / "selected_clients.csv"
+            right_selected = right / "selected_clients.csv"
+            actual_schedule_verified = False
+            if left_selected.exists() or right_selected.exists():
+                if not left_selected.exists() or not right_selected.exists():
+                    raise FileNotFoundError(
+                        "Only one paired run has selected_clients.csv: "
+                        f"{left_selected}, {right_selected}"
+                    )
+                left_selection = [
+                    (int(row["epoch_index"]), int(row["client_id"]), int(row["selection_order"]))
+                    for row in _rows(left_selected)
+                ]
+                right_selection = [
+                    (int(row["epoch_index"]), int(row["client_id"]), int(row["selection_order"]))
+                    for row in _rows(right_selected)
+                ]
+                if left_selection != right_selection:
+                    raise RuntimeError(
+                        f"Executed client schedules differ for seed={seed}, "
+                        f"frac={args.frac}, {left_case} vs {right_case}"
+                    )
+                actual_schedule_verified = True
+            records.append({
+                "seed": seed,
+                "frac": float(args.frac),
+                "clients_per_round": max(int(float(args.frac) * int(args.num_users)), 1),
+                "left_case": left_case,
+                "right_case": right_case,
+                "fixed_nk_and_nc_verified": True,
+                "actual_selected_schedule_verified": actual_schedule_verified,
+            })
     if not records:
         raise ValueError("Verification needs a complete Client-LT/matched-Dirichlet case pair")
-    path = args.output_root / "protocol" / "fixed_marginal_verification.json"
+    verification_name = (
+        "fixed_marginal_verification.json"
+        if math.isclose(float(args.frac), 1.0)
+        else f"fixed_marginal_verification_{frac_tag(args.frac)}.json"
+    )
+    path = args.output_root / "protocol" / verification_name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"schema_version": "eri_fixed_marginal_v1", "records": records}, indent=2) + "\n", encoding="utf-8")
     return path
@@ -171,7 +271,10 @@ def main() -> None:
             audit_rounds=parse_eri_rounds(args.audit_rounds, args.rounds), overwrite=args.overwrite_protocol,
         )
         for seed in args.seeds:
-            ensure_full_schedule(schedule_file(args.output_root, seed), rounds=args.rounds, users=args.num_users, seed=seed)
+            path = schedule_file(args.output_root, seed, args.frac, args.num_users, args.rounds)
+            ensure_client_schedule(
+                path, rounds=args.rounds, users=args.num_users, frac=args.frac, seed=seed
+            )
         print(f"Frozen ERI protocol: {root}")
         return
     if args.stage == "train":
@@ -179,9 +282,12 @@ def main() -> None:
         if not protocol.exists():
             raise FileNotFoundError("Run --stage protocol before starting any training array")
         for seed in args.seeds:
-            ensure_full_schedule(schedule_file(args.output_root, seed), rounds=args.rounds, users=args.num_users, seed=seed)
+            path = schedule_file(args.output_root, seed, args.frac, args.num_users, args.rounds)
+            ensure_client_schedule(
+                path, rounds=args.rounds, users=args.num_users, frac=args.frac, seed=seed
+            )
             for case in cases:
-                output = run_dir(args.output_root, case, seed)
+                output = run_dir(args.output_root, case, seed, args.frac)
                 command = build_command(args, case, seed)
                 print(shlex.join(command), flush=True)
                 if args.dry_run:
@@ -202,16 +308,16 @@ def main() -> None:
     if args.stage == "analyze":
         for seed in args.seeds:
             for case in cases:
-                print(analyze_run(run_dir(args.output_root, case, seed), protocol_dir=args.output_root / "protocol", data_root=args.data_root, quadrature_points=args.quadrature_points, device=args.device))
+                print(analyze_run(run_dir(args.output_root, case, seed, args.frac), protocol_dir=args.output_root / "protocol", data_root=args.data_root, quadrature_points=args.quadrature_points, device=args.device))
         return
     if args.stage == "replay":
         fedavg_cases = [case for case in cases if case_spec(case)[1] == "fedavg"]
         for seed in args.seeds:
             for case in fedavg_cases:
-                print(replay_run(run_dir(args.output_root, case, seed), protocol_dir=args.output_root / "protocol", data_root=args.data_root, quadrature_points=args.quadrature_points, device=args.device, permutations=args.permutations))
+                print(replay_run(run_dir(args.output_root, case, seed, args.frac), protocol_dir=args.output_root / "protocol", data_root=args.data_root, quadrature_points=args.quadrature_points, device=args.device, permutations=args.permutations))
         return
     if args.stage == "summary":
-        print(summarize(args.output_root))
+        print(summarize(args.output_root, maintenance_start_round=args.maintenance_start_round))
         return
     raise AssertionError(args.stage)
 
@@ -225,6 +331,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cases", nargs="+", choices=CASES, default=list(CASES))
     parser.add_argument("--case", choices=CASES, help="one case for an array worker; overrides --cases")
     parser.add_argument("--seeds", nargs="+", type=int, default=[1, 2, 3, 42, 2026])
+    parser.add_argument("--frac", type=float, default=1.0)
     parser.add_argument("--rounds", type=int, default=100); parser.add_argument("--num-users", type=int, default=30)
     parser.add_argument("--local-epochs", type=int, default=3); parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--imb-factor", type=float, default=0.01); parser.add_argument("--dirichlet-beta", type=float, default=0.5)
@@ -233,7 +340,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--test-batch-size", type=int, default=64); parser.add_argument("--num-workers", type=int, default=8)
     parser.add_argument("--audit-rounds", default=",".join(map(str, DEFAULT_AUDIT_ROUNDS)))
     parser.add_argument("--probes-per-class", type=int, default=10); parser.add_argument("--quadrature-points", type=int, default=8)
-    parser.add_argument("--permutations", type=int, default=100); parser.add_argument("--device", default=None)
+    parser.add_argument("--permutations", type=int, default=20); parser.add_argument("--device", default=None)
+    parser.add_argument("--maintenance-start-round", type=int, default=10)
     parser.add_argument("--gpu", default=None); parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--skip-completed", action="store_true"); parser.add_argument("--overwrite-protocol", action="store_true")
     return parser.parse_args()

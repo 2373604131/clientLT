@@ -23,6 +23,7 @@ ERI_STAGE="${ERI_STAGE:-train}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 ERI_CASES="${ERI_CASES:-clientlt_fedavg,matched_dirichlet_fedavg}"
 ERI_SEEDS="${ERI_SEEDS:-42}"
+ERI_FRAC="${ERI_FRAC:-1.0}"
 
 # Site-specific examples (uncomment/adapt one):
 # module purge; module load cuda/12.1 anaconda/2024
@@ -58,7 +59,7 @@ fi
 
 CASE="${CASE_LIST[$CASE_INDEX]}"
 SEED="${SEED_LIST[$SEED_INDEX]}"
-echo "ERI ${ERI_STAGE}: case=${CASE}, seed=${SEED}, task=${TASK}/${EXPECTED_TASKS}"
+echo "ERI ${ERI_STAGE}: case=${CASE}, seed=${SEED}, frac=${ERI_FRAC}, task=${TASK}/${EXPECTED_TASKS}"
 echo "repo=${REPO_DIR}"
 echo "data=${DATA_ROOT}"
 echo "output=${ERI_OUTPUT_ROOT}"
@@ -70,5 +71,6 @@ echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-<unset>}"
   --data-root "${DATA_ROOT}" \
   --case "${CASE}" \
   --seeds "${SEED}" \
+  --frac "${ERI_FRAC}" \
   --gpu 0 \
   --device cuda

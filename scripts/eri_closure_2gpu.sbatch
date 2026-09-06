@@ -22,6 +22,7 @@ ERI_STAGE="${ERI_STAGE:-train}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 ERI_CASES="${ERI_CASES:-clientlt_fedavg,matched_dirichlet_fedavg}"
 ERI_SEEDS="${ERI_SEEDS:-42}"
+ERI_FRAC="${ERI_FRAC:-1.0}"
 
 cd "${REPO_DIR}"
 if [[ ! -f "scripts/run_eri_closure.py" ]]; then
@@ -77,19 +78,25 @@ for slot in 0 1; do
   CASE="${CASE_LIST[$slot]}"
   GPU_TOKEN="${ALLOCATED_GPUS[$slot]}"
   LOG_FILE="${LOG_DIR}/${CASE}_seed${SEED}_gpu${slot}.log"
-  echo "Launching ${CASE}/seed${SEED}: logical_slot=${slot}, allocated_device=${GPU_TOKEN}, log=${LOG_FILE}"
+  echo "Launching ${CASE}/seed${SEED}/frac${ERI_FRAC}: logical_slot=${slot}, allocated_device=${GPU_TOKEN}, log=${LOG_FILE}"
   (
     export CUDA_VISIBLE_DEVICES="${GPU_TOKEN}"
     export OMP_NUM_THREADS=8
-    "${PYTHON_BIN}" -u scripts/run_eri_closure.py \
+    # Keep a per-condition log and mirror every line to the Slurm main output.
+    # Prefixes make concurrent output from the two pinned GPUs distinguishable.
+    set -o pipefail
+    stdbuf -oL -eL "${PYTHON_BIN}" -u scripts/run_eri_closure.py \
       --stage "${ERI_STAGE}" \
       --output-root "${ERI_OUTPUT_ROOT}" \
       --data-root "${DATA_ROOT}" \
       --case "${CASE}" \
       --seeds "${SEED}" \
+      --frac "${ERI_FRAC}" \
       --gpu 0 \
-      --device cuda
-  ) >"${LOG_FILE}" 2>&1 &
+      --device cuda 2>&1 \
+      | sed -u "s/^/[${CASE} GPU${slot}] /" \
+      | tee "${LOG_FILE}"
+  ) &
   PIDS+=("$!")
 done
 

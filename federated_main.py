@@ -3149,8 +3149,8 @@ def main(args):
             raise ValueError("ERI closure audit is restricted to Client-LT and matched Dirichlet")
         if args.encoder != "vision" or args.cliplora_precision != "fp32":
             raise ValueError("ERI closure audit requires vision-only FP32 ClipLora")
-        if abs(float(args.frac) - 1.0) > 1e-12:
-            raise ValueError("ERI closure audit requires full client participation")
+        if not 0.0 < float(args.frac) <= 1.0:
+            raise ValueError("ERI closure audit requires --frac in (0, 1]")
         if not bool(args.isolate_local_optimizer_state) or not bool(args.federated_single_scheduler_step):
             raise ValueError("ERI closure audit requires the frozen local optimizer protocol")
         if bool(args.cliplora_sca_enable) or bool(args.experimentD_enable) or bool(args.e1_enable) or bool(args.stage3_enable) or functional_coverage_enabled:
@@ -4701,6 +4701,8 @@ def main(args):
                 m = max(int(args.frac * args.num_users), 1)
                 idxs_users = select_round_clients(args, epoch, client_schedule)
                 print("idxs_users", idxs_users)
+                if eri_audit_enabled:
+                    append_selected_clients_audit(args.output_dir, epoch, idxs_users)
 
                 if epoch == 0 and not v0_dump and not eri_audit_enabled:
                     if e1_evaluator is not None:

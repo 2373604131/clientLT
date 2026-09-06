@@ -4,7 +4,8 @@ set -euo pipefail
 # Safe default: one same-node, two-GPU job for the two Phase-1 topology cells.
 # Override these environment variables only when expanding the confirmation:
 #   ERI_STAGE, ERI_CASES (comma-separated), ERI_SEEDS (comma-separated),
-#   ERI_LAUNCH_MODE, ERI_MAX_PARALLEL, DATA_ROOT, ERI_OUTPUT_ROOT, PYTHON_BIN.
+#   ERI_FRAC, ERI_LAUNCH_MODE, ERI_MAX_PARALLEL, DATA_ROOT,
+#   ERI_OUTPUT_ROOT, PYTHON_BIN.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="${REPO_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
@@ -13,6 +14,7 @@ ERI_OUTPUT_ROOT="${ERI_OUTPUT_ROOT:-${REPO_DIR}/output/eri_closure_v1}"
 ERI_STAGE="${ERI_STAGE:-train}"
 ERI_CASES="${ERI_CASES:-clientlt_fedavg,matched_dirichlet_fedavg}"
 ERI_SEEDS="${ERI_SEEDS:-42}"
+ERI_FRAC="${ERI_FRAC:-1.0}"
 ERI_MAX_PARALLEL="${ERI_MAX_PARALLEL:-2}"
 ERI_LAUNCH_MODE="${ERI_LAUNCH_MODE:-two_gpu}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
@@ -47,14 +49,14 @@ if (( TASK_COUNT < 1 )); then
 fi
 LAST_TASK=$(( TASK_COUNT - 1 ))
 
-export REPO_DIR DATA_ROOT ERI_OUTPUT_ROOT ERI_STAGE ERI_CASES ERI_SEEDS PYTHON_BIN
+export REPO_DIR DATA_ROOT ERI_OUTPUT_ROOT ERI_STAGE ERI_CASES ERI_SEEDS ERI_FRAC PYTHON_BIN
 if [[ "${ERI_LAUNCH_MODE}" == "two_gpu" ]]; then
   if (( TASK_COUNT != 2 || ${#CASE_LIST[@]} != 2 || ${#SEED_LIST[@]} != 1 )); then
     echo "two_gpu mode requires exactly two cases and one seed" >&2
     exit 2
   fi
   echo "Submitting one same-node job with two explicitly pinned GPU processes"
-  echo "stage=${ERI_STAGE}; cases=${ERI_CASES}; seed=${ERI_SEEDS}"
+  echo "stage=${ERI_STAGE}; cases=${ERI_CASES}; seed=${ERI_SEEDS}; frac=${ERI_FRAC}"
   echo "output=${ERI_OUTPUT_ROOT}"
   exec sbatch "${REPO_DIR}/scripts/eri_closure_2gpu.sbatch"
 fi
@@ -63,6 +65,6 @@ if [[ "${ERI_LAUNCH_MODE}" != "array" ]]; then
   exit 2
 fi
 echo "Submitting ${TASK_COUNT} ERI array task(s), maximum parallelism=${ERI_MAX_PARALLEL}"
-echo "stage=${ERI_STAGE}; cases=${ERI_CASES}; seeds=${ERI_SEEDS}"
+echo "stage=${ERI_STAGE}; cases=${ERI_CASES}; seeds=${ERI_SEEDS}; frac=${ERI_FRAC}"
 echo "output=${ERI_OUTPUT_ROOT}"
 exec sbatch --array="0-${LAST_TASK}%${ERI_MAX_PARALLEL}" "${REPO_DIR}/scripts/eri_closure_slurm_array.sbatch"
