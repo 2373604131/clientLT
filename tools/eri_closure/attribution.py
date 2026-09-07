@@ -6,6 +6,7 @@ access.  They are intentionally unit-testable against analytic objectives.
 
 from __future__ import annotations
 
+import math
 from typing import Callable, Iterable, Sequence
 import torch
 
@@ -142,6 +143,7 @@ def rows_from_effects(
     *,
     communication_round: int,
     method: str,
+    aggregation_weights: torch.Tensor | None = None,
     epsilon: float = 1e-12,
 ) -> tuple[list[dict], list[dict]]:
     """Return client effect and per-class signed-budget records."""
@@ -149,11 +151,45 @@ def rows_from_effects(
     counts = torch.as_tensor(client_class_counts)
     if effects.shape != (len(class_ids), len(selected_client_ids)):
         raise ValueError("effect shape does not match class/client ids")
+    q = None
+    if aggregation_weights is not None:
+        q = torch.as_tensor(aggregation_weights, dtype=torch.float64).reshape(-1)
+        if q.numel() != len(selected_client_ids):
+            raise ValueError("aggregation_weights must be client-aligned")
+        if not torch.isfinite(q).all() or (q < 0).any() or abs(float(q.sum()) - 1.0) > 1e-6:
+            raise ValueError("aggregation_weights must be finite, non-negative, and sum to one")
     client_rows: list[dict] = []
     budget_rows: list[dict] = []
     for ci, class_id in enumerate(class_ids):
         support = counts[:, int(class_id)] > 0
         budget = signed_budgets(effects[ci], support, epsilon=epsilon)
+        access = float(q[support].sum().item()) if q is not None else float("nan")
+        # ``effects`` is already q_k times the unweighted functional effect.
+        # Since every selected q_k is strictly positive, testing effects > 0
+        # is exactly the same as testing e_{k,c}=effects/q_k > 0, without a
+        # numerically unnecessary division.  B is the aggregation mass of
+        # supporter accesses that actually write in the positive direction.
+        positive_support = support & (effects[ci] > 0)
+        positive_support_access = (
+            float(q[positive_support].sum().item()) if q is not None else float("nan")
+        )
+        write_success_rate = (
+            positive_support_access / access
+            if math.isfinite(positive_support_access) and access > 0.0
+            else float("nan")
+        )
+        positive_write_strength = (
+            budget["W"] / positive_support_access
+            if math.isfinite(positive_support_access) and positive_support_access > 0.0
+            else float("nan")
+        )
+        positive_efficiency = (
+            budget["W"] / access if math.isfinite(access) and access > 0.0 else float("nan")
+        )
+        effective_supporters = float("nan")
+        if q is not None and access > 0.0:
+            squared_mass = float(q[support].square().sum().item())
+            effective_supporters = access * access / squared_mass if squared_mass > 0.0 else float("nan")
         budget_rows.append(
             {
                 "communication_round": int(communication_round),
@@ -161,6 +197,19 @@ def rows_from_effects(
                 "method": str(method),
                 "supporter_count": int(support.sum().item()),
                 "non_supporter_count": int((~support).sum().item()),
+                "support_access": access,
+                "positive_support_access": positive_support_access,
+                "support_write_success_rate": write_success_rate,
+                "positive_write_strength": positive_write_strength,
+                "positive_write_efficiency": positive_efficiency,
+                "write_factorization_absolute_error": (
+                    abs(budget["W"] - access * write_success_rate * positive_write_strength)
+                    if all(math.isfinite(value) for value in (
+                        access, write_success_rate, positive_write_strength
+                    ))
+                    else float("nan")
+                ),
+                "support_effective_clients": effective_supporters,
                 **budget,
             }
         )
@@ -179,7 +228,12 @@ def rows_from_effects(
                     "method": str(method),
                     "client_id": int(client_id),
                     "supports_class": int(bool(support[ki].item())),
+                    "aggregation_weight": float(q[ki].item()) if q is not None else float("nan"),
                     "functional_effect": value,
+                    "functional_effect_per_unit_weight": (
+                        value / float(q[ki].item())
+                        if q is not None and float(q[ki].item()) > 0.0 else float("nan")
+                    ),
                     "signed_role": signed_role,
                 }
             )

@@ -17,7 +17,12 @@ from tools.eri_closure.attribution import (
 from tools.eri_closure.analysis import load_round_dump, payload_vectors
 from tools.eri_closure.dump import load_eri_round_dump, save_eri_round_dump
 from tools.eri_closure.protocol import parse_eri_rounds
-from tools.eri_closure.summary import summarize
+from tools.eri_closure.summary import (
+    _budgets_with_access,
+    _method_location,
+    _product_shapley,
+    summarize,
+)
 
 
 def test_path_integral_closes_for_quadratic_functional():
@@ -53,6 +58,81 @@ def test_four_signed_budgets_keep_supporter_harm_separate():
     assert [row["signed_role"] for row in clients] == [
         "support_write", "support_harm", "donor", "rewriter"
     ]
+
+
+def test_access_efficiency_decomposes_positive_support_write():
+    effects = torch.tensor([2.0, -3.0, 5.0, -7.0])
+    clients, budgets = rows_from_effects(
+        effects[None, :],
+        [80],
+        [2, 3, 5, 7],
+        torch.tensor([[0] * 80 + [1], [0] * 80 + [1], [0] * 81, [0] * 81]),
+        communication_round=1,
+        method="test",
+        aggregation_weights=torch.tensor([0.1, 0.2, 0.3, 0.4]),
+    )
+    row = budgets[0]
+    assert row["support_access"] == pytest.approx(0.3)
+    assert row["positive_support_access"] == pytest.approx(0.1)
+    assert row["support_write_success_rate"] == pytest.approx(1.0 / 3.0)
+    assert row["positive_write_strength"] == pytest.approx(20.0)
+    assert row["write_factorization_absolute_error"] == pytest.approx(0.0)
+    assert (
+        row["support_access"]
+        * row["support_write_success_rate"]
+        * row["positive_write_strength"]
+    ) == pytest.approx(row["W"])
+    assert row["positive_write_efficiency"] == pytest.approx(row["W"] / row["support_access"])
+    assert row["support_effective_clients"] == pytest.approx(0.3**2 / (0.1**2 + 0.2**2))
+    assert clients[0]["functional_effect_per_unit_weight"] == pytest.approx(20.0)
+
+
+def test_old_analysis_csv_backfills_three_factor_write_decomposition(tmp_path):
+    import csv
+
+    run = tmp_path / "runs" / "clientlt_fedavg" / "seed42"
+    analysis = run / "eri_closure" / "analysis"
+    analysis.mkdir(parents=True)
+    with (run / "lora_aggregation_weights.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle, fieldnames=["communication_round", "client_id", "aggregation_weight"]
+        )
+        writer.writeheader()
+        writer.writerows([
+            {"communication_round": 10, "client_id": 0, "aggregation_weight": 0.1},
+            {"communication_round": 10, "client_id": 1, "aggregation_weight": 0.2},
+            {"communication_round": 10, "client_id": 2, "aggregation_weight": 0.7},
+        ])
+    with (analysis / "client_effects.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=[
+            "communication_round", "class_id", "method", "client_id",
+            "supports_class", "functional_effect", "signed_role",
+        ])
+        writer.writeheader()
+        writer.writerows([
+            {"communication_round": 10, "class_id": 80, "method": "trained_server", "client_id": 0, "supports_class": 1, "functional_effect": 2.0, "signed_role": "support_write"},
+            {"communication_round": 10, "class_id": 80, "method": "trained_server", "client_id": 1, "supports_class": 1, "functional_effect": -3.0, "signed_role": "support_harm"},
+            {"communication_round": 10, "class_id": 80, "method": "trained_server", "client_id": 2, "supports_class": 0, "functional_effect": 5.0, "signed_role": "donor"},
+        ])
+    enriched = _budgets_with_access([{
+        "communication_round": 10, "class_id": 80, "method": "trained_server", "W": 2.0,
+    }], run)[0]
+    assert enriched["support_access"] == pytest.approx(0.3)
+    assert enriched["positive_support_access"] == pytest.approx(0.1)
+    assert enriched["support_write_success_rate"] == pytest.approx(1.0 / 3.0)
+    assert enriched["positive_write_strength"] == pytest.approx(20.0)
+    assert enriched["write_factorization_absolute_error"] == pytest.approx(0.0)
+
+
+def test_three_factor_shapley_closes_and_routes_access_failure_to_server():
+    reference = {"A": 2.0, "rho": 0.5, "mu": 3.0}
+    target = {"A": 0.5, "rho": 0.6, "mu": 4.0}
+    contributions = _product_shapley(reference, target)
+    assert sum(contributions.values()) == pytest.approx(
+        target["A"] * target["rho"] * target["mu"]
+        - reference["A"] * reference["rho"] * reference["mu"]
+    )
+    assert _method_location(0.25, 1.2, 4.0 / 3.0) == "server_aggregation"
 
 
 def test_round_dump_reconstructs_ordered_server_update(tmp_path):

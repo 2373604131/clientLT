@@ -182,7 +182,7 @@ def attribute_payload(
         payload["selected_client_ids"],
         torch.as_tensor(payload["client_class_counts"]),
         communication_round=int(metadata["communication_round"]),
-        method=method,
+        method=method, aggregation_weights=weights,
         epsilon=epsilon,
     )
     first_client, first_budget = rows_from_effects(
@@ -191,7 +191,7 @@ def attribute_payload(
         payload["selected_client_ids"],
         torch.as_tensor(payload["client_class_counts"]),
         communication_round=int(metadata["communication_round"]),
-        method=f"{method}_first_order",
+        method=f"{method}_first_order", aggregation_weights=weights,
         epsilon=epsilon,
     )
     before_scores = [evaluator.metric(before, class_id) for class_id in class_ids]
