@@ -252,14 +252,20 @@ def build_cliplora_optimizer_and_scheduler(model, cfg):
 
 def cliplora_optimizer_step(
     model, optimizer, scaler, precision, images, labels, loss_weight=None,
-    reject_nonfinite_amp=False, post_backward=None,
+    reject_nonfinite_amp=False, post_backward=None, auxiliary_loss_fn=None,
 ):
     """One canonical ClipLora optimizer step, shared by trainer and audits."""
     if precision == "amp":
         old_scale = float(scaler.get_scale())
         with autocast():
             output = model(images)
-            loss = fixed_denominator_cross_entropy(output, labels, loss_weight)
+            ce_loss = fixed_denominator_cross_entropy(output, labels, loss_weight)
+            auxiliary_loss, auxiliary_summary = (
+                auxiliary_loss_fn(model)
+                if auxiliary_loss_fn is not None
+                else (torch.zeros((), device=ce_loss.device), {})
+            )
+            loss = ce_loss + auxiliary_loss
         if reject_nonfinite_amp and not torch.isfinite(loss).all():
             raise FloatingPointError("Loss is infinite or NaN")
         optimizer.zero_grad()
@@ -272,7 +278,13 @@ def cliplora_optimizer_step(
         new_scale = float(scaler.get_scale())
     else:
         output = model(images)
-        loss = fixed_denominator_cross_entropy(output, labels, loss_weight)
+        ce_loss = fixed_denominator_cross_entropy(output, labels, loss_weight)
+        auxiliary_loss, auxiliary_summary = (
+            auxiliary_loss_fn(model)
+            if auxiliary_loss_fn is not None
+            else (torch.zeros((), device=ce_loss.device), {})
+        )
+        loss = ce_loss + auxiliary_loss
         if not torch.isfinite(loss).all():
             raise FloatingPointError("Loss is infinite or NaN")
         optimizer.zero_grad()
@@ -285,6 +297,9 @@ def cliplora_optimizer_step(
         "amp_scale_before": old_scale,
         "amp_scale_after": new_scale,
         "amp_overflow": bool(new_scale < old_scale) if old_scale is not None else False,
+        "ce_loss": float(ce_loss.detach().item()),
+        "auxiliary_loss": float(auxiliary_loss.detach().item()),
+        "auxiliary_summary": auxiliary_summary,
     }
 
 
@@ -328,10 +343,29 @@ class ClipLora(TrainerX):
         self._scheds["lora"] = new_sched
         self.scaler = GradScaler() if self.cfg.TRAINER.COOP.PREC == "amp" else None
 
+    def set_pfrf_session(self, session):
+        if getattr(self, "_pfrf_session", None) is not None:
+            raise RuntimeError("ClipLora already has an active PFRF client session")
+        self._pfrf_session = session
+
+    def clear_pfrf_session(self, session):
+        if getattr(self, "_pfrf_session", None) is not session:
+            raise RuntimeError("Attempted to clear a different PFRF client session")
+        self._pfrf_session = None
+
+    def before_epoch(self):
+        session = getattr(self, "_pfrf_session", None)
+        if session is not None:
+            session.before_local_epoch(self.model, self.epoch)
+
     def forward_backward(self, batch):
         image, label = self.parse_batch_train(batch)
         prec = self.cfg.TRAINER.COOP.PREC
-        output, loss, _ = cliplora_optimizer_step(
+        session = getattr(self, "_pfrf_session", None)
+        auxiliary_loss_fn = None
+        if session is not None and session.uses_auxiliary(self.epoch):
+            auxiliary_loss_fn = session.auxiliary_loss
+        output, loss, step = cliplora_optimizer_step(
             self.model,
             self.optim,
             self.scaler,
@@ -344,12 +378,16 @@ class ClipLora(TrainerX):
                 if bool(getattr(self.cfg.TRAINER.CLIPLORA, "SCA_ENABLED", False))
                 else None
             ),
+            auxiliary_loss_fn=auxiliary_loss_fn,
         )
 
         loss_summary = {
             "loss": loss.item(),
+            "ce_loss": step["ce_loss"],
+            "aux_loss": step["auxiliary_loss"],
             "acc": compute_accuracy(output, label)[0].item(),
         }
+        loss_summary.update(step["auxiliary_summary"])
 
         if (self.batch_idx + 1) == self.num_batches:
             self.update_lr()

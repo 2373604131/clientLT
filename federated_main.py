@@ -24,10 +24,21 @@ from utils.experiment_d import (
 )
 from utils.lora_aggregation import (
     LORA_AGGREGATION_MODES,
+    aggregate_effective_lora_state,
     aggregate_lora_state,
+    append_effective_svd_diagnostics,
     append_lora_aggregation_diagnostics,
     compute_lora_aggregation_weights,
+    inspect_model_lora_scaling,
     sample_weighted_client_weights,
+)
+from utils.pfrf import (
+    PFRF_CONDITIONS,
+    PFRFRuntime,
+    capture_rng_state,
+    load_pfrf_checkpoint,
+    restore_rng_state,
+    save_pfrf_checkpoint,
 )
 from utils.class_separable_aggregation import (
     D4ATracker,
@@ -43,6 +54,7 @@ from utils.stage2c_temporal import (
     parse_stage2c_rounds,
 )
 from utils.stage3_runtime import STAGE3_CONDITIONS, Stage3FederatedRuntime
+from utils.stage3_vectors import build_model_lora_flat_spec
 from utils.cusp_minimal import (
     save_cusp_minimal_dump,
     sha256_json,
@@ -3121,6 +3133,36 @@ def setup_cfg(args):
 
 def main(args):
     cfg = setup_cfg(args)
+    pfrf_enabled = bool(getattr(args, "pfrf_enable", False))
+    if int(getattr(args, "cliplora_rank", 2)) <= 0:
+        raise ValueError("ClipLora rank must be positive")
+    pfrf_scaling = None
+    pending_pfrf_rng_state = None
+    if pfrf_enabled:
+        if args.trainer != "ClipLora" or args.model != "fedavg":
+            raise ValueError("PFRF requires trainer=ClipLora and model=fedavg")
+        if str(args.partition) != "client-longtail":
+            raise ValueError("PFRF smoke v1 requires partition=client-longtail")
+        if args.encoder != "vision" or args.cliplora_precision != "fp32":
+            raise ValueError("PFRF smoke v1 requires vision-only FP32 ClipLora")
+        if args.cliplora_aggregation != "effective_svd":
+            raise ValueError("PFRF requires --cliplora_aggregation effective_svd")
+        if int(cfg.OPTIM.MAX_EPOCH) != int(args.pfrf_proposal_epochs) + 1:
+            raise ValueError(
+                "PFRF smoke v1 requires local_epochs = proposal_epochs + 1"
+            )
+        if not bool(args.isolate_local_optimizer_state) or not bool(
+            args.federated_single_scheduler_step
+        ):
+            raise ValueError("PFRF requires the frozen local optimizer protocol")
+        if bool(args.cliplora_sca_enable) or bool(args.experimentD_enable) or bool(
+            args.e1_enable
+        ) or bool(args.stage3_enable):
+            raise ValueError("PFRF cannot share a run with SCA, Experiment D, E1, or Stage-3")
+        if not getattr(args, "client_schedule_file", ""):
+            raise ValueError("PFRF requires an explicit fixed client schedule")
+        if bool(args.pfrf_deterministic):
+            torch.use_deterministic_algorithms(True)
     if int(getattr(args, "capt_fixed_global_agg_freq", 0)) < 0:
         raise ValueError("--capt_fixed_global_agg_freq must be >= 0")
     if int(getattr(args, "capt_fixed_global_agg_freq", 0)) > 0 and not (
@@ -3343,9 +3385,15 @@ def main(args):
         # print("Setting fixed seed: {}".format(cfg.SEED))
         set_random_seed(cfg.SEED)
     setup_logger(cfg.OUTPUT_DIR)
+    if pfrf_enabled:
+        resolved_path = Path(args.output_dir) / "resolved_config.yaml"
+        resolved_path.parent.mkdir(parents=True, exist_ok=True)
+        resolved_path.write_text(str(cfg) + "\n", encoding="utf-8")
 
     if torch.cuda.is_available():
-        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.benchmark = not (
+            pfrf_enabled and bool(args.pfrf_deterministic)
+        )
 
     # print_args(args, cfg)
     # print("Collecting env info ...")
@@ -3384,6 +3432,31 @@ def main(args):
     local_trainer = build_trainer(cfg)
     local_trainer.fed_before_train()
     validate_federated_train_loaders(local_trainer, args.num_users)
+
+    if args.trainer == "ClipLora" and args.cliplora_aggregation == "effective_svd":
+        pfrf_scaling, local_scaling_details = inspect_model_lora_scaling(
+            local_trainer.model
+        )
+        if global_trainer is not None:
+            global_scaling, global_scaling_details = inspect_model_lora_scaling(
+                global_trainer.model
+            )
+            if not math.isclose(
+                pfrf_scaling, global_scaling, rel_tol=0.0, abs_tol=1e-12
+            ):
+                raise ValueError("Global and local LoRA runtime scaling differ")
+            if len(local_scaling_details) != len(global_scaling_details):
+                raise ValueError("Global and local LoRA module counts differ")
+        write_json(
+            Path(args.output_dir) / "effective_svd_contract.json",
+            {
+                "schema_version": "effective_svd_contract_v1",
+                "scaling_source": "runtime_lora_modules",
+                "common_scaling": pfrf_scaling,
+                "matrix_count": len(local_scaling_details),
+                "modules": local_scaling_details,
+            },
+        )
 
     if (
         args.trainer == "ClipLora"
@@ -3695,6 +3768,50 @@ def main(args):
             resume_dir=args.resume,
         )
         stage3_runtime.assert_model_spec(global_trainer.model)
+    pfrf_runtime = None
+    if pfrf_enabled:
+        resume_payload = None
+        if args.resume:
+            resume_payload = load_pfrf_checkpoint(
+                args.resume, expected_scaling=pfrf_scaling
+            )
+            completed_round = int(resume_payload["completed_round"])
+            if not 0 < completed_round < int(max_epoch):
+                raise ValueError(
+                    "PFRF resume round must be positive and smaller than --round"
+                )
+            start_epoch = completed_round
+            resumed_lora = resume_payload["global_lora_state"]
+            if set(resumed_lora) != set(build_model_lora_flat_spec(global_trainer.model).names):
+                raise ValueError("PFRF checkpoint LoRA key set differs from current model")
+            global_weights = copy.deepcopy(global_weights)
+            for key, value in resumed_lora.items():
+                reference = global_weights[key]
+                if tuple(value.shape) != tuple(reference.shape):
+                    raise ValueError(f"PFRF checkpoint LoRA shape mismatch for {key}")
+                global_weights[key] = value.to(
+                    device=reference.device, dtype=reference.dtype
+                )
+            global_trainer.model.load_state_dict(global_weights, strict=True)
+            local_trainer.model.load_state_dict(global_weights, strict=True)
+            pending_pfrf_rng_state = resume_payload["rng_state"]
+            print(f"Loaded PFRF checkpoint through round {completed_round}")
+        pfrf_runtime = PFRFRuntime(
+            local_trainer,
+            output_dir=args.output_dir,
+            global_seed=args.seed,
+            condition=args.pfrf_condition,
+            num_users=args.num_users,
+            num_classes=n_cls,
+            client_class_counts=client_class_counts,
+            temperature=args.pfrf_temperature,
+            aux_lambda=args.pfrf_lambda,
+            proposal_epochs=args.pfrf_proposal_epochs,
+            add_cap=args.pfrf_add_cap,
+            aggregation_scaling=pfrf_scaling,
+            resume_state=(None if resume_payload is None else resume_payload["runtime"]),
+        )
+        pfrf_runtime.assert_model_spec(global_trainer.model)
     exposure_count = torch.zeros(n_cls, dtype=torch.float32)
     tail_score = torch.ones(n_cls, dtype=torch.float32)
     protected_tail_mask = torch.ones(n_cls, dtype=torch.bool)
@@ -3879,6 +3996,11 @@ def main(args):
 
     save_dir = os.path.join(args.output_dir, 'prompt_params')
     os.makedirs(save_dir, exist_ok=True)
+
+    if pending_pfrf_rng_state is not None:
+        # Restore only after model/data/runtime reconstruction so resumed local
+        # shuffling starts at the exact next-round RNG boundary.
+        restore_rng_state(pending_pfrf_rng_state)
 
     for epoch in range(start_epoch, max_epoch):
         run_global_eval = should_run_global_eval(epoch, max_epoch, args.global_eval_interval)
@@ -4775,6 +4897,7 @@ def main(args):
                         getattr(global_trainer, "last_global_test_class_margins", {}),
                     )
                 stage3_round_uploads = []
+                pfrf_round_sessions = []
                 for idx in idxs_users:
                     local_trainer.model.load_state_dict(global_weights, strict=True)
                     local_trainer.reset_optimizer_and_scheduler()
@@ -4783,6 +4906,13 @@ def main(args):
                         stage3_prepared = stage3_runtime.prepare_client(
                             local_trainer.model,
                             global_weights,
+                            client_id=idx,
+                            round_id=epoch,
+                        )
+                    pfrf_session = None
+                    if pfrf_runtime is not None:
+                        pfrf_session = pfrf_runtime.prepare_client(
+                            local_trainer,
                             client_id=idx,
                             round_id=epoch,
                         )
@@ -4817,6 +4947,15 @@ def main(args):
                             stage3_prepared,
                         )
                         stage3_round_uploads.append(stage3_finalized.upload)
+                    if pfrf_runtime is not None:
+                        pfrf_runtime.record_client_budget(
+                            local_trainer,
+                            pfrf_session,
+                            optimizer_steps=optimizer_step_count,
+                            scheduler_steps=scheduler_step_delta,
+                        )
+                        pfrf_runtime.finalize_client(local_trainer, pfrf_session)
+                        pfrf_round_sessions.append(pfrf_session)
                     local_weight = local_trainer.model.state_dict()
                     local_weights[idx] = copy.deepcopy(local_weight)
                 print("------------local train finish epoch:", epoch, "-------------")
@@ -4844,13 +4983,29 @@ def main(args):
                     )
                 # Only LoRA A/B tensors move. The frozen pretrained CLIP state
                 # remains the common server anchor for every aggregation mode.
-                global_weights = aggregate_lora_state(
-                    pre_global_weights,
-                    local_weights,
-                    idxs_users,
-                    lora_keys,
-                    aggregation_weights,
-                )
+                effective_svd_diagnostics = []
+                if args.cliplora_aggregation == "effective_svd":
+                    global_weights, effective_svd_diagnostics = aggregate_effective_lora_state(
+                        pre_global_weights,
+                        local_weights,
+                        idxs_users,
+                        lora_keys,
+                        aggregation_weights,
+                        scaling=pfrf_scaling,
+                    )
+                    append_effective_svd_diagnostics(
+                        args.output_dir,
+                        epoch=epoch,
+                        diagnostics=effective_svd_diagnostics,
+                    )
+                else:
+                    global_weights = aggregate_lora_state(
+                        pre_global_weights,
+                        local_weights,
+                        idxs_users,
+                        lora_keys,
+                        aggregation_weights,
+                    )
                 if stage2c_selected_round:
                     print(
                         "------------Stage 2-C after-shared diagnostic: round {}-------------".format(
@@ -4936,6 +5091,12 @@ def main(args):
                         selected_clients=idxs_users,
                     )
                 global_trainer.model.load_state_dict(global_weights, strict=True)
+                if pfrf_runtime is not None:
+                    if len(pfrf_round_sessions) != len(idxs_users):
+                        raise RuntimeError("PFRF did not finalize exactly one session per client")
+                    pfrf_runtime.complete_round(
+                        global_trainer.model, pfrf_round_sessions
+                    )
                 if stage3_runtime is not None:
                     if len(stage3_round_uploads) != len(idxs_users):
                         raise RuntimeError("Stage-3 did not produce exactly one upload per client")
@@ -5015,6 +5176,15 @@ def main(args):
                     if d4a_tracker is not None:
                         d4a_tracker.record(epoch, sca_round_diagnostics)
                     print_skip_global_eval(epoch, args.global_eval_interval)
+                    if pfrf_runtime is not None:
+                        save_pfrf_checkpoint(
+                            args.output_dir,
+                            completed_round=epoch + 1,
+                            global_state=global_weights,
+                            runtime=pfrf_runtime,
+                            rng_state=capture_rng_state(),
+                            aggregation_scaling=pfrf_scaling,
+                        )
                     print("Epoch on server :", epoch)
                     continue
 
@@ -5101,6 +5271,16 @@ def main(args):
                         last_class_accuracy,
                         path_metrics,
                         args.tail_class_ratio,
+                    )
+
+                if pfrf_runtime is not None:
+                    save_pfrf_checkpoint(
+                        args.output_dir,
+                        completed_round=epoch + 1,
+                        global_state=global_weights,
+                        runtime=pfrf_runtime,
+                        rng_state=capture_rng_state(),
+                        aggregation_scaling=pfrf_scaling,
                     )
 
                 print("Epoch on server :", epoch)
@@ -6061,6 +6241,13 @@ if __name__ == "__main__":
     parser.add_argument('--cliplora_lr_policy', type=str, default='constant', choices=['constant', 'cosine'])
     parser.add_argument('--cliplora_precision', type=str, default='amp', choices=['amp', 'fp32', 'fp16'])
     parser.add_argument('--cliplora_common_init_seed', type=int, default=-1, help='topology-independent ClipLora initialization seed; negative preserves the legacy initialization path')
+    parser.add_argument('--pfrf_enable', type=str2bool, default=False, help='enable the PFRF deterministic smoke/runtime path')
+    parser.add_argument('--pfrf_condition', type=str, default='ordinary_ce', choices=PFRF_CONDITIONS, help='PFRF six-condition ablation')
+    parser.add_argument('--pfrf_temperature', type=float, default=1.0, help='temperature for class-mean correct probability')
+    parser.add_argument('--pfrf_lambda', type=float, default=1.0, help='weight of the third-epoch memory objective')
+    parser.add_argument('--pfrf_proposal_epochs', type=int, default=2, help='number of CE-only local epochs before correction')
+    parser.add_argument('--pfrf_add_cap', type=float, default=1.0, help='absolute probability target cap for PFRF-Add')
+    parser.add_argument('--pfrf_deterministic', type=str2bool, default=False, help='enable deterministic PyTorch kernels for smoke/resume checks')
     parser.add_argument('--cliplora_sca_enable', type=str2bool, default=False, help='enable online class-separable residual aggregation')
     parser.add_argument('--cliplora_residual_aggregation', type=str, default='class_separable', choices=list(RESIDUAL_AGGREGATION_MODES), help='server aggregation for the architecture-matched class residual head')
     parser.add_argument('--cliplora_sca_scale', type=float, default=10.0, help='fixed scale of the zero-initialized class residual logits')

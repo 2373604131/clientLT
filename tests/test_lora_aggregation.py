@@ -18,6 +18,18 @@ def test_sample_weighted_client_weights_match_fedavg():
     assert weights == pytest.approx({0: 0.75, 2: 0.25})
 
 
+def test_effective_svd_uses_ordinary_sample_weights():
+    weights, details = compute_lora_aggregation_weights(
+        "effective_svd",
+        [0, 2],
+        [3, 100, 1],
+        client_class_counts={0: torch.tensor([1, 0]), 2: torch.tensor([0, 1])},
+        tail_class_ids=[1],
+    )
+    assert weights == pytest.approx({0: 0.75, 2: 0.25})
+    assert details["covered_tail_classes"] == [1]
+
+
 def test_support_normalized_weights_average_classwise_distributions():
     # Tail class 2: support {0, 1}, weights {2/3, 1/3}.
     # Tail class 3: support {1, 2}, weights {3/4, 1/4}.
