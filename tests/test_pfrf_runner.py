@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import torch
 
-from scripts.run_pfrf_smoke import _rng_state_equal, commands
+from scripts.run_pfrf_smoke import REPO_ROOT, _rng_state_equal, _run, commands
 from utils.pfrf import capture_rng_state
 
 
@@ -46,3 +46,18 @@ def test_resume_rng_comparison_checks_the_next_torch_stream():
     _ = torch.rand(1)
     right = capture_rng_state()
     assert not _rng_state_equal(left, right)
+
+
+def test_runner_sets_deterministic_cublas_environment(monkeypatch):
+    observed = {}
+
+    def fake_run(command, *, cwd, check, env):
+        observed.update(command=command, cwd=cwd, check=check, env=env)
+
+    monkeypatch.delenv("CUBLAS_WORKSPACE_CONFIG", raising=False)
+    monkeypatch.setattr("scripts.run_pfrf_smoke.subprocess.run", fake_run)
+    _run(["python", "noop.py"])
+    assert observed["command"] == ["python", "noop.py"]
+    assert observed["cwd"] == REPO_ROOT
+    assert observed["check"] is True
+    assert observed["env"]["CUBLAS_WORKSPACE_CONFIG"] == ":4096:8"

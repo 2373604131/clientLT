@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -246,7 +247,12 @@ def commands(args) -> list[dict]:
 
 
 def _run(command: list[str]) -> None:
-    subprocess.run(command, cwd=REPO_ROOT, check=True)
+    environment = os.environ.copy()
+    # torch.use_deterministic_algorithms(True) requires a deterministic
+    # cuBLAS workspace on CUDA >= 10.2. Set it on the child process before
+    # Python imports torch or initializes CUDA.
+    environment["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+    subprocess.run(command, cwd=REPO_ROOT, check=True, env=environment)
 
 
 def run_unit_tests(args) -> None:
