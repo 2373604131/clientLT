@@ -37,6 +37,12 @@ def test_smoke_runner_builds_six_full_runs_and_two_resume_pairs(tmp_path):
         assert command[command.index("--local_epochs") + 1] == "3"
         assert command[command.index("--cliplora_aggregation") + 1] == "effective_svd"
         assert command[command.index("--pfrf_deterministic") + 1] == "True"
+        assert command[-2:] == ["DATALOADER.NUM_WORKERS", "0"]
+
+    for item in built:
+        if item["label"].startswith("resume-suffix:"):
+            command = item["command"]
+            assert command.index("--resume") < command.index("DATALOADER.NUM_WORKERS")
 
 
 def test_resume_rng_comparison_checks_the_next_torch_stream():

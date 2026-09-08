@@ -189,11 +189,12 @@ def build_command(
         "False",
         "--stage3_enable",
         "False",
-        "DATALOADER.NUM_WORKERS",
-        "0",
     ]
     if resume is not None:
         command.extend(["--resume", str(resume)])
+    # argparse exposes trailing YACS overrides through a positional REMAINDER.
+    # Every ordinary --flag, especially --resume, must precede this boundary.
+    command.extend(["DATALOADER.NUM_WORKERS", "0"])
     return command
 
 
