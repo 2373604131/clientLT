@@ -129,6 +129,8 @@ checkpoint 取全局轮边界，保存全局 LoRA 状态、全部客户端 H/T�
 
 单节点六卡并行时使用 `--gpu-ids 0 1 2 3 4 5`，按六组冻结顺序一对一映射。父进程为每个子进程单独设置 `CUDA_VISIBLE_DEVICES`和确定性 cuBLAS 环境，每组标准输出写入自己的 `launcher.log`，不在六进程间共享模型、H/T 或可写日志。
 
+若集群只允许分别申请六个单卡作业，每个作业使用 `--stage train --condition <name>`。此模式继承调度器提供的 `CUDA_VISIBLE_DEVICES`，并强制 PyTorch 只能看见一张卡；六个 condition 输出目录彼此隔离，共享的 schedule/protocol 使用跨节点唯一临时名和原子替换。六个作业都结束后，另执行一次 `--stage verify`。
+
 第一个固定配置用 tau=1、lambda=1。若第 3 epoch 辅助梯度长期为零，优先判断目标是否已被 CE 兑现/概率是否饱和；不能直接认定历史反馈无价值。若辅助梯度非有限、相对 CE 严重失衡或 memory 覆盖失效，停止的是该实现/配置验收，需要修正版本并重跑六组。
 
 首个配置阴性只能得出“v1 固定配置未通过”。若要继续调参，另建 v2 exploration：B1/B2/B3/M1/A1 获得同样的 lambda 候选 {0.1,1,10} 与轮数预算，选择仅用训练池外 U，官方 test 不可选超参。U 此后必须标为开发集；完整报告全部试验，已看过的 seed42 test 结果不作为未见确认。

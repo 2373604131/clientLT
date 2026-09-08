@@ -11,6 +11,7 @@ import math
 import os
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 import torch
@@ -141,7 +142,7 @@ def prepare(args) -> Path:
         "conditions": list(PFRF_CONDITIONS),
         "fresh_initialization": True,
         "resume_from_smoke": False,
-        "gpu_assignments": gpu_assignments(args),
+        "gpu_assignment": "recorded_per_condition_in_kill_command.json",
         "smoke_report": str(args.smoke_root / "smoke_report.json"),
         "smoke_report_sha256": hashlib.sha256(smoke_bytes).hexdigest(),
         "smoke_status": smoke_report["status"],
@@ -149,7 +150,9 @@ def prepare(args) -> Path:
     }
     path = args.output_root / "protocol" / "kill_protocol.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f"{path.name}.tmp.{os.getpid()}")
+    temporary = path.with_name(
+        f"{path.name}.tmp.{os.getpid()}.{uuid.uuid4().hex}"
+    )
     temporary.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -180,6 +183,7 @@ def _prepare_launch(item: dict, assigned_gpu: int | None) -> dict | None:
         "fresh_initialization": True,
         "resume": None,
         "assigned_physical_gpu": assigned_gpu,
+        "inherited_cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
         "command": command,
     }
     (output_dir / "kill_command.json").write_text(
@@ -593,6 +597,12 @@ def parse_args():
     parser.add_argument("--python-bin", default=sys.executable)
     parser.add_argument("--num-users", type=int, default=KILL_USERS)
     parser.add_argument(
+        "--condition",
+        choices=PFRF_CONDITIONS,
+        default=None,
+        help="run exactly one condition in a scheduler-provided single-GPU allocation",
+    )
+    parser.add_argument(
         "--gpu-ids",
         nargs="+",
         type=int,
@@ -603,15 +613,32 @@ def parse_args():
         "--conditions",
         nargs="+",
         choices=PFRF_CONDITIONS,
-        default=list(PFRF_CONDITIONS),
+        default=None,
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.condition is not None and args.conditions is not None:
+        parser.error("--condition and --conditions cannot be used together")
+    if args.condition is not None:
+        args.conditions = [args.condition]
+    elif args.conditions is None:
+        args.conditions = list(PFRF_CONDITIONS)
+    return args
 
 
 def main() -> None:
     args = parse_args()
     if args.num_users != KILL_USERS:
         raise ValueError("The formal PFRF kill test is frozen to 30 clients")
+    if (
+        args.stage == "train"
+        and args.condition is not None
+        and not args.gpu_ids
+        and torch.cuda.device_count() != 1
+    ):
+        raise RuntimeError(
+            "--condition expects the scheduler allocation to expose exactly one GPU; "
+            f"torch sees {torch.cuda.device_count()}"
+        )
     if args.stage in {"verify", "all"} and tuple(args.conditions) != tuple(PFRF_CONDITIONS):
         raise ValueError("Formal kill-test verification requires all six conditions")
     if args.stage == "prepare":

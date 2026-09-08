@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import scripts.run_pfrf_kill_test as kill_runner
 from scripts.run_pfrf_kill_test import (
     KILL_ROUNDS,
     child_environment,
@@ -77,6 +78,16 @@ def test_six_conditions_map_to_six_distinct_physical_gpus(tmp_path):
     environment = child_environment(5)
     assert environment["CUDA_VISIBLE_DEVICES"] == "5"
     assert environment["CUBLAS_WORKSPACE_CONFIG"] == ":4096:8"
+
+
+def test_single_condition_cli_selects_one_shard(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        ["run_pfrf_kill_test.py", "--stage", "train", "--condition", "pfrf_max"],
+    )
+    args = kill_runner.parse_args()
+    assert args.condition == "pfrf_max"
+    assert args.conditions == ["pfrf_max"]
 
 
 def test_prepare_requires_a_passed_smoke_gate_and_disjoint_root(tmp_path):

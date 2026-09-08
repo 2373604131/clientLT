@@ -15,6 +15,7 @@ import os
 import shlex
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 import numpy as np
@@ -123,7 +124,9 @@ def ensure_client_schedule(
     }
     # The two same-node workers can reach this simultaneously. Both generate
     # identical content; unique temporary files plus replace avoid partial JSON.
-    temporary = path.with_name(f"{path.name}.tmp.{os.getpid()}")
+    temporary = path.with_name(
+        f"{path.name}.tmp.{os.getpid()}.{uuid.uuid4().hex}"
+    )
     temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     os.replace(temporary, path)
 
