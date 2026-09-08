@@ -1,6 +1,6 @@
 # PFRF 两阶段实验协议 v1
 
-状态：第一阶段代码已实现但尚未完成六组真实 GPU 运行；第二阶段 kill-test 分析仍待实现。本文件不是已完成实验报告。对应配置清单为 `docs/pfrf_pilot_v1.json`，训练参数由 `scripts/run_pfrf_smoke.py` 显式冻结。
+状态：第一阶段六组真实 GPU smoke 及 Max/Add 断点恢复已通过；第二阶段 100 轮 kill-test runner 已实现，真实运行与结果分析待完成。本文件不是已完成实验报告。对应配置清单为 `docs/pfrf_pilot_v1.json`；smoke 和 kill-test 训练参数分别由 `scripts/run_pfrf_smoke.py` 与 `scripts/run_pfrf_kill_test.py` 显式冻结。
 
 目的：先验证实现正确，再检验客户端保存历史功能目标是否带来超过额外 memory 训练、类别加权和单轮目标的收益。seed 42 仅用于筛查，不能据此声明跨种子稳定或 CVPR 接收概率。
 
@@ -124,6 +124,10 @@ checkpoint 取全局轮边界，保存全局 LoRA 状态、全部客户端 H/T�
 ## 6. 第二步：seed 42 六组 kill-test
 
 从共同 M0 全新启动六组，每组 100 rounds，不继承 smoke 的 H、模型或 optimizer。可以在六组各跑到 round 20 时做统一技术检查，所有有效运行仍续跑到 100，不按早期准确率淘汰。
+
+统一入口为 `scripts/run_pfrf_kill_test.py`。它必须先读取已通过的 `output/pfrf_smoke_v1/smoke_report.json`，并将六组写入全新的 `output/pfrf_kill_v1/`。训练命令禁止 `--resume`，非空的未完成目录会直接拒绝续写。六组完成后生成 `kill_test_report.json`、`analysis/six_condition_metrics.csv` 和 `analysis/screening_summary.json`。
+
+单节点六卡并行时使用 `--gpu-ids 0 1 2 3 4 5`，按六组冻结顺序一对一映射。父进程为每个子进程单独设置 `CUDA_VISIBLE_DEVICES`和确定性 cuBLAS 环境，每组标准输出写入自己的 `launcher.log`，不在六进程间共享模型、H/T 或可写日志。
 
 第一个固定配置用 tau=1、lambda=1。若第 3 epoch 辅助梯度长期为零，优先判断目标是否已被 CE 兑现/概率是否饱和；不能直接认定历史反馈无价值。若辅助梯度非有限、相对 CE 严重失衡或 memory 覆盖失效，停止的是该实现/配置验收，需要修正版本并重跑六组。
 

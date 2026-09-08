@@ -1,6 +1,6 @@
 {
   "schema_version": "pfrf_pilot_design_v1",
-  "status": "smoke_code_implemented_real_runs_pending",
+  "status": "smoke_passed_kill_runner_implemented_runs_pending",
   "protocol_document": "docs/pfrf_pilot_protocol.md",
   "primary_method": "pfrf_max",
   "target_semantics": "persistent_absolute_target_not_old_residual_max",
