@@ -18,7 +18,12 @@ from typing import Mapping, Sequence
 import torch
 
 
-LORA_AGGREGATION_MODES = ("fedavg", "support_normalized", "effective_svd")
+LORA_AGGREGATION_MODES = (
+    "fedavg",
+    "support_normalized",
+    "effective_svd",
+    "la_aggregation",
+)
 
 
 def inspect_model_lora_scaling(model) -> tuple[float, list[dict]]:
@@ -178,6 +183,148 @@ def support_normalized_client_weights(
     }
 
 
+def la_aggregation_client_weights(
+    selected_clients: Sequence[int],
+    datanumber_client: Sequence[float],
+    client_class_counts,
+    *,
+    temperature: float = 1.0,
+    regularization: float = 1.0,
+    max_iter: int = 100,
+) -> tuple[dict[int, float], dict]:
+    """Fit client weights whose induced label prior matches an LA target.
+
+    Let ``p_k`` be client k's empirical label distribution and ``a_k`` its
+    ordinary sample-weighted FedAvg coefficient.  FedAvg induces the prior
+    ``pi = sum_k a_k p_k``.  We use the logit-adjustment path
+
+        q_c(tau) proportional to pi_c ** (1 - tau)
+
+    and solve
+
+        min_alpha KL(q || sum_k alpha_k p_k) + lambda KL(alpha || a)
+
+    over the probability simplex.  ``tau=0`` recovers the FedAvg target and
+    ``tau=1`` requests a uniform prior over classes present in the round.
+    The learned scalar client coefficients are subsequently used for effective
+    LoRA-matrix aggregation and rank-r SVD recompression.
+    """
+    selected = _selected_client_ids(selected_clients)
+    temperature = float(temperature)
+    regularization = float(regularization)
+    max_iter = int(max_iter)
+    if not math.isfinite(temperature) or not 0.0 <= temperature <= 1.0:
+        raise ValueError("LA aggregation temperature must be in [0, 1]")
+    if not math.isfinite(regularization) or regularization < 0.0:
+        raise ValueError("LA aggregation regularization must be non-negative")
+    if max_iter < 1:
+        raise ValueError("LA aggregation max_iter must be positive")
+    if client_class_counts is None:
+        raise ValueError("la_aggregation requires client_class_counts")
+
+    rows = []
+    for client_id in selected:
+        if isinstance(client_class_counts, Mapping):
+            row = client_class_counts[client_id]
+        else:
+            row = client_class_counts[client_id]
+        row = torch.as_tensor(row, dtype=torch.float64, device="cpu").flatten()
+        if row.numel() == 0 or not bool(torch.isfinite(row).all()) or bool((row < 0).any()):
+            raise ValueError(f"Invalid class counts for client {client_id}")
+        total = float(row.sum().item())
+        if total <= 0.0:
+            raise ValueError(f"Client {client_id} has zero class-count total")
+        rows.append(row / total)
+    num_classes = int(rows[0].numel())
+    if any(int(row.numel()) != num_classes for row in rows):
+        raise ValueError("All clients must have the same number of classes")
+    client_priors = torch.stack(rows, dim=0)
+
+    fedavg_dict = sample_weighted_client_weights(selected, datanumber_client)
+    fedavg = torch.tensor(
+        [fedavg_dict[client_id] for client_id in selected], dtype=torch.float64
+    )
+    source_prior = fedavg @ client_priors
+    covered = source_prior > 0
+    if not bool(covered.any()):
+        raise ValueError("Selected clients cover no classes")
+
+    target_prior = torch.zeros_like(source_prior)
+    target_values = source_prior[covered].pow(1.0 - temperature)
+    target_prior[covered] = target_values / target_values.sum()
+
+    # Softmax parameterization keeps alpha strictly inside the simplex, which
+    # makes both KL terms finite.  This is a tiny deterministic CPU problem
+    # (30 variables in the canonical experiment), so L-BFGS overhead is
+    # negligible relative to local training.
+    logits = torch.log(fedavg).detach().clone().requires_grad_(True)
+    optimizer = torch.optim.LBFGS(
+        [logits],
+        lr=1.0,
+        max_iter=max_iter,
+        tolerance_grad=1e-12,
+        tolerance_change=1e-14,
+        line_search_fn="strong_wolfe",
+    )
+    tiny = torch.finfo(torch.float64).tiny
+
+    def terms():
+        alpha = torch.softmax(logits, dim=0)
+        achieved = alpha @ client_priors
+        target_kl = torch.sum(
+            target_prior[covered]
+            * (
+                torch.log(target_prior[covered].clamp_min(tiny))
+                - torch.log(achieved[covered].clamp_min(tiny))
+            )
+        )
+        base_kl = torch.sum(
+            alpha
+            * (
+                torch.log(alpha.clamp_min(tiny))
+                - torch.log(fedavg.clamp_min(tiny))
+            )
+        )
+        return target_kl + regularization * base_kl, alpha, achieved, target_kl, base_kl
+
+    def closure():
+        optimizer.zero_grad()
+        objective, _, _, _, _ = terms()
+        objective.backward()
+        return objective
+
+    optimizer.step(closure)
+    with torch.no_grad():
+        objective, alpha, achieved, target_kl, base_kl = terms()
+
+    values = [float(value) for value in alpha.tolist()]
+    normalizer = sum(values)
+    weights = {
+        client_id: values[index] / normalizer
+        for index, client_id in enumerate(selected)
+    }
+    covered_classes = torch.nonzero(covered, as_tuple=False).flatten().tolist()
+    uncovered_classes = torch.nonzero(~covered, as_tuple=False).flatten().tolist()
+    return weights, {
+        "tail_class_count": 0,
+        "covered_tail_class_count": 0,
+        "covered_tail_classes": [],
+        "uncovered_tail_classes": [],
+        "client_supported_tail_classes": {client_id: 0 for client_id in selected},
+        "covered_classes": [int(value) for value in covered_classes],
+        "uncovered_classes": [int(value) for value in uncovered_classes],
+        "la_temperature": temperature,
+        "la_regularization": regularization,
+        "la_max_iter": max_iter,
+        "la_objective": float(objective.item()),
+        "la_target_kl": float(target_kl.item()),
+        "la_fedavg_kl": float(base_kl.item()),
+        "la_source_prior": [float(value) for value in source_prior.tolist()],
+        "la_target_prior": [float(value) for value in target_prior.tolist()],
+        "la_achieved_prior": [float(value) for value in achieved.tolist()],
+    }
+
+
 def compute_lora_aggregation_weights(
     mode: str,
     selected_clients: Sequence[int],
@@ -185,6 +332,9 @@ def compute_lora_aggregation_weights(
     *,
     client_class_counts=None,
     tail_class_ids: Sequence[int] | None = None,
+    la_temperature: float = 1.0,
+    la_regularization: float = 1.0,
+    la_max_iter: int = 100,
 ) -> tuple[dict[int, float], dict]:
     """Resolve a named ClipLoRA aggregation policy."""
     mode = str(mode).lower()
@@ -213,6 +363,41 @@ def compute_lora_aggregation_weights(
             "uncovered_tail_classes": [],
             "client_supported_tail_classes": support_counts,
         }
+
+    if mode == "la_aggregation":
+        weights, details = la_aggregation_client_weights(
+            selected,
+            datanumber_client,
+            client_class_counts,
+            temperature=la_temperature,
+            regularization=la_regularization,
+            max_iter=la_max_iter,
+        )
+        tail_classes = [int(value) for value in (tail_class_ids or ())]
+        covered_tail = [
+            class_id
+            for class_id in tail_classes
+            if any(
+                _class_count(client_class_counts, client_id, class_id) > 0
+                for client_id in selected
+            )
+        ]
+        details.update(
+            {
+                "tail_class_count": len(tail_classes),
+                "covered_tail_class_count": len(covered_tail),
+                "covered_tail_classes": covered_tail,
+                "uncovered_tail_classes": sorted(set(tail_classes) - set(covered_tail)),
+                "client_supported_tail_classes": {
+                    client_id: sum(
+                        _class_count(client_class_counts, client_id, class_id) > 0
+                        for class_id in tail_classes
+                    )
+                    for client_id in selected
+                },
+            }
+        )
+        return weights, details
 
     if client_class_counts is None:
         raise ValueError("support_normalized aggregation requires client_class_counts")
@@ -487,6 +672,11 @@ def append_lora_aggregation_diagnostics(
         "uncovered_tail_classes": ",".join(
             str(x) for x in details.get("uncovered_tail_classes", [])
         ),
+        "la_temperature": details.get("la_temperature", ""),
+        "la_regularization": details.get("la_regularization", ""),
+        "la_objective": details.get("la_objective", ""),
+        "la_target_kl": details.get("la_target_kl", ""),
+        "la_fedavg_kl": details.get("la_fedavg_kl", ""),
     }
     _append_csv_rows(output_path / "lora_aggregation_summary.csv", [summary_row])
 

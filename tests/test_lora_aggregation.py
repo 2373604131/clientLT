@@ -7,6 +7,7 @@ from utils.lora_aggregation import (
     aggregate_lora_state,
     append_lora_aggregation_diagnostics,
     compute_lora_aggregation_weights,
+    la_aggregation_client_weights,
     sample_weighted_client_weights,
     support_normalized_client_weights,
 )
@@ -28,6 +29,39 @@ def test_effective_svd_uses_ordinary_sample_weights():
     )
     assert weights == pytest.approx({0: 0.75, 2: 0.25})
     assert details["covered_tail_classes"] == [1]
+
+
+def test_la_aggregation_tau_zero_recovers_fedavg():
+    counts = {
+        0: torch.tensor([8, 2], dtype=torch.float64),
+        1: torch.tensor([1, 9], dtype=torch.float64),
+    }
+    weights, details = la_aggregation_client_weights(
+        [0, 1], [10, 10], counts, temperature=0.0, regularization=1.0
+    )
+
+    assert weights == pytest.approx({0: 0.5, 1: 0.5}, abs=1e-8)
+    assert details["la_target_kl"] == pytest.approx(0.0, abs=1e-10)
+
+
+def test_la_aggregation_moves_the_induced_prior_toward_uniform():
+    counts = {
+        0: torch.tensor([95, 5], dtype=torch.float64),
+        1: torch.tensor([20, 80], dtype=torch.float64),
+    }
+    fedavg = sample_weighted_client_weights([0, 1], [90, 10])
+    weights, details = la_aggregation_client_weights(
+        [0, 1],
+        [90, 10],
+        counts,
+        temperature=1.0,
+        regularization=0.1,
+    )
+
+    source_tail_error = abs(details["la_source_prior"][1] - 0.5)
+    achieved_tail_error = abs(details["la_achieved_prior"][1] - 0.5)
+    assert achieved_tail_error < source_tail_error
+    assert weights[1] > fedavg[1]
 
 
 def test_support_normalized_weights_average_classwise_distributions():

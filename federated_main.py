@@ -935,6 +935,11 @@ def save_partition_summary(output_dir, client_class_counts, args, num_users, num
         "per_tail_client_companion_samples": per_tail_client_companion_samples,
         "per_tail_client_purity": per_tail_client_purity,
         "cliplora_aggregation": getattr(args, "cliplora_aggregation", None),
+        "cliplora_la_temperature": getattr(args, "cliplora_la_temperature", None),
+        "cliplora_la_regularization": getattr(
+            args, "cliplora_la_regularization", None
+        ),
+        "cliplora_la_max_iter": getattr(args, "cliplora_la_max_iter", None),
         "cliplora_residual_aggregation": getattr(
             args, "cliplora_residual_aggregation", None
         ),
@@ -3433,7 +3438,10 @@ def main(args):
     local_trainer.fed_before_train()
     validate_federated_train_loaders(local_trainer, args.num_users)
 
-    if args.trainer == "ClipLora" and args.cliplora_aggregation == "effective_svd":
+    if args.trainer == "ClipLora" and args.cliplora_aggregation in {
+        "effective_svd",
+        "la_aggregation",
+    }:
         pfrf_scaling, local_scaling_details = inspect_model_lora_scaling(
             local_trainer.model
         )
@@ -4980,11 +4988,14 @@ def main(args):
                         datanumber_client,
                         client_class_counts=client_class_counts,
                         tail_class_ids=tail_class_ids,
+                        la_temperature=args.cliplora_la_temperature,
+                        la_regularization=args.cliplora_la_regularization,
+                        la_max_iter=args.cliplora_la_max_iter,
                     )
                 # Only LoRA A/B tensors move. The frozen pretrained CLIP state
                 # remains the common server anchor for every aggregation mode.
                 effective_svd_diagnostics = []
-                if args.cliplora_aggregation == "effective_svd":
+                if args.cliplora_aggregation in {"effective_svd", "la_aggregation"}:
                     global_weights, effective_svd_diagnostics = aggregate_effective_lora_state(
                         pre_global_weights,
                         local_weights,
@@ -5069,6 +5080,14 @@ def main(args):
                     f"tail_coverage={aggregation_details['covered_tail_class_count']}/"
                     f"{aggregation_details['tail_class_count']}"
                 )
+                if args.cliplora_aggregation == "la_aggregation":
+                    print(
+                        "LA aggregation solve: "
+                        f"tau={aggregation_details['la_temperature']:.6f} "
+                        f"regularization={aggregation_details['la_regularization']:.6f} "
+                        f"target_kl={aggregation_details['la_target_kl']:.6f} "
+                        f"fedavg_kl={aggregation_details['la_fedavg_kl']:.6f}"
+                    )
                 if sca_enabled:
                     sca_covered = sum(
                         int(row["supporter_count"] > 0) for row in sca_round_diagnostics
@@ -6241,6 +6260,9 @@ if __name__ == "__main__":
     parser.add_argument('--cliplora_lr_policy', type=str, default='constant', choices=['constant', 'cosine'])
     parser.add_argument('--cliplora_precision', type=str, default='amp', choices=['amp', 'fp32', 'fp16'])
     parser.add_argument('--cliplora_common_init_seed', type=int, default=-1, help='topology-independent ClipLora initialization seed; negative preserves the legacy initialization path')
+    parser.add_argument('--cliplora_la_temperature', type=float, default=1.0, help='LA aggregation tau: 0 preserves the empirical class prior and 1 targets a uniform prior')
+    parser.add_argument('--cliplora_la_regularization', type=float, default=1.0, help='KL penalty keeping LA aggregation client weights close to FedAvg')
+    parser.add_argument('--cliplora_la_max_iter', type=int, default=100, help='maximum L-BFGS iterations for the LA client-weight solve')
     parser.add_argument('--pfrf_enable', type=str2bool, default=False, help='enable the PFRF deterministic smoke/runtime path')
     parser.add_argument('--pfrf_condition', type=str, default='ordinary_ce', choices=PFRF_CONDITIONS, help='PFRF six-condition ablation')
     parser.add_argument('--pfrf_temperature', type=float, default=1.0, help='temperature for class-mean correct probability')
@@ -6295,7 +6317,9 @@ if __name__ == "__main__":
         help=(
             'Server aggregation for standalone ClipLora. support_normalized is an '
             'oracle end-to-end baseline: normalize clients within each tail-class '
-            'support set, then average the class-wise weight distributions.'
+            'support set, then average the class-wise weight distributions. '
+            'la_aggregation fits client weights to an LA-balanced class-prior '
+            'target and aggregates effective LoRA matrices with SVD.'
         ),
     )
     parser.add_argument('--eri_audit_enable', type=str2bool, default=False, help='save on-trajectory ClipLora updates for the train-only Evidence--Rewrite Imbalance closure experiment')
