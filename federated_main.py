@@ -40,6 +40,7 @@ from utils.pfrf import (
     restore_rng_state,
     save_pfrf_checkpoint,
 )
+from utils.selective_sync import SelectiveSyncRuntime
 from utils.class_separable_aggregation import (
     D4ATracker,
     RESIDUAL_AGGREGATION_MODES,
@@ -3028,6 +3029,7 @@ def extend_cfg(cfg, args):
     cfg.TRAINER.CLIPLORA.SCA_CLAMP = float(args.cliplora_sca_clamp)
     cfg.TRAINER.CLIPLORA.SCA_LR_MULT = float(args.cliplora_sca_lr_mult)
     cfg.TRAINER.CLIPLORA.SCA_USE_BIAS = bool(args.cliplora_sca_use_bias)
+    cfg.TRAINER.CLIPLORA.FREEZE_A = bool(args.cliplora_freeze_a)
     explicit_cliplora_init_seed = int(
         getattr(args, "cliplora_common_init_seed", -1)
     )
@@ -3139,6 +3141,7 @@ def setup_cfg(args):
 def main(args):
     cfg = setup_cfg(args)
     pfrf_enabled = bool(getattr(args, "pfrf_enable", False))
+    selective_sync_enabled = bool(getattr(args, "selective_sync_enable", False))
     if int(getattr(args, "cliplora_rank", 2)) <= 0:
         raise ValueError("ClipLora rank must be positive")
     pfrf_scaling = None
@@ -3168,6 +3171,37 @@ def main(args):
             raise ValueError("PFRF requires an explicit fixed client schedule")
         if bool(args.pfrf_deterministic):
             torch.use_deterministic_algorithms(True)
+    if selective_sync_enabled:
+        if args.trainer != "ClipLora" or args.model != "fedavg":
+            raise ValueError("Selective synchronization requires trainer=ClipLora and model=fedavg")
+        if not bool(args.cliplora_freeze_a):
+            raise ValueError("Selective synchronization requires --cliplora_freeze_a True")
+        if args.cliplora_aggregation != "fedavg":
+            raise ValueError("Selective synchronization v1 uses ordinary FedAvg server weights")
+        if abs(float(args.frac) - 1.0) > 1e-12:
+            raise ValueError("Selective synchronization v1 requires --frac 1.0")
+        if int(args.cliplora_common_init_seed) < 0:
+            raise ValueError("Selective synchronization requires a shared LoRA initialization seed")
+        if not bool(args.isolate_local_optimizer_state) or not bool(args.federated_single_scheduler_step):
+            raise ValueError("Selective synchronization requires isolated local optimizer state")
+        if pfrf_enabled or bool(args.cliplora_sca_enable) or bool(args.experimentD_enable) or bool(args.e1_enable) or bool(args.stage3_enable):
+            raise ValueError("Selective synchronization must run separately from PFRF, SCA, Experiment D, E1, and Stage-3")
+        if args.resume:
+            raise ValueError("Selective synchronization v1 starts from a fresh run")
+        if not 0.0 <= float(args.selective_sync_receive_ratio) <= 1.0:
+            raise ValueError("--selective_sync_receive_ratio must be in [0, 1]")
+        if int(args.selective_sync_top_l) < 1 or int(args.selective_sync_memory_size) < 1:
+            raise ValueError("Selective synchronization Top-L and memory size must be positive")
+        if float(args.selective_sync_slack_mu) <= 0:
+            raise ValueError("--selective_sync_slack_mu must be positive")
+        if not 0.0 <= float(args.selective_sync_success_kappa) < 1.0:
+            raise ValueError("--selective_sync_success_kappa must be in [0, 1)")
+        if not 0.0 < float(args.selective_sync_backtrack_factor) < 1.0:
+            raise ValueError("--selective_sync_backtrack_factor must be in (0, 1)")
+        if args.selective_sync_local_loss == "class_reweighted_memory_ce" and not (
+            0 <= int(args.selective_sync_memory_start_epoch) < int(cfg.OPTIM.MAX_EPOCH)
+        ):
+            raise ValueError("Memory CE start epoch must be inside the local training range")
     if int(getattr(args, "capt_fixed_global_agg_freq", 0)) < 0:
         raise ValueError("--capt_fixed_global_agg_freq must be >= 0")
     if int(getattr(args, "capt_fixed_global_agg_freq", 0)) > 0 and not (
@@ -3470,6 +3504,7 @@ def main(args):
         args.trainer == "ClipLora"
         and global_trainer is not None
         and int(getattr(args, "cliplora_common_init_seed", -1)) >= 0
+        and not selective_sync_enabled
     ):
         _, common_init_hash = current_common_lora_anchor(
             (global_trainer.model, local_trainer.model)
@@ -3538,8 +3573,9 @@ def main(args):
     # Experimental diagnostics only: full per-client class counts are saved for
     # topology analysis. FedTEF itself consumes only binary support sums.
     client_class_counts = get_client_class_counts(local_trainer, args.num_users, n_cls)
-    save_partition_summary(args.output_dir, client_class_counts, args, args.num_users, n_cls)
-    save_client_split_fingerprint(args.output_dir, local_trainer, args.num_users)
+    if not selective_sync_enabled:
+        save_partition_summary(args.output_dir, client_class_counts, args, args.num_users, n_cls)
+        save_client_split_fingerprint(args.output_dir, local_trainer, args.num_users)
     global_class_counts = client_counts_to_tensor(client_class_counts, args.num_users, n_cls).sum(dim=0)
     sca_tail_class_ids = []
     d4a_tracker = None
@@ -3820,6 +3856,30 @@ def main(args):
             resume_state=(None if resume_payload is None else resume_payload["runtime"]),
         )
         pfrf_runtime.assert_model_spec(global_trainer.model)
+    selective_sync_runtime = None
+    if selective_sync_enabled:
+        selective_sync_runtime = SelectiveSyncRuntime(
+            local_trainer,
+            output_dir=args.output_dir,
+            global_state=global_weights,
+            num_users=args.num_users,
+            client_class_counts=client_class_counts,
+            client_sample_counts=datanumber_client,
+            seed=args.seed,
+            memory_size=args.selective_sync_memory_size,
+            temperature=args.selective_sync_temperature,
+            receive_ratio=args.selective_sync_receive_ratio,
+            top_l=args.selective_sync_top_l,
+            harm_epsilon=args.selective_sync_harm_epsilon,
+            slack_mu=args.selective_sync_slack_mu,
+            success_kappa=args.selective_sync_success_kappa,
+            backtrack_factor=args.selective_sync_backtrack_factor,
+            max_backtracks=args.selective_sync_max_backtracks,
+            local_loss=args.selective_sync_local_loss,
+            memory_lambda=args.selective_sync_memory_lambda,
+            memory_start_epoch=args.selective_sync_memory_start_epoch,
+            capacity_rounds=args.selective_sync_capacity_rounds,
+        )
     exposure_count = torch.zeros(n_cls, dtype=torch.float32)
     tail_score = torch.ones(n_cls, dtype=torch.float32)
     protected_tail_mask = torch.ones(n_cls, dtype=torch.bool)
@@ -4906,8 +4966,18 @@ def main(args):
                     )
                 stage3_round_uploads = []
                 pfrf_round_sessions = []
+                selective_sync_round_sessions = []
                 for idx in idxs_users:
-                    local_trainer.model.load_state_dict(global_weights, strict=True)
+                    selective_sync_session = None
+                    if selective_sync_runtime is not None:
+                        selective_sync_session = selective_sync_runtime.prepare_client(
+                            local_trainer,
+                            global_weights,
+                            client_id=idx,
+                            round_id=epoch,
+                        )
+                    else:
+                        local_trainer.model.load_state_dict(global_weights, strict=True)
                     local_trainer.reset_optimizer_and_scheduler()
                     stage3_prepared = None
                     if stage3_runtime is not None:
@@ -4964,6 +5034,11 @@ def main(args):
                         )
                         pfrf_runtime.finalize_client(local_trainer, pfrf_session)
                         pfrf_round_sessions.append(pfrf_session)
+                    if selective_sync_runtime is not None:
+                        selective_sync_runtime.finalize_client(
+                            local_trainer, selective_sync_session
+                        )
+                        selective_sync_round_sessions.append(selective_sync_session)
                     local_weight = local_trainer.model.state_dict()
                     local_weights[idx] = copy.deepcopy(local_weight)
                 print("------------local train finish epoch:", epoch, "-------------")
@@ -5115,6 +5190,12 @@ def main(args):
                         raise RuntimeError("PFRF did not finalize exactly one session per client")
                     pfrf_runtime.complete_round(
                         global_trainer.model, pfrf_round_sessions
+                    )
+                if selective_sync_runtime is not None:
+                    selective_sync_runtime.complete_round(
+                        global_trainer.model,
+                        selective_sync_round_sessions,
+                        aggregation_weights,
                     )
                 if stage3_runtime is not None:
                     if len(stage3_round_uploads) != len(idxs_users):
@@ -6260,6 +6341,21 @@ if __name__ == "__main__":
     parser.add_argument('--cliplora_lr_policy', type=str, default='constant', choices=['constant', 'cosine'])
     parser.add_argument('--cliplora_precision', type=str, default='amp', choices=['amp', 'fp32', 'fp16'])
     parser.add_argument('--cliplora_common_init_seed', type=int, default=-1, help='topology-independent ClipLora initialization seed; negative preserves the legacy initialization path')
+    parser.add_argument('--cliplora_freeze_a', type=str2bool, default=False, help='freeze the shared LoRA A factors and train only B')
+    parser.add_argument('--selective_sync_enable', type=str2bool, default=False, help='enable persistent private-B functional selective synchronization')
+    parser.add_argument('--selective_sync_receive_ratio', type=float, default=1.0, help='gamma applied to the global-private B difference')
+    parser.add_argument('--selective_sync_top_l', type=int, default=5, help='maximum harmed memory classes protected per client round')
+    parser.add_argument('--selective_sync_harm_epsilon', type=float, default=1e-4, help='minimum correct-class probability drop selected for protection')
+    parser.add_argument('--selective_sync_temperature', type=float, default=1.0, help='temperature for functional-memory correct-class probabilities')
+    parser.add_argument('--selective_sync_slack_mu', type=float, default=100.0, help='quadratic penalty on class-constraint slack')
+    parser.add_argument('--selective_sync_success_kappa', type=float, default=0.5, help='maximum accepted/raw harm ratio after projection')
+    parser.add_argument('--selective_sync_backtrack_factor', type=float, default=0.5, help='multiplicative receive-direction backtracking factor')
+    parser.add_argument('--selective_sync_max_backtracks', type=int, default=8, help='maximum functional-validation backtracking steps')
+    parser.add_argument('--selective_sync_memory_size', type=int, default=32, help='per-client functional-memory sample budget')
+    parser.add_argument('--selective_sync_local_loss', type=str, default='ordinary_ce', choices=['ordinary_ce', 'class_reweighted_memory_ce'], help='local objective used after selective synchronization')
+    parser.add_argument('--selective_sync_memory_lambda', type=float, default=1.0, help='class-reweighted memory CE coefficient')
+    parser.add_argument('--selective_sync_memory_start_epoch', type=int, default=2, help='zero-based local epoch that starts memory CE')
+    parser.add_argument('--selective_sync_capacity_rounds', type=str, default='1,20,50,100', help='one-based rounds for fixed-A gradient-subspace capacity measurement')
     parser.add_argument('--cliplora_la_temperature', type=float, default=1.0, help='LA aggregation tau: 0 preserves the empirical class prior and 1 targets a uniform prior')
     parser.add_argument('--cliplora_la_regularization', type=float, default=1.0, help='KL penalty keeping LA aggregation client weights close to FedAvg')
     parser.add_argument('--cliplora_la_max_iter', type=int, default=100, help='maximum L-BFGS iterations for the LA client-weight solve')

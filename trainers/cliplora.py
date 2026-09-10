@@ -196,8 +196,12 @@ def build_cliplora_model(cfg, classnames):
 
     print("Building custom CLIP")
     model = CustomCLIP(cfg, classnames, clip_model)
+    freeze_a = bool(getattr(cfg.TRAINER.CLIPLORA, "FREEZE_A", False))
     for name, param in model.named_parameters():
-        param.requires_grad = "lora_" in name or (
+        train_lora = "lora_" in name and not (
+            freeze_a and name.endswith("_lora_A")
+        )
+        param.requires_grad = train_lora or (
             bool(getattr(cfg.TRAINER.CLIPLORA, "SCA_ENABLED", False))
             and name.startswith("class_residual.")
         )
@@ -218,6 +222,7 @@ def build_cliplora_model(cfg, classnames):
         f"alpha={cfg.TRAINER.CLIPLORA.alpha} "
         f"params={list(cfg.TRAINER.CLIPLORA.params)} "
         f"dropout={cfg.TRAINER.CLIPLORA.dropout_rate} "
+        f"freeze_a={freeze_a} "
         f"sca_enabled={bool(getattr(cfg.TRAINER.CLIPLORA, 'SCA_ENABLED', False))} "
         f"precision={cfg.TRAINER.COOP.PREC} "
         f"trainable_params={sum(param.numel() for _, param in trainable)}"
@@ -229,7 +234,10 @@ def build_cliplora_model(cfg, classnames):
 
 def build_cliplora_optimizer_and_scheduler(model, cfg):
     """Use the same optimizer/scheduler factories as the federated trainer."""
-    lora_params = list(get_lora_parameters(model))
+    lora_params = [
+        parameter for parameter in get_lora_parameters(model)
+        if parameter.requires_grad
+    ]
     if bool(getattr(cfg.TRAINER.CLIPLORA, "SCA_ENABLED", False)):
         core = unwrap_model(model)
         residual_params = [
