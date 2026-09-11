@@ -61,7 +61,7 @@ def build_command(args, method):
     command += [
         "DATALOADER.NUM_WORKERS", str(args.num_workers),
         "OPTIM.LR", "0.001", "OPTIM.LR_SCHEDULER", "single_step",
-        "OPTIM.STEPSIZE", "3", "OPTIM.GAMMA", "1.0", "OPTIM.WARMUP_EPOCH", "-1",
+        "OPTIM.STEPSIZE", "(3,)", "OPTIM.GAMMA", "1.0", "OPTIM.WARMUP_EPOCH", "-1",
     ]
     if capt:
         command += ["TRAINER.PROMPTFL.PREC", "fp32"]
