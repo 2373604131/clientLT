@@ -678,6 +678,8 @@ def append_lora_aggregation_diagnostics(
         "la_target_kl": details.get("la_target_kl", ""),
         "la_fedavg_kl": details.get("la_fedavg_kl", ""),
     }
+    if "v2_beta" in details:
+        summary_row["v2_beta"] = details["v2_beta"]
     _append_csv_rows(output_path / "lora_aggregation_summary.csv", [summary_row])
 
 

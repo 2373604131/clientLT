@@ -31,6 +31,7 @@ from utils.lora_aggregation import (
     compute_lora_aggregation_weights,
     inspect_model_lora_scaling,
     sample_weighted_client_weights,
+    la_aggregation_client_weights,
 )
 from utils.pfrf import (
     PFRF_CONDITIONS,
@@ -3577,6 +3578,16 @@ def main(args):
         save_partition_summary(args.output_dir, client_class_counts, args, args.num_users, n_cls)
         save_client_split_fingerprint(args.output_dir, local_trainer, args.num_users)
     global_class_counts = client_counts_to_tensor(client_class_counts, args.num_users, n_cls).sum(dim=0)
+    v2_target_weights = None
+    if args.cliplora_v2 != "off":
+        v2_target_weights, v2_target_details = la_aggregation_client_weights(
+            list(range(args.num_users)), datanumber_client, client_class_counts,
+            temperature=args.cliplora_la_temperature,
+            regularization=args.cliplora_la_regularization,
+            max_iter=args.cliplora_la_max_iter,
+        )
+        with open(os.path.join(args.output_dir, "v2_target_weights.json"), "w") as handle:
+            json.dump({"weights": v2_target_weights, "solver": v2_target_details}, handle, indent=2)
     sca_tail_class_ids = []
     d4a_tracker = None
     stage2c_runtime = None
@@ -4135,7 +4146,8 @@ def main(args):
 
                 for idx in idxs_users:
 
-
+                    if args.capt_matched_v2:
+                        local_trainer.reset_optimizer_and_scheduler()
                     local_trainer.train(idx=idx, global_epoch=epoch, is_fed=True)
                     local_weight = local_trainer.model.state_dict()
                     local_weights[idx] = copy.deepcopy(local_weight)
@@ -5067,6 +5079,14 @@ def main(args):
                         la_regularization=args.cliplora_la_regularization,
                         la_max_iter=args.cliplora_la_max_iter,
                     )
+                if v2_target_weights is not None:
+                    beta = {"fedavg": 0.0, "static": 0.88,
+                            "progressive": min(max((epoch + 1 - 5) / 15, 0.0), 1.0)}[args.cliplora_v2]
+                    aggregation_weights = {
+                        k: (1 - beta) * aggregation_weights[k] + beta * v2_target_weights[k]
+                        for k in idxs_users
+                    }
+                    aggregation_details["v2_beta"] = beta
                 # Only LoRA A/B tensors move. The frozen pretrained CLIP state
                 # remains the common server anchor for every aggregation mode.
                 effective_svd_diagnostics = []
@@ -6342,6 +6362,8 @@ if __name__ == "__main__":
     parser.add_argument('--cliplora_precision', type=str, default='amp', choices=['amp', 'fp32', 'fp16'])
     parser.add_argument('--cliplora_common_init_seed', type=int, default=-1, help='topology-independent ClipLora initialization seed; negative preserves the legacy initialization path')
     parser.add_argument('--cliplora_freeze_a', type=str2bool, default=False, help='freeze the shared LoRA A factors and train only B')
+    parser.add_argument('--cliplora_v2', choices=['off', 'fedavg', 'static', 'progressive'], default='off')
+    parser.add_argument('--capt_matched_v2', type=str2bool, default=False, help='reset CAPT local optimizer for the V2 budget-matched run')
     parser.add_argument('--selective_sync_enable', type=str2bool, default=False, help='enable persistent private-B functional selective synchronization')
     parser.add_argument('--selective_sync_receive_ratio', type=float, default=1.0, help='gamma applied to the global-private B difference')
     parser.add_argument('--selective_sync_top_l', type=int, default=5, help='maximum harmed memory classes protected per client round')

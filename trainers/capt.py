@@ -240,7 +240,7 @@ class CustomCLIP(nn.Module):
         else:
             self.coupling_function = nn.Linear(512, 64)  # Rn50
 
-        self.coupling_function.half()
+        self.coupling_function.to(dtype=self.dtype)
         self.coupling_function.requires_grad_(True)
 
 
@@ -327,6 +327,13 @@ class CAPT(TrainerX):
         if device_count > 1:
             print(f"Multiple GPUs detected (n_gpus={device_count}), use all of them!")
             # self.model = nn.DataParallel(self.model, device_ids=[1])
+
+    def reset_optimizer_and_scheduler(self):
+        params = list(self.model.prompt_learner.parameters()) + list(self.model.coupling_function.parameters())
+        self.optim = build_optimizer(params, self.cfg.OPTIM)
+        self.sched = build_lr_scheduler(self.optim, self.cfg.OPTIM)
+        self._optims["prompt_learner"] = self.optim
+        self._scheds["prompt_learner"] = self.sched
 
     def forward_backward(self, batch):
         image, label = self.parse_batch_train(batch)
