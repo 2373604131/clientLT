@@ -3140,6 +3140,10 @@ def setup_cfg(args):
 
 
 def main(args):
+    a_refresh_enabled = args.a_refresh_variant != "off"
+    if a_refresh_enabled:
+        # This pilot never solves the class-statistics-based V2 target weights.
+        args.cliplora_v2 = "off"
     cfg = setup_cfg(args)
     pfrf_enabled = bool(getattr(args, "pfrf_enable", False))
     selective_sync_enabled = bool(getattr(args, "selective_sync_enable", False))
@@ -3425,7 +3429,7 @@ def main(args):
         # print("Setting fixed seed: {}".format(cfg.SEED))
         set_random_seed(cfg.SEED)
     setup_logger(cfg.OUTPUT_DIR)
-    if pfrf_enabled:
+    if pfrf_enabled or a_refresh_enabled:
         resolved_path = Path(args.output_dir) / "resolved_config.yaml"
         resolved_path.parent.mkdir(parents=True, exist_ok=True)
         resolved_path.write_text(str(cfg) + "\n", encoding="utf-8")
@@ -4080,6 +4084,18 @@ def main(args):
         # Restore only after model/data/runtime reconstruction so resumed local
         # shuffling starts at the exact next-round RNG boundary.
         restore_rng_state(pending_pfrf_rng_state)
+
+    a_refresh_runtime = None
+    if a_refresh_enabled:
+        from utils.cliplora_a_refresh import ARefreshRuntime
+        a_refresh_runtime = ARefreshRuntime(local_trainer, cfg, args)
+        if args.a_refresh_resume:
+            global_weights, start_epoch, refresh_rng = a_refresh_runtime.restore(
+                args.a_refresh_resume, global_weights
+            )
+            global_trainer.model.load_state_dict(global_weights, strict=True)
+            local_trainer.model.load_state_dict(global_weights, strict=True)
+            restore_rng_state(refresh_rng)
 
     for epoch in range(start_epoch, max_epoch):
         run_global_eval = should_run_global_eval(epoch, max_epoch, args.global_eval_interval)
@@ -4933,6 +4949,18 @@ def main(args):
 
                 print("------------local train start epoch:", epoch, "-------------")
                 pre_global_weights = copy.deepcopy(global_weights)
+                refresh_this_round = (
+                    a_refresh_runtime is not None
+                    and a_refresh_runtime.is_refresh(epoch + 1)
+                )
+                if refresh_this_round:
+                    refresh_tail_ids = get_lt_class_splits_from_counts(
+                        global_class_counts, args.tail_class_ratio
+                    )["tail"]
+                    a_refresh_runtime.record_evaluation(
+                        global_trainer, pre_global_weights, epoch + 1,
+                        "normal_pre", refresh_tail_ids,
+                    )
                 trainable_keys = get_trainable_state_keys(global_trainer.model)
                 sca_keys = sorted(
                     key for key in trainable_keys if key in {SCA_WEIGHT_KEY, SCA_BIAS_KEY}
@@ -4991,6 +5019,8 @@ def main(args):
                     else:
                         local_trainer.model.load_state_dict(global_weights, strict=True)
                     local_trainer.reset_optimizer_and_scheduler()
+                    if refresh_this_round:
+                        a_refresh_runtime.observe_client(local_trainer, idx, epoch + 1, "pre")
                     stage3_prepared = None
                     if stage3_runtime is not None:
                         stage3_prepared = stage3_runtime.prepare_client(
@@ -5023,6 +5053,13 @@ def main(args):
                         f"scheduler_steps={scheduler_step_delta} "
                         f"optimizer_steps={optimizer_step_count}"
                     )
+                    if a_refresh_runtime is not None:
+                        a_refresh_runtime.record_normal(
+                            idx, epoch + 1, optimizer_step_count, scheduler_step_delta,
+                            len(local_trainer.fed_train_loader_x_dict[idx].dataset),
+                        )
+                    if refresh_this_round:
+                        a_refresh_runtime.observe_client(local_trainer, idx, epoch + 1, "teacher")
                     if e1_evaluator is not None:
                         e1_evaluator.record_optimizer_steps(
                             round_id=epoch + 1,
@@ -5054,7 +5091,7 @@ def main(args):
                     local_weight = local_trainer.model.state_dict()
                     local_weights[idx] = copy.deepcopy(local_weight)
                 print("------------local train finish epoch:", epoch, "-------------")
-                if stage3_runtime is not None:
+                if stage3_runtime is not None or a_refresh_runtime is not None:
                     # The formal method path does not consume client class
                     # lists/counts. FedAvg needs sample counts only.
                     aggregation_weights, aggregation_details = compute_lora_aggregation_weights(
@@ -5111,6 +5148,19 @@ def main(args):
                         idxs_users,
                         lora_keys,
                         aggregation_weights,
+                    )
+                if refresh_this_round:
+                    a_refresh_runtime.record_evaluation(
+                        global_trainer, global_weights, epoch + 1,
+                        "after_B_aggregation", refresh_tail_ids,
+                    )
+                    global_weights = a_refresh_runtime.refresh(
+                        local_trainer, global_weights, idxs_users,
+                        aggregation_weights, epoch + 1,
+                    )
+                    a_refresh_runtime.record_evaluation(
+                        global_trainer, global_weights, epoch + 1,
+                        "after_refresh", refresh_tail_ids,
                     )
                 if stage2c_selected_round:
                     print(
@@ -5305,6 +5355,8 @@ def main(args):
                             rng_state=capture_rng_state(),
                             aggregation_scaling=pfrf_scaling,
                         )
+                    if a_refresh_runtime is not None:
+                        a_refresh_runtime.save_checkpoint(epoch + 1, global_weights)
                     print("Epoch on server :", epoch)
                     continue
 
@@ -5403,6 +5455,8 @@ def main(args):
                         aggregation_scaling=pfrf_scaling,
                     )
 
+                if a_refresh_runtime is not None:
+                    a_refresh_runtime.save_checkpoint(epoch + 1, global_weights)
                 print("Epoch on server :", epoch)
 
             elif args.trainer == "KgCoOp":
@@ -6363,6 +6417,11 @@ if __name__ == "__main__":
     parser.add_argument('--cliplora_common_init_seed', type=int, default=-1, help='topology-independent ClipLora initialization seed; negative preserves the legacy initialization path')
     parser.add_argument('--cliplora_freeze_a', type=str2bool, default=False, help='freeze the shared LoRA A factors and train only B')
     parser.add_argument('--cliplora_v2', choices=['off', 'fedavg', 'static', 'progressive'], default='off')
+    parser.add_argument('--a_refresh_variant', choices=['off', 'c0', 'c1', 'c2', 'c3'], default='off')
+    parser.add_argument('--a_refresh_interval', type=int, default=10)
+    parser.add_argument('--a_refresh_epochs', type=int, default=1)
+    parser.add_argument('--a_refresh_lr', type=float, default=0.001)
+    parser.add_argument('--a_refresh_resume', type=str, default='')
     parser.add_argument('--capt_matched_v2', type=str2bool, default=False, help='reset CAPT local optimizer for the V2 budget-matched run')
     parser.add_argument('--selective_sync_enable', type=str2bool, default=False, help='enable persistent private-B functional selective synchronization')
     parser.add_argument('--selective_sync_receive_ratio', type=float, default=1.0, help='gamma applied to the global-private B difference')
