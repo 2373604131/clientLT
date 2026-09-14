@@ -3209,6 +3209,15 @@ def main(args):
             raise ValueError("Memory CE start epoch must be inside the local training range")
     if int(getattr(args, "capt_fixed_global_agg_freq", 0)) < 0:
         raise ValueError("--capt_fixed_global_agg_freq must be >= 0")
+    capt_reset_global_before_client = bool(
+        getattr(args, "capt_reset_global_before_client", False)
+    )
+    if capt_reset_global_before_client and not (
+        args.trainer == "CAPT" and args.model == "cluster"
+    ):
+        raise ValueError(
+            "--capt_reset_global_before_client requires model=cluster, trainer=CAPT"
+        )
     if int(getattr(args, "capt_fixed_global_agg_freq", 0)) > 0 and not (
         args.trainer == "CAPT" and args.model == "cluster"
     ):
@@ -3476,6 +3485,15 @@ def main(args):
     local_trainer = build_trainer(cfg)
     local_trainer.fed_before_train()
     validate_federated_train_loaders(local_trainer, args.num_users)
+
+    if capt_reset_global_before_client:
+        print(
+            "CAPT client start: restore the latest server model before EVERY client; "
+            "clustering, losses and aggregation are unchanged. "
+            f"Reset optimizer per client: {bool(args.capt_matched_v2)}; "
+            f"fixed global aggregation frequency: {args.capt_fixed_global_agg_freq} "
+            "(0 means original MAB)."
+        )
 
     if args.trainer == "ClipLora" and args.cliplora_aggregation in {
         "effective_svd",
@@ -4160,7 +4178,7 @@ def main(args):
 
                 m = max(int(args.frac * args.num_users), 1)
                 idxs_users = select_round_clients(args, epoch, client_schedule)
-                if int(args.capt_fixed_global_agg_freq) > 0:
+                if int(args.capt_fixed_global_agg_freq) > 0 or capt_reset_global_before_client:
                     append_selected_clients_audit(
                         args.output_dir, epoch, idxs_users
                     )
@@ -4168,6 +4186,12 @@ def main(args):
 
                 for idx in idxs_users:
 
+                    if capt_reset_global_before_client:
+                        # Restore the full server state, including the coupling
+                        # function, before every client (also in round zero).
+                        # If MAB skipped aggregation, global_weights still holds
+                        # the last server broadcast, not the last client's state.
+                        local_trainer.model.load_state_dict(global_weights, strict=True)
                     if args.capt_matched_v2:
                         local_trainer.reset_optimizer_and_scheduler()
                     local_trainer.train(idx=idx, global_epoch=epoch, is_fed=True)
@@ -6414,6 +6438,7 @@ if __name__ == "__main__":
     parser.add_argument('--n_disclusters', type=int, default=4, help="number of text encoder of text prompts")
     parser.add_argument('--n_simclusters', type=int, default=4, help="number of text encoder of text prompts")
     parser.add_argument('--capt_fixed_global_agg_freq', type=int, default=0, help='CAPT diagnostic only: fixed positive global aggregation frequency; 0 preserves original test-controlled MAB schedule')
+    parser.add_argument('--capt_reset_global_before_client', type=str2bool, default=False, help='CAPT cluster only: restore the latest global model before every client; does not reset optimizer state or change MAB/clustering/aggregation')
     parser.add_argument('--prompt_depth', type=int, default=9)
     # Standalone ClipLora mechanism experiment. Keep these separate from
     # FedTEF's optional shared-LoRA arguments so the effective config is clear.
