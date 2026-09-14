@@ -107,6 +107,9 @@ class BridgeAudit:
                            for key in keys} for k in selected}
         self.save(before, after, deltas, selected, weights, round_id, "normal_B", locals_cpu)
 
+    def event_directory(self, round_id, phase):
+        return self.root / "bridge_dumps" / f"round_{round_id:03d}" / phase
+
     def save(self, before, after, deltas, selected, weights, round_id, phase, local_states=None):
         selected = list(map(int, selected))
         factor = "A" if phase == "refresh_A" else "B"
@@ -130,7 +133,7 @@ class BridgeAudit:
                   "reconstruction_passed": error <= 1e-5 and frozen_error == 0,
                   "optimizer_steps": sum(int(np.ceil(int(self.sizes[k])/32)) for k in selected) * (3 if phase == "normal_B" else 1),
                   "sample_presentations": sum(int(self.sizes[k]) for k in selected) * (3 if phase == "normal_B" else 1),
-                  **norms}
+                  **norms, **getattr(self, "event_context", {})}
         payload = {**record, "schema_version": "a_refresh_bridge_v1", "active_keys": active,
                    "anchor_lora_state": anchor, "actual_after_lora_state": endpoint,
                    "local_factor_deltas": [copy_state(deltas[k], active) for k in selected],
@@ -140,7 +143,7 @@ class BridgeAudit:
                    "initial_lora_state": self.runtime.initial}
         if local_states is not None:
             payload["local_factor_states"] = [local_states[k] for k in selected]
-        root = self.root / "bridge_dumps" / f"round_{round_id:03d}" / phase
+        root = self.event_directory(round_id, phase)
         root.mkdir(parents=True, exist_ok=True)
         torch.save(payload, root / "state.pt")
         write_json(root / "event.json", {**record, "selected_client_ids": selected,

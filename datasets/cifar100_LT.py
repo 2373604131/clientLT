@@ -40,6 +40,12 @@ class Cifar100_LT():
             ),
             split_seed=cfg.DATASET.SPLIT_SEED)
 
+        manifest = getattr(cfg.DATASET, "PARTITION_MANIFEST", "")
+        if manifest:
+            from utils.cliplora_functional_feedback import restore_partition_manifest
+            net_dataidx_map_train, traindata_cls_counts = restore_partition_manifest(
+                manifest, data_train, cfg
+            )
 
         for net_id in range(cfg.DATASET.USERS):
             dataidxs_train = net_dataidx_map_train[net_id]

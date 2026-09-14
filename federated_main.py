@@ -3031,6 +3031,7 @@ def extend_cfg(cfg, args):
     cfg.TRAINER.CLIPLORA.SCA_LR_MULT = float(args.cliplora_sca_lr_mult)
     cfg.TRAINER.CLIPLORA.SCA_USE_BIAS = bool(args.cliplora_sca_use_bias)
     cfg.TRAINER.CLIPLORA.FREEZE_A = bool(args.cliplora_freeze_a)
+    cfg.DATASET.PARTITION_MANIFEST = getattr(args, "lac_partition_manifest", "")
     explicit_cliplora_init_seed = int(
         getattr(args, "cliplora_common_init_seed", -1)
     )
@@ -4102,6 +4103,16 @@ def main(args):
         # Restore only after model/data/runtime reconstruction so resumed local
         # shuffling starts at the exact next-round RNG boundary.
         restore_rng_state(pending_pfrf_rng_state)
+
+    if args.lac_method != "off":
+        from utils.cliplora_la_control import LAControlRuntime
+        runtime = LAControlRuntime(local_trainer, global_trainer, cfg, args, client_schedule,
+                                   run_promptfl_local_train_with_scheduler_policy)
+        runtime.run(global_weights)
+        local_trainer.fed_after_train()
+        if global_trainer is not local_trainer:
+            global_trainer.fed_after_train()
+        return
 
     a_refresh_runtime = None
     if a_refresh_enabled:
@@ -6459,6 +6470,15 @@ if __name__ == "__main__":
     parser.add_argument('--a_refresh_lr', type=float, default=0.001)
     parser.add_argument('--a_refresh_resume', type=str, default='')
     parser.add_argument('--cliplora_bridge_audit', type=str2bool, default=False)
+    parser.add_argument('--lac_method', choices=['off', 'e0', 'e1', 'e2', 'e3', 'e4', 'e5'], default='off')
+    parser.add_argument('--lac_partition_manifest', default='')
+    parser.add_argument('--lac_la_tau', type=float, default=1.0)
+    parser.add_argument('--lac_a_lr_mult', type=float, default=1.0)
+    parser.add_argument('--lac_lookahead_rounds', type=int, default=2)
+    parser.add_argument('--lac_min_gain', type=float, default=1e-4)
+    parser.add_argument('--lac_tail_tolerance', type=float, default=0.002)
+    parser.add_argument('--lac_history_tolerance', type=float, default=None)
+    parser.add_argument('--lac_patience', type=int, default=2)
     parser.add_argument('--capt_matched_v2', type=str2bool, default=False, help='reset CAPT local optimizer for the V2 budget-matched run')
     parser.add_argument('--selective_sync_enable', type=str2bool, default=False, help='enable persistent private-B functional selective synchronization')
     parser.add_argument('--selective_sync_receive_ratio', type=float, default=1.0, help='gamma applied to the global-private B difference')

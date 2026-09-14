@@ -14,7 +14,7 @@ from utils.cliplora_a_refresh import state_hash, train_only
 from utils.cliplora_bridge_audit import write_json, write_csv
 
 
-def attribute_run(run, data_root, device="cuda", normal_rounds=(10,20,40,60,80,90,100), segments=1):
+def attribute_run(run, data_root, device="cuda", normal_rounds=(10,20,40,60,80,90,100), segments=1, event_paths=None):
     from federated_main import setup_cfg
     from trainers.cliplora import build_cliplora_model
 
@@ -29,16 +29,20 @@ def attribute_run(run, data_root, device="cuda", normal_rounds=(10,20,40,60,80,9
     frozen = sorted(set(model.state_dict()) - set(all_keys))
     assert state_hash(model.state_dict(), frozen) == meta["frozen_model_sha256"], "Frozen backbone/config differs from training"
     assert segments >= 1
-    files = sorted((run / "bridge_dumps").glob("round_*/*/state.pt"))
-    chosen = [p for p in files if p.parent.name != "normal_B" or int(p.parents[1].name.split("_")[1]) in normal_rounds]
-    expected = {(r,"normal_B") for r in normal_rounds} | {(r,"extra_B" if meta["method"]=="c1" else "refresh_A") for r in range(10,100,10)}
-    assert {(int(p.parents[1].name.split("_")[1]),p.parent.name) for p in chosen} == expected, "Missing requested phase dumps"
+    if event_paths is None:
+        files = sorted((run / "bridge_dumps").glob("round_*/*/state.pt"))
+        chosen = [p for p in files if p.parent.name != "normal_B" or int(p.parents[1].name.split("_")[1]) in normal_rounds]
+        expected = {(r,"normal_B") for r in normal_rounds} | {(r,"extra_B" if meta["method"]=="c1" else "refresh_A") for r in range(10,100,10)}
+        assert {(int(p.parents[1].name.split("_")[1]),p.parent.name) for p in chosen} == expected, "Missing requested phase dumps"
+    else:
+        chosen = list(map(Path,event_paths))
     client_all, budget_all, validity_all, event_all, first_all = [], [], [], [], []
     evaluator = None
     for number, path in enumerate(chosen, 1):
         print(f"[{number}/{len(chosen)}] attribute {path.parent.parent.name}/{path.parent.name}", flush=True)
         payload = torch.load(path, map_location="cpu", weights_only=False)
         identity = {k:payload[k] for k in ("seed","topology","method","round","phase")}
+        identity.update({k:payload[k] for k in ("event_id","branch","candidate_round") if k in payload})
         spec = make_flat_spec(payload["anchor_lora_state"], payload["active_keys"])
         assert sorted(payload["anchor_lora_state"]) == all_keys
         model.load_state_dict(payload["anchor_lora_state"], strict=False)
@@ -101,7 +105,8 @@ def attribute_run(run, data_root, device="cuda", normal_rounds=(10,20,40,60,80,9
                   "new_direction_fraction","a_drift_from_initial","mean_a_subspace_from_initial",
                   "reconstruction_max_abs_error","frozen_factor_max_abs_error")},
                  "valid":all(r["valid"] for r in checks)}
-        destination = run / "analysis/events" / path.parents[1].name / payload["phase"]
+        destination = (run / "analysis/events" / payload['event_id'] if event_paths is not None
+                       else run / "analysis/events" / path.parents[1].name / payload["phase"])
         for name, rows in (("client_effects",clients),("class_budgets",budgets),("validity",checks),
                            ("first_order_client_effects",first_clients),("first_order_budgets",first_budgets)):
             write_csv(destination/f"{name}.csv",rows)

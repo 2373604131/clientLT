@@ -261,13 +261,15 @@ def build_cliplora_optimizer_and_scheduler(model, cfg):
 def cliplora_optimizer_step(
     model, optimizer, scaler, precision, images, labels, loss_weight=None,
     reject_nonfinite_amp=False, post_backward=None, auxiliary_loss_fn=None,
+    logit_adjustment=None,
 ):
     """One canonical ClipLora optimizer step, shared by trainer and audits."""
     if precision == "amp":
         old_scale = float(scaler.get_scale())
         with autocast():
             output = model(images)
-            ce_loss = fixed_denominator_cross_entropy(output, labels, loss_weight)
+            loss_logits = output if logit_adjustment is None else output + logit_adjustment.to(output)
+            ce_loss = fixed_denominator_cross_entropy(loss_logits, labels, loss_weight)
             auxiliary_loss, auxiliary_summary = (
                 auxiliary_loss_fn(model)
                 if auxiliary_loss_fn is not None
@@ -286,7 +288,8 @@ def cliplora_optimizer_step(
         new_scale = float(scaler.get_scale())
     else:
         output = model(images)
-        ce_loss = fixed_denominator_cross_entropy(output, labels, loss_weight)
+        loss_logits = output if logit_adjustment is None else output + logit_adjustment.to(output)
+        ce_loss = fixed_denominator_cross_entropy(loss_logits, labels, loss_weight)
         auxiliary_loss, auxiliary_summary = (
             auxiliary_loss_fn(model)
             if auxiliary_loss_fn is not None
@@ -387,6 +390,7 @@ class ClipLora(TrainerX):
                 else None
             ),
             auxiliary_loss_fn=auxiliary_loss_fn,
+            logit_adjustment=getattr(self, "training_logit_adjustment", None),
         )
 
         loss_summary = {
