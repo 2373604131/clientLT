@@ -24,7 +24,8 @@ def build_command(args, method):
         "--num_users", "30", "--frac", "1.0", "--round", "100", "--local_epochs", "3",
         "--client_schedule_seed", str(args.seed),
         "--client_schedule_file", str(args.schedule_file or Path(f"output/cifar100_LT/v2_matched/full_schedule_seed{args.seed}.json")),
-        "--partition", "client-longtail", "--beta", "0.5",
+        "--partition", getattr(args, "partition", "client-longtail"),
+        "--beta", str(getattr(args, "matched_beta", 0.5)),
         "--imb_factor", "0.01", "--imb_type", "exp",
         "--specialization_lambda", "0.75", "--intra_group_alpha", "0.5",
         "--head_leakage_scale", "3.0", "--head_client_ratio", "0.9",
@@ -59,6 +60,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--method", choices=["c0", "c1", "c2", "c3", "all"], required=True)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--partition", choices=["client-longtail", "matched-dirichlet"], default="client-longtail")
+    parser.add_argument("--matched-beta", type=float, default=0.5)
     parser.add_argument("--rank", type=int, default=4)
     parser.add_argument("--data-root", type=Path, default=Path("DATA"))
     parser.add_argument("--output-root", type=Path, default=Path("output/cifar100_LT/a_refresh_pilot"))

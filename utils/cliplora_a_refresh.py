@@ -183,6 +183,7 @@ class ARefreshRuntime:
         self.scaling = args.cliplora_alpha / math.sqrt(args.cliplora_rank)
         self.num_classes = len(trainer.dm.dataset.classnames)
         self.clients = {}
+        self.bridge_audit = None
         self.normal_steps = self.refresh_steps = 0
         self.normal_samples = self.refresh_samples = 0
         self.probe_samples = 0
@@ -304,6 +305,9 @@ class ARefreshRuntime:
             print(f"A-refresh round={round_id} client={client_id} factor={factor} steps={steps}", flush=True)
 
         result = aggregate_refresh_deltas(middle, uploads, client_weights, keys)
+        if self.bridge_audit is not None:
+            self.bridge_audit.save(middle, result, uploads, selected, client_weights,
+                                   round_id, "extra_B" if factor == "B" else "refresh_A")
         means = [r["client_mean_gap"] for r in client_rows]
         a_norms = [r["delta_a_norm"] for r in client_rows]
         append_rows(self.root / "a_refresh_summary.csv", [{

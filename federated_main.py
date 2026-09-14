@@ -4087,8 +4087,14 @@ def main(args):
 
     a_refresh_runtime = None
     if a_refresh_enabled:
-        from utils.cliplora_a_refresh import ARefreshRuntime
+        from utils.cliplora_a_refresh import ARefreshRuntime, isolated_rng
         a_refresh_runtime = ARefreshRuntime(local_trainer, cfg, args)
+        if args.cliplora_bridge_audit:
+            from utils.cliplora_bridge_audit import BridgeAudit
+            with isolated_rng():
+                a_refresh_runtime.bridge_audit = BridgeAudit(
+                    local_trainer, cfg, args, a_refresh_runtime, client_schedule
+                )
         if args.a_refresh_resume:
             global_weights, start_epoch, refresh_rng = a_refresh_runtime.restore(
                 args.a_refresh_resume, global_weights
@@ -5148,6 +5154,11 @@ def main(args):
                         idxs_users,
                         lora_keys,
                         aggregation_weights,
+                    )
+                if a_refresh_runtime is not None and a_refresh_runtime.bridge_audit is not None:
+                    a_refresh_runtime.bridge_audit.normal(
+                        pre_global_weights, global_weights, local_weights,
+                        idxs_users, aggregation_weights, epoch + 1,
                     )
                 if refresh_this_round:
                     a_refresh_runtime.record_evaluation(
@@ -6422,6 +6433,7 @@ if __name__ == "__main__":
     parser.add_argument('--a_refresh_epochs', type=int, default=1)
     parser.add_argument('--a_refresh_lr', type=float, default=0.001)
     parser.add_argument('--a_refresh_resume', type=str, default='')
+    parser.add_argument('--cliplora_bridge_audit', type=str2bool, default=False)
     parser.add_argument('--capt_matched_v2', type=str2bool, default=False, help='reset CAPT local optimizer for the V2 budget-matched run')
     parser.add_argument('--selective_sync_enable', type=str2bool, default=False, help='enable persistent private-B functional selective synchronization')
     parser.add_argument('--selective_sync_receive_ratio', type=float, default=1.0, help='gamma applied to the global-private B difference')
