@@ -6470,7 +6470,7 @@ if __name__ == "__main__":
     parser.add_argument('--a_refresh_lr', type=float, default=0.001)
     parser.add_argument('--a_refresh_resume', type=str, default='')
     parser.add_argument('--cliplora_bridge_audit', type=str2bool, default=False)
-    parser.add_argument('--lac_method', choices=['off', 'e0', 'e1', 'e2', 'e3', 'e4', 'e5'], default='off')
+    parser.add_argument('--lac_method', choices=['off', 'e0', 'e1', 'e2', 'e3', 'e4', 'e5', 'j', 's'], default='off')
     parser.add_argument('--lac_partition_manifest', default='')
     parser.add_argument('--lac_la_tau', type=float, default=1.0)
     parser.add_argument('--lac_a_lr_mult', type=float, default=1.0)

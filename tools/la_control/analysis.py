@@ -21,7 +21,7 @@ def analyze(run, data_root, device='cuda', normal_rounds='all', segments=1):
     rounds = list(range(1,101)) if normal_rounds=='all' else sorted(set(map(int,normal_rounds.split(','))))
     # Always include every look-ahead normal event, in both branches.
     chosen = [r for r in events if r['phase']!='restore' and
-              (r['phase']!='normal_B' or int(r['round']) in rounds or r['branch'] in ('A','B'))]
+              (r['phase'] not in ('normal_B','normal_AB') or int(r['round']) in rounds or r['branch'] in ('A','B'))]
     result = attribute_run(run,data_root,device,rounds,segments,[run/r['state_path'] for r in chosen])
     index = {r['event_id']:r for r in events}
     for name in ('phase_client_effects','phase_class_budgets','attribution_validity','phase_update_norms','first_order_budgets'):

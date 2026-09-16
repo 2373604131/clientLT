@@ -98,41 +98,42 @@ class BridgeAudit:
         }
         write_json(self.root / "bridge_metadata.json", self.meta)
 
-    def normal(self, before, after, local_states, selected, weights, round_id):
-        keys = self.runtime.b_keys
+    def normal(self, before, after, local_states, selected, weights, round_id, factor="B"):
+        keys = self.keys if factor == "AB" else self.runtime.b_keys
         # Preserve exact local parameters too: CPU (B0 + rounded dB) is not
         # guaranteed to recover the original GPU float32 local state bitwise.
         locals_cpu = {int(k): copy_state(local_states[k], keys) for k in selected}
         deltas = {int(k): {key: (local_states[k][key] - before[key]).detach().cpu().clone()
                            for key in keys} for k in selected}
-        self.save(before, after, deltas, selected, weights, round_id, "normal_B", locals_cpu)
+        self.save(before, after, deltas, selected, weights, round_id, f"normal_{factor}", locals_cpu)
 
     def event_directory(self, round_id, phase):
         return self.root / "bridge_dumps" / f"round_{round_id:03d}" / phase
 
     def save(self, before, after, deltas, selected, weights, round_id, phase, local_states=None):
         selected = list(map(int, selected))
-        factor = "A" if phase == "refresh_A" else "B"
-        active = self.runtime.a_keys if factor == "A" else self.runtime.b_keys
+        normal = phase in ("normal_B", "normal_AB")
+        factor = "AB" if phase == "normal_AB" else ("A" if phase == "refresh_A" else "B")
+        active = self.keys if factor == "AB" else (self.runtime.a_keys if factor == "A" else self.runtime.b_keys)
         anchor, endpoint = copy_state(before, self.keys), copy_state(after, self.keys)
         reconstructed = copy_state(anchor, self.keys)
         for key in active:
             value = torch.zeros_like(anchor[key])
             for k in selected:
-                source = local_states[k][key] if phase == "normal_B" else deltas[k][key]
+                source = local_states[k][key] if normal else deltas[k][key]
                 value.add_(source, alpha=float(weights[k]))
-            reconstructed[key] = value if phase == "normal_B" else anchor[key] + value
+            reconstructed[key] = value if normal else anchor[key] + value
         error = max(float((reconstructed[k].double()-endpoint[k].double()).abs().max()) for k in self.keys)
         frozen = sorted(set(self.keys)-set(active))
-        frozen_error = max(float((anchor[k]-endpoint[k]).abs().max()) for k in frozen)
+        frozen_error = max((float((anchor[k]-endpoint[k]).abs().max()) for k in frozen), default=0.)
         norms = update_diagnostics(anchor, endpoint, self.a_keys, self.runtime.scaling, self.runtime.initial)
         record = {"seed": self.meta["seed"], "topology": self.meta["topology"],
                   "method": self.meta["method"], "round": round_id, "phase": phase,
                   "active_factor": factor, "reconstruction_max_abs_error": error,
                   "frozen_factor_max_abs_error": frozen_error,
                   "reconstruction_passed": error <= 1e-5 and frozen_error == 0,
-                  "optimizer_steps": sum(int(np.ceil(int(self.sizes[k])/32)) for k in selected) * (3 if phase == "normal_B" else 1),
-                  "sample_presentations": sum(int(self.sizes[k]) for k in selected) * (3 if phase == "normal_B" else 1),
+                  "optimizer_steps": sum(int(np.ceil(int(self.sizes[k])/32)) for k in selected) * (3 if normal else 1),
+                  "sample_presentations": sum(int(self.sizes[k]) for k in selected) * (3 if normal else 1),
                   **norms, **getattr(self, "event_context", {})}
         payload = {**record, "schema_version": "a_refresh_bridge_v1", "active_keys": active,
                    "anchor_lora_state": anchor, "actual_after_lora_state": endpoint,

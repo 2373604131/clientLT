@@ -62,8 +62,9 @@ def state_hash(state, keys):
 
 
 def train_only(model, factor):
+    suffixes = tuple(f"_lora_{name}" for name in factor)
     for name, parameter in model.named_parameters():
-        parameter.requires_grad_(name.endswith(f"_lora_{factor}"))
+        parameter.requires_grad_(name.endswith(suffixes))
         parameter.grad = None
 
 

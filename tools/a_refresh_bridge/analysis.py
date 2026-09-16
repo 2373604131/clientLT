@@ -64,7 +64,7 @@ def attribute_run(run, data_root, device="cuda", normal_rounds=(10,20,40,60,80,9
         after = flatten_state(payload["actual_after_lora_state"], spec)
         # Use exact local-minus-anchor in double for normal parameter averaging;
         # refresh deltas are the actual uploaded float32 deltas.
-        if payload["phase"] == "normal_B":
+        if payload["phase"] in ("normal_B", "normal_AB"):
             deltas = torch.stack([flatten_state(s,spec)-before for s in payload["local_factor_states"]])
         else:
             deltas = torch.stack([flatten_state(s,spec) for s in payload["local_factor_deltas"]])
@@ -118,7 +118,8 @@ def attribute_run(run, data_root, device="cuda", normal_rounds=(10,20,40,60,80,9
                      ("attribution_validity",validity_all),("phase_update_norms",event_all),
                      ("first_order_budgets",first_all)):
         write_csv(run/"analysis"/f"{name}.csv",rows)
-    result = {"normal_rounds":list(normal_rounds),"refresh_rounds":list(range(10,100,10)),
+    result = {"normal_rounds":list(normal_rounds),
+              "refresh_rounds":sorted({int(r['round']) for r in event_all if r['phase'] in ('refresh_A','extra_B')}),
               "quadrature_nodes":8,"quadrature_segments":segments,"event_count":len(event_all),
               "valid":all(r["valid"] for r in event_all),"invalid_class_events":sum(not r["valid"] for r in validity_all)}
     write_json(run/"analysis/attribution_summary.json",result)

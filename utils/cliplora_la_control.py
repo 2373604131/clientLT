@@ -1,4 +1,4 @@
-"""E0--E5: ordinary FedAvg, training LA, and decision-node factor allocation."""
+"""E0--E5, J joint training, and S dense A refresh under ordinary FedAvg."""
 import hashlib
 import json
 from pathlib import Path
@@ -48,11 +48,12 @@ class LAControlRuntime:
         self.root = Path(args.output_dir)
         self.method = args.lac_method
         self.control = self.method in ('e4', 'e5')
-        self.periodic = self.method in ('e1', 'e3')
-        self.tau = args.lac_la_tau if self.method in ('e2', 'e3', 'e5') else 0.
+        self.periodic = self.method in ('e1', 'e3', 'j', 's')
+        self.normal_factor = 'AB' if self.method == 'j' else 'B'
+        self.tau = args.lac_la_tau if self.method in ('e2', 'e3', 'e5', 'j', 's') else 0.
         self.h = args.lac_lookahead_rounds
         self.eps_hist = args.lac_tail_tolerance if args.lac_history_tolerance is None else args.lac_history_tolerance
-        self.rounds = list(range(10, 100, 10))
+        self.rounds = list(range(1, 91)) if self.method == 's' else list(range(10, 100, 10))
         assert 0 <= self.h < 10 and self.rounds[-1] + self.h <= 100
         assert args.round == 100 and args.local_epochs == 3 and args.a_refresh_epochs == 1
         assert args.a_refresh_interval == 10 and args.lac_patience >= 1
@@ -90,6 +91,8 @@ class LAControlRuntime:
         assert len(self.tail) == 20
         assert set(self.tail)==set(sorted(range(100),key=lambda c:(int(counts[c]),-c))[:20])
         assert counts.sum().item() == 10847 and sum((n+31)//32 for n in self.sizes) == 352
+        self.head = np.array(sorted(range(100), key=lambda c:(-int(counts[c]),c))[:20])
+        self.middle = np.setdiff1d(np.arange(100), np.concatenate((self.head,self.tail)))
         self.prior = counts.double() / counts.sum()
         trainer.training_logit_adjustment = (self.tau * self.prior.log()).float().to(trainer.device) if self.tau else None
         source = json.loads((self.root / 'protocol/source_metadata.json').read_text(encoding='utf-8'))
@@ -102,16 +105,24 @@ class LAControlRuntime:
             'protocol_seed':args.split_seed,
             'topology':args.partition, 'la_tau':self.tau, 'a_lr_mult':args.lac_a_lr_mult,
             'extra_a_lr':.001*args.lac_a_lr_mult, 'extra_b_lr':.001,
+            'normal_trainable_factor':self.normal_factor,
+            'normal_a_lr':.001*args.lac_a_lr_mult if self.normal_factor=='AB' else None,
+            'normal_a_weight_decay':0. if self.normal_factor=='AB' else None,
+            'normal_b_lr':float(cfg.OPTIM.LR), 'normal_b_weight_decay':float(cfg.OPTIM.WEIGHT_DECAY),
+            'extra_weight_decay':0., 'aggregation':'sample_weighted_factor_fedavg',
+            'control_enabled':self.control,
+            'extra_trainable_factor':'controlled' if self.control else ('A' if self.periodic else 'B'),
             'lookahead_rounds':self.h, 'min_gain':args.lac_min_gain,
             'tail_tolerance':args.lac_tail_tolerance, 'history_tolerance':self.eps_hist,
             'patience':args.lac_patience, 'candidate_rounds':self.rounds, 'tail_ids':self.tail.tolist(),
+            'head_ids':self.head.tolist(), 'middle_ids':self.middle.tolist(),
             'anchor_scope':'root_and_committed_decision_endpoints_only',
             'feedback':'training-side functional feedback: unscaled cosine margin, fixed views, all training samples',
             'offline_probe':'offline mechanism probe; never used for decisions',
             'rng_protocol':'v2: functional and official evaluations are observational; legacy CE results are historical only',
             'privacy':'simulated class sum/count uploads; class presence visible; no secure aggregation or DP',
             'primary_endpoint':'last20_committed_logical_rounds', 'checkpoint_encoding':'full base state plus exact changed tensors',
-            'normal_steps_expected':105600, 'extra_steps_expected':3168}
+            'normal_steps_expected':105600, 'extra_steps_expected':352*len(self.rounds)}
         write_json(self.root / 'control_config.json', self.config)
         write_json(self.root / 'class_prior.json', {'counts':counts.tolist(), 'prior':self.prior.tolist(), 'tail_ids':self.tail.tolist()})
         (self.root / 'resolved_config.yaml').write_text(str(cfg), encoding='utf-8')
@@ -167,12 +178,12 @@ class LAControlRuntime:
                 'bottom5_g_std':float(gap[tail_ids].std())}
 
     def train_phase(self, state, rnd, factor='B', extra=False, branch='main', candidate=0):
-        phase = ('refresh_A' if factor=='A' else 'extra_B') if extra else 'normal_B'
+        phase = ('refresh_A' if factor=='A' else 'extra_B') if extra else f'normal_{factor}'
         event_id = f'r{rnd:03d}_c{candidate:03d}_{branch}_{phase}'
         selected = list(map(int,self.schedule[rnd-1]))
         assert sorted(selected) == list(range(30))
         local_states, deltas = {}, {}
-        keys = self.a_keys if factor=='A' else self.b_keys
+        keys = self.keys if factor=='AB' else (self.a_keys if factor=='A' else self.b_keys)
         phase_started = time.perf_counter()
         for client in selected:
             self.trainer.model.load_state_dict(state, strict=True)
@@ -193,7 +204,17 @@ class LAControlRuntime:
                         samples += labels.numel()
                 scheduler_steps = 0
             else:
-                self.trainer.reset_optimizer_and_scheduler()
+                if factor == 'AB':
+                    parameters = dict(self.trainer.model.named_parameters())
+                    self.trainer.reset_optimizer_and_scheduler(param_groups=[
+                        {'params':[parameters[k] for k in self.a_keys],
+                         'lr':self.config['normal_a_lr'], 'weight_decay':0.},
+                        {'params':[parameters[k] for k in self.b_keys],
+                         'lr':self.config['normal_b_lr'],
+                         'weight_decay':self.config['normal_b_weight_decay']},
+                    ])
+                else:
+                    self.trainer.reset_optimizer_and_scheduler()
                 # Temporary branches have no official test or committed TensorBoard writes.
                 writer = self.trainer._writer
                 self.trainer._writer = None
@@ -207,6 +228,8 @@ class LAControlRuntime:
             self.budget.append({'event_id':event_id,'round':rnd,'candidate_round':candidate,'branch':branch,
                 'phase':phase,'client_id':client,'optimizer_steps':steps,'scheduler_steps':scheduler_steps,
                 'sample_presentations':samples,'committed':branch=='main','trainable_factor':factor,
+                'a_optimizer_steps':steps if factor in ('A','AB') else 0,
+                'b_optimizer_steps':steps if factor in ('B','AB') else 0,
                 'upload_bytes':sum(v.numel()*v.element_size() for v in local_states[client].values()),
                 'modeled_downlink_bytes':sum(state[k].numel()*state[k].element_size() for k in self.keys)})
         if extra:
@@ -218,7 +241,7 @@ class LAControlRuntime:
         if extra:
             self.audit.save(state,after,deltas,selected,self.q,rnd,phase)
         else:
-            self.audit.normal(state,after,local_states,selected,self.q,rnd)
+            self.audit.normal(state,after,local_states,selected,self.q,rnd,factor=factor)
         info = json.loads((self.root / 'events' / event_id / 'event.json').read_text(encoding='utf-8'))
         self.events.append({**info,'committed':branch=='main','decision_round':rnd if branch=='main' else None,
                             'seconds':time.perf_counter()-phase_started,'state_path':f'events/{event_id}/state.pt'})
@@ -343,6 +366,7 @@ class LAControlRuntime:
         append_rows(self.root/'round_metrics.csv',[{'epoch':rnd-1,'round':rnd,'decision_round':decision_round,
             'method':self.method,'partition':self.args.partition,'seed':self.args.seed,
             'overall_acc':float(result[0]),'non_tail_acc':float(per_class[non_tail].mean()),
+            'head20_acc':float(per_class[self.head].mean()),'middle60_acc':float(per_class[self.middle].mean()),
             'bottom20_tail_acc':float(per_class[self.tail].mean()),'macro_per_class_acc':float(per_class.mean())}])
         write_csv(self.root/f'per_class_accuracy_epoch_{rnd-1}.csv',
                   [{'class_id':c,'per_class_acc':float(per_class[c])} for c in range(100)])
@@ -354,11 +378,15 @@ class LAControlRuntime:
         write_csv(self.root/'event_manifest.csv',self.events)
         write_csv(self.root/'budget.csv',self.budget)
         write_csv(self.root/'evaluation_budget.csv',self.evaluations)
-        normal = sum(r['optimizer_steps'] for r in self.budget if r['committed'] and r['phase']=='normal_B')
-        extra = sum(r['optimizer_steps'] for r in self.budget if r['committed'] and r['phase']!='normal_B')
+        normal = sum(r['optimizer_steps'] for r in self.budget if r['committed'] and r['phase'] in ('normal_B','normal_AB'))
+        extra = sum(r['optimizer_steps'] for r in self.budget if r['committed'] and r['phase'] not in ('normal_B','normal_AB'))
         overhead = sum(r['optimizer_steps'] for r in self.budget if not r['committed'])
         progress = {'completed_round':completed,'normal_optimizer_steps':normal,'extra_optimizer_steps':extra,
             'unselected_branch_optimizer_steps':overhead,'total_optimizer_steps':normal+extra+overhead,
+            'committed_a_optimizer_steps':sum(r['a_optimizer_steps'] for r in self.budget if r['committed']),
+            'committed_b_optimizer_steps':sum(r['b_optimizer_steps'] for r in self.budget if r['committed']),
+            'a_refresh_events':sum(r['committed'] and r['phase']=='refresh_A' for r in self.events),
+            'normal_ab_events':sum(r['committed'] and r['phase']=='normal_AB' for r in self.events),
             'attempted_decisions':self.attempts,'accepted_A_decisions':self.accepted,
             'failure_count':self.failure_count,'freeze_A_forever':self.frozen,'freeze_round':self.freeze_round,
             'feedback_passes':sum(r['kind']=='training_side_feedback' for r in self.evaluations),
@@ -369,7 +397,7 @@ class LAControlRuntime:
         self.save_state(self.root/'checkpoints/last.pt',state,completed_round=completed,
                         rng_state=capture_rng_state(),config=self.config,progress=progress)
         if completed==100:
-            assert normal==105600 and extra==3168
+            assert normal==self.config['normal_steps_expected'] and extra==self.config['extra_steps_expected']
             assert overhead==self.attempts*(352+self.h*1056)
             assert progress['official_test_passes']==101
             if self.control:
@@ -383,7 +411,7 @@ class LAControlRuntime:
         self.publish(state,0,0)
         rnd = 1
         while rnd <= 100:
-            state = self.train_phase(state,rnd)
+            state = self.train_phase(state,rnd,self.normal_factor)
             if rnd in self.rounds and self.control and not self.frozen:
                 state,committed = self.decision(state,rnd)
                 for logical,checkpoint in committed:

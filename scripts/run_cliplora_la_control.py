@@ -15,7 +15,7 @@ from scripts.run_cliplora_a_refresh import build_command
 
 
 def configuration_id(args):
-    tau = args.la_tau if args.method in ('e2', 'e3', 'e5') else 0
+    tau = args.la_tau if args.method in ('e2', 'e3', 'e5', 'j', 's') else 0
     value = f'tau{tau:g}_a{args.a_lr_mult:g}'
     if args.method in ('e4', 'e5'):
         history = args.tail_tolerance if args.history_tolerance is None else args.history_tolerance
@@ -26,7 +26,7 @@ def configuration_id(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--stage', choices=['train', 'analyze', 'summary'], default='train')
-    parser.add_argument('--method', choices=[f'e{i}' for i in range(6)])
+    parser.add_argument('--method', choices=[f'e{i}' for i in range(6)] + ['j', 's'])
     parser.add_argument('--partition', choices=['client-longtail', 'matched-dirichlet'])
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--protocol-seed', type=int, default=42)
@@ -41,7 +41,7 @@ def main():
     parser.add_argument('--history-tolerance', type=float)
     parser.add_argument('--patience', type=int, default=2)
     parser.add_argument('--num-workers', type=int, default=8)
-    parser.add_argument('--normal-rounds', default='10,11,12,20,21,22,30,31,32,40,41,42,50,51,52,60,61,62,70,71,72,80,81,82,90,91,92,100', help='Offline normal B attribution; all for every round')
+    parser.add_argument('--normal-rounds', default='10,11,12,20,21,22,30,31,32,40,41,42,50,51,52,60,61,62,70,71,72,80,81,82,90,91,92,100', help='Offline normal B/AB attribution; all for every round')
     parser.add_argument('--quadrature-segments', type=int, default=1)
     parser.add_argument('--device', default='cuda')
     args = parser.parse_args()

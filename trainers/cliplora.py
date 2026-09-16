@@ -232,13 +232,15 @@ def build_cliplora_model(cfg, classnames):
     return model
 
 
-def build_cliplora_optimizer_and_scheduler(model, cfg):
+def build_cliplora_optimizer_and_scheduler(model, cfg, param_groups=None):
     """Use the same optimizer/scheduler factories as the federated trainer."""
     lora_params = [
         parameter for parameter in get_lora_parameters(model)
         if parameter.requires_grad
     ]
-    if bool(getattr(cfg.TRAINER.CLIPLORA, "SCA_ENABLED", False)):
+    if param_groups is not None:
+        optim = build_optimizer(None, cfg.OPTIM, param_groups=param_groups)
+    elif bool(getattr(cfg.TRAINER.CLIPLORA, "SCA_ENABLED", False)):
         core = unwrap_model(model)
         residual_params = [
             param for param in core.class_residual.parameters() if param.requires_grad
@@ -345,9 +347,9 @@ class ClipLora(TrainerX):
             print(f"Multiple GPUs detected (n_gpus={device_count}), use all of them!")
             self.model = nn.DataParallel(self.model)
 
-    def reset_optimizer_and_scheduler(self):
+    def reset_optimizer_and_scheduler(self, param_groups=None):
         """Start every FedAvg client from an independent local optimizer."""
-        new_optim, new_sched = build_cliplora_optimizer_and_scheduler(self.model, self.cfg)
+        new_optim, new_sched = build_cliplora_optimizer_and_scheduler(self.model, self.cfg, param_groups)
         self.optim = new_optim
         self.sched = new_sched
         self._optims["lora"] = new_optim
