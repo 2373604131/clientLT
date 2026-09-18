@@ -1,5 +1,7 @@
 # 四个单 GPU 节点：C1/C2 topology bridge 启动说明
 
+**协议更新（2026-09-18）：** 新桥接Dirichlet对照使用 `noniid-labeldir-fine`；旧matched仅保留分析入口。新训练与汇总命令见 [普通Dirichlet补跑](cliplora_standard_dirichlet_rerun.md)。以下matched训练说明是历史协议，不再用于新实验。
+
 ## 已实现的流程
 
 每个节点独立运行一格：Client-LT C1、Client-LT C2、matched Dirichlet C1、matched Dirichlet C2。默认先训练 100 轮，再在同一个节点/同一张 GPU 上进行该格离线归因。

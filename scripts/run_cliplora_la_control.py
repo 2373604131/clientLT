@@ -20,14 +20,21 @@ def configuration_id(args):
     if args.method in ('e4', 'e5'):
         history = args.tail_tolerance if args.history_tolerance is None else args.history_tolerance
         value += f'_h{args.lookahead_rounds}_t{args.tail_tolerance:g}_hist{history:g}_gain{args.min_gain:g}_p{args.patience}'
-    return value + f'_protocol{args.protocol_seed}'
+    value += f'_protocol{args.protocol_seed}'
+    if args.partition == 'noniid-labeldir-fine':
+        value += f'_beta{args.dirichlet_beta:g}'
+    return value
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--stage', choices=['train', 'analyze', 'summary'], default='train')
     parser.add_argument('--method', choices=[f'e{i}' for i in range(6)] + ['j', 's'])
-    parser.add_argument('--partition', choices=['client-longtail', 'matched-dirichlet'])
+    parser.add_argument('--partition', choices=['client-longtail', 'noniid-labeldir-fine', 'matched-dirichlet'])
+    parser.add_argument('--dirichlet-beta', type=float, default=.5)
+    parser.add_argument('--fresh-protocol', action='store_true',
+                        help='Build an independent protocol without requiring a prior bridge run')
+    parser.add_argument('--schedule-file', type=Path)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--protocol-seed', type=int, default=42)
     parser.add_argument('--bridge-root', type=Path, default=Path('output/cifar100_LT/a_refresh_topology_bridge'))
@@ -61,29 +68,37 @@ def main():
         from tools.la_control.analysis import analyze
         analyze(run, args.data_root.resolve(), args.device, args.normal_rounds, args.quadrature_segments)
         return
+    if args.partition == 'matched-dirichlet':
+        parser.error('matched-dirichlet is historical-analysis only. New training uses noniid-labeldir-fine.')
     if run.exists() and any(run.iterdir()):
         parser.error(f'Output is not empty: {run}. Use --stage analyze or another --output-root.')
-    source = args.bridge_root.resolve() / f'seed{args.protocol_seed}' / args.partition / 'c1'
-    # Require the exact previously audited sample assignment and schedule.
-    # Protocol packages may include additional deterministic reference tables.
-    assert (source / 'partition_manifest.csv').is_file(), source
-    assert (source / 'protocol/full_schedule.json').is_file(), source
-    assert (source / 'protocol/eri_protocol.json').is_file(), source
-    assert (source / 'protocol/probe_manifest.csv').is_file(), source
-    (run / 'protocol').mkdir(parents=True)
-    for path in (source / 'protocol').iterdir():
-        if path.is_file():
-            shutil.copy2(path, run / 'protocol' / path.name)
-    shutil.copy2(source / 'partition_manifest.csv', run / 'protocol/partition_source.csv')
-    shutil.copy2(source / 'bridge_metadata.json', run / 'protocol/source_metadata.json')
-    baseline = SimpleNamespace(**vars(args), rank=4, matched_beta=.5, refresh_interval=10,
-                               refresh_epochs=1, refresh_lr=.001, resume=None,
-                               schedule_file=run / 'protocol/full_schedule.json')
+    if args.partition == 'noniid-labeldir-fine' or args.fresh_protocol:
+        from scripts.cliplora_fresh_protocol import prepare_fresh_protocol
+        schedule = prepare_fresh_protocol(args, run)
+        manifest = ''
+    else:
+        source = args.bridge_root.resolve() / f'seed{args.protocol_seed}' / args.partition / 'c1'
+        # Historical CLT replay keeps its exact within-client data order.
+        assert (source / 'partition_manifest.csv').is_file(), source
+        assert (source / 'protocol/full_schedule.json').is_file(), source
+        assert (source / 'protocol/eri_protocol.json').is_file(), source
+        assert (source / 'protocol/probe_manifest.csv').is_file(), source
+        (run / 'protocol').mkdir(parents=True)
+        for path in (source / 'protocol').iterdir():
+            if path.is_file():
+                shutil.copy2(path, run / 'protocol' / path.name)
+        shutil.copy2(source / 'partition_manifest.csv', run / 'protocol/partition_source.csv')
+        shutil.copy2(source / 'bridge_metadata.json', run / 'protocol/source_metadata.json')
+        schedule = run / 'protocol/full_schedule.json'
+        manifest = str(run / 'protocol/partition_source.csv')
+    baseline = SimpleNamespace(**{**vars(args), 'schedule_file': schedule}, rank=4,
+                               matched_beta=args.dirichlet_beta, refresh_interval=10,
+                               refresh_epochs=1, refresh_lr=.001, resume=None)
     command, _ = build_command(baseline, 'off')
     command[command.index('--output-dir')+1] = str(run)
     command[command.index('--split_seed')+1] = str(args.protocol_seed)
     index = command.index('DATALOADER.NUM_WORKERS')
-    flags = ['--lac_method', args.method, '--lac_partition_manifest', str(run / 'protocol/partition_source.csv'),
+    flags = ['--lac_method', args.method, '--lac_partition_manifest', manifest,
              '--lac_la_tau', str(args.la_tau), '--lac_a_lr_mult', str(args.a_lr_mult),
              '--lac_lookahead_rounds', str(args.lookahead_rounds), '--lac_min_gain', str(args.min_gain),
              '--lac_tail_tolerance', str(args.tail_tolerance), '--lac_patience', str(args.patience)]

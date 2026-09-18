@@ -15,6 +15,9 @@ from scripts.run_cliplora_a_refresh import build_command
 
 
 def prepare(args, run):
+    if args.partition == 'noniid-labeldir-fine':
+        from scripts.cliplora_fresh_protocol import prepare_fresh_protocol
+        return prepare_fresh_protocol(args, run)
     import numpy as np
     from tools.eri_closure.protocol import build_protocol
 
@@ -34,8 +37,8 @@ def prepare(args, run):
     path.write_text(json.dumps({"schedule": schedule}, indent=2), encoding="utf-8")
     (protocol_dir/"bridge_protocol.json").write_text(json.dumps({
         "schema_version":"a_refresh_bridge_v1", "seed":args.seed,
-        "topologies":["client-longtail","matched-dirichlet"], "methods":["c1","c2"],
-        "rank":4,"alpha":1,"scaling":0.5,"precision":"fp32","matched_beta":0.5,
+        "topologies":["client-longtail","noniid-labeldir-fine"], "methods":["c1","c2"],
+        "rank":4,"alpha":1,"scaling":0.5,"precision":"fp32","dirichlet_beta":args.dirichlet_beta,
         "normal_rounds":100,"normal_local_epochs":3,"normal_lr":0.001,
         "refresh_rounds":list(range(10,100,10)),"refresh_epochs":1,"refresh_lr":0.001,
         "dump_all_normal_and_refresh_events":True,"primary_endpoint":"last20",
@@ -49,7 +52,10 @@ def prepare(args, run):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage", choices=["run", "train", "analyze", "summary"], default="run")
-    parser.add_argument("--partition", choices=["client-longtail", "matched-dirichlet"])
+    parser.add_argument("--partition", choices=["client-longtail", "noniid-labeldir-fine", "matched-dirichlet"])
+    parser.add_argument("--dirichlet-beta", type=float, default=0.5)
+    parser.add_argument("--dirichlet-partition", choices=["noniid-labeldir-fine", "matched-dirichlet"],
+                        default="noniid-labeldir-fine", help="Dirichlet condition to summarize; matched is historical only")
     parser.add_argument("--method", choices=["c1", "c2"])
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--data-root", type=Path, default=Path("DATA"))
@@ -65,17 +71,19 @@ def main():
     if args.stage == "summary":
         subprocess.run([sys.executable, "-u", "scripts/analyze_cliplora_topology_bridge.py",
                         "--stage", "summary", "--output-root", str(args.output_root),
-                        "--seed", str(args.seed)], check=True)
+                        "--seed", str(args.seed), "--dirichlet-partition", args.dirichlet_partition], check=True)
         return
     if not args.partition or not args.method:
         parser.error("--partition and --method are required for this stage")
     run = args.output_root / f"seed{args.seed}" / args.partition / args.method
     if args.stage in ("run", "train"):
+        if args.partition == 'matched-dirichlet':
+            parser.error('matched-dirichlet is historical-analysis only. New training uses noniid-labeldir-fine.')
         # Never mix an earlier trajectory into this experiment's CSV/dump files.
         if run.exists() and any(run.iterdir()):
             parser.error(f"Output is not empty: {run}. Use --stage analyze for completed training, or a new --output-root.")
         schedule = prepare(args, run)
-        baseline = SimpleNamespace(**vars(args), rank=4, matched_beta=0.5,
+        baseline = SimpleNamespace(**vars(args), rank=4, matched_beta=args.dirichlet_beta,
                                    num_workers=8, refresh_interval=10,
                                    refresh_epochs=1, refresh_lr=0.001, resume=None)
         baseline.schedule_file = schedule

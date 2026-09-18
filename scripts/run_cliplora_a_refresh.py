@@ -14,6 +14,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 def build_command(args, method):
     output = args.output_root / f"seed{args.seed}" / method
+    if getattr(args, "partition", "client-longtail") == "noniid-labeldir-fine":
+        output = args.output_root / f"seed{args.seed}" / args.partition / method
     command = [
         sys.executable, "-u", "federated_main.py",
         "--root", str(args.data_root), "--output-dir", str(output),
@@ -60,8 +62,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--method", choices=["c0", "c1", "c2", "c3", "all"], required=True)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--partition", choices=["client-longtail", "matched-dirichlet"], default="client-longtail")
-    parser.add_argument("--matched-beta", type=float, default=0.5)
+    parser.add_argument("--partition", choices=["client-longtail", "noniid-labeldir-fine"], default="client-longtail")
+    parser.add_argument("--dirichlet-beta", "--matched-beta", dest="matched_beta", type=float, default=0.5)
     parser.add_argument("--rank", type=int, default=4)
     parser.add_argument("--data-root", type=Path, default=Path("DATA"))
     parser.add_argument("--output-root", type=Path, default=Path("output/cifar100_LT/a_refresh_pilot"))

@@ -1,4 +1,4 @@
-"""Paired four-cell audit, performance DiD and phase-specific mechanism tables."""
+"""Four-cell audit with explicitly labeled standard or historical matched splits."""
 
 import csv
 import json
@@ -11,7 +11,7 @@ import yaml
 
 from utils.cliplora_bridge_audit import write_csv, write_json
 
-TOPOLOGIES = ("client-longtail", "matched-dirichlet")
+TOPOLOGIES = ("client-longtail", "noniid-labeldir-fine")
 METHODS = ("c1", "c2")
 FIELDS = ("overall_acc", "non_tail_acc", "bottom20_tail_acc")
 REFRESH = list(range(10,100,10))
@@ -45,25 +45,35 @@ def spearman(x,y):
 
 
 def gap(values):
-    gb = values[(TOPOLOGIES[1],"c1")]-values[(TOPOLOGIES[0],"c1")]
-    ga = values[(TOPOLOGIES[1],"c2")]-values[(TOPOLOGIES[0],"c2")]
+    clt = "client-longtail"
+    directory = next(t for t,m in values if t != clt)
+    gb = values[(directory,"c1")]-values[(clt,"c1")]
+    ga = values[(directory,"c2")]-values[(clt,"c2")]
     return {"G_B":gb,"G_A":ga,"delta_G":ga-gb,
-            "CLT_C2_minus_C1":values[(TOPOLOGIES[0],"c2")]-values[(TOPOLOGIES[0],"c1")],
-            "Dir_C2_minus_C1":values[(TOPOLOGIES[1],"c2")]-values[(TOPOLOGIES[1],"c1")]}
+            "CLT_C2_minus_C1":values[(clt,"c2")]-values[(clt,"c1")],
+            "Dir_C2_minus_C1":values[(directory,"c2")]-values[(directory,"c1")]}
 
 
-def summarize(root,seed=42):
+def summarize(root,seed=42,dirichlet_partition="noniid-labeldir-fine"):
     root = Path(root)
     out = root / "analysis" / f"seed{seed}"
-    paths = {(t,m):root/f"seed{seed}"/t/m for t in TOPOLOGIES for m in METHODS}
+    if dirichlet_partition == 'noniid-labeldir-fine':
+        out = out / dirichlet_partition
+    topologies = ('client-longtail',dirichlet_partition)
+    matched = dirichlet_partition=='matched-dirichlet'
+    paths = {(t,m):root/f"seed{seed}"/t/m for t in topologies for m in METHODS}
     meta, curves, stages, counts, manifests, events = {},{},{},{},{},{}
     checks, observations = {},{}
     performance, event_metrics = [],[]
-    reference = (TOPOLOGIES[0],"c1")
-    excluded_args = {"root","output_dir","client_schedule_file","partition","a_refresh_variant"}
+    reference = (topologies[0],"c1")
+    excluded_args = {"root","output_dir","client_schedule_file","partition","a_refresh_variant",
+                     "capt_reset_global_before_client"}  # Unused by ClipLora; added after legacy CE runs.
     for cell,path in paths.items():
         t,m = cell
         meta[cell] = js(path/"bridge_metadata.json")
+        checks[f"{t}/{m}/plain_CE_bridge"] = (
+            meta[cell]['resolved_args'].get('lac_method','off')=='off'
+            and not meta[cell]['resolved_args'].get('lac_partition_manifest',''))
         raw = read(path/"round_metrics.csv")
         checks[f"{t}/{m}/100_rounds"] = Counter(int(r["epoch"]) for r in raw)==Counter(range(-1,100))
         curves[cell] = {int(r["epoch"])+1:r for r in raw}
@@ -130,26 +140,32 @@ def summarize(root,seed=42):
                 "test_sha256","probe_images_sha256","probe_manifest_sha256"):
         checks[key+"_equal"] = len({v[key] for v in meta.values()})==1
     def normalize_args(value):
-        return {k:v for k,v in value["resolved_args"].items() if k not in excluded_args}
+        # Legacy bridge metadata predates the inactive LA-controller options.
+        return {k:v for k,v in value["resolved_args"].items()
+                if k not in excluded_args and not k.startswith('lac_')}
     checks["training_args_matched"] = all(normalize_args(v)==normalize_args(meta[reference]) for v in meta.values())
     def normalize_cfg(value):
         config = yaml.safe_load(value["resolved_config"])
         for key in ("OUTPUT_DIR","RESUME"):
             config.pop(key,None)
-        for key in ("ROOT","imagenetROOT","PARTITION"):
+        for key in ("ROOT","imagenetROOT","PARTITION","PARTITION_MANIFEST"):
             config["DATASET"].pop(key,None)
         return config
     checks["resolved_configs_matched"] = all(normalize_cfg(v)==normalize_cfg(meta[reference]) for v in meta.values())
-    checks["training_code_matched"] = all(v["training_code_hashes"]==meta[reference]["training_code_hashes"] for v in meta.values())
-    checks["normal_client_steps_matched"] = len({json.dumps(v) for k,v in observations.items() if k.endswith("normal_calls")})==1
-    for t in TOPOLOGIES:
+    observations["training_code_matched"] = all(v["training_code_hashes"]==meta[reference]["training_code_hashes"] for v in meta.values())
+    observations["normal_client_steps_matched_across_topologies"] = len({json.dumps(v) for k,v in observations.items() if k.endswith("normal_calls")})==1
+    for t in topologies:
         checks[t+"/C1_C2_membership"] = manifests[(t,"c1")]==manifests[(t,"c2")]
+        checks[t+"/C1_C2_normal_steps"] = observations[f'{t}/c1/normal_calls']==observations[f'{t}/c2/normal_calls']
         observations[t+"/first9_max_metric_difference"] = max(abs(number(curves[(t,"c1")][r],f)-number(curves[(t,"c2")][r],f)) for r in range(10) for f in FIELDS)
     for cell,matrix in counts.items():
-        checks[str(cell)+"/nk"] = bool(np.array_equal(matrix.sum(1),counts[reference].sum(1)))
+        equal_sizes = bool(np.array_equal(matrix.sum(1),counts[reference].sum(1)))
+        observations[str(cell)+"/nk_equal_to_CLT"] = equal_sizes
+        if matched:
+            checks[str(cell)+"/nk"] = equal_sizes
         checks[str(cell)+"/nc"] = bool(np.array_equal(matrix.sum(0),counts[reference].sum(0)))
         checks[str(cell)+"/global_ids"] = sorted(int(r["raw_sample_id"]) for r in manifests[cell])==sorted(int(r["raw_sample_id"]) for r in manifests[reference])
-    checks["coupling_changed"] = not np.array_equal(counts[reference],counts[(TOPOLOGIES[1],"c1")])
+    checks["coupling_changed"] = not np.array_equal(counts[reference],counts[(topologies[1],"c1")])
     observations = {k:v for k,v in observations.items() if not k.endswith("normal_calls")}
     write_json(out/"protocol_audit.json",{"valid":all(checks.values()),"checks":checks,"observations":observations})
     assert all(checks.values()), f"Protocol mismatch; inspect {out/'protocol_audit.json'}"
@@ -190,14 +206,14 @@ def summarize(root,seed=42):
                 "refresh_acc_delta_mean":mean(per_stage[(r,"after_refresh",c)]-per_stage[(r,"after_B_aggregation",c)] for r in REFRESH),
                 "final_accuracy":per_last[100][c],"last20_accuracy":mean(per_last[r][c] for r in per_last)})
     write_csv(out/"class_structure_relation.csv",structure)
-    for t in TOPOLOGIES:
+    for t in topologies:
         rows = [r for r in structure if r["topology"]==t and r["method"]=="c2"]
         correlations.append({"topology":t,"relation":"C2_access_vs_mean_refresh_acc_delta",
                              "spearman":spearman([r["support_access"] for r in rows],[r["refresh_acc_delta_mean"] for r in rows]),"classes":20})
     paired = []
     for c in range(80,100):
         index = {(r["topology"],r["method"]):r for r in structure if r["class_id"]==c}
-        paired.append({"class_id":c,"access_Dir_minus_CLT":index[(TOPOLOGIES[1],"c1")]["support_access"]-index[reference]["support_access"],
+        paired.append({"class_id":c,"access_Dir_minus_CLT":index[(topologies[1],"c1")]["support_access"]-index[reference]["support_access"],
                        **gap({k:r["last20_accuracy"] for k,r in index.items()})})
     correlations.append({"topology":"paired","relation":"delta_access_vs_last20_class_DiD",
                          "spearman":spearman([r["access_Dir_minus_CLT"] for r in paired],[r["delta_G"] for r in paired]),"classes":20})
@@ -232,12 +248,17 @@ def summarize(root,seed=42):
                     **{k+"_observed_event_sum_per_class":mean(number(r,k) for r in rows)*event_count for k in ("W","H","D","R")}})
             write_csv(out/"phase_factorization.csv",factors)
     report = {"seed":seed,"protocol_valid":True,"mechanism_ready":mechanism_ready,"mechanism_valid":mechanism_valid,
+              "dirichlet_partition":dirichlet_partition,"fixed_client_margins":matched,
+              "training_code_matched":observations['training_code_matched'],
               "primary_endpoint":"last20","gap_sign":"Dir-minus-CLT","independent_seeds":1,
               "coupling_gap_endpoints":endpoints,"trajectory_decomposition":decomposition,
               "warning":"Single-seed exploratory analysis; sparse normal audits are not full-trajectory cumulative attribution."}
     write_json(out/"summary.json",report)
     plot(out,curves,interactions,immediate,factors)
-    lines = ["# C1/C2 topology bridge", "", f"Seed {seed}; primary endpoint: rounds 81–100 mean. Accuracy differences are percentage points.","",
+    lines = ["# C1/C2 topology bridge", "", f"Seed {seed}; primary endpoint: rounds 81–100 mean. Accuracy differences are percentage points.",
+             f"Dirichlet: {dirichlet_partition}; fixed client margins: {matched}.",
+             f"Training code hashes equal: {observations['training_code_matched']}; cross-code pairs are descriptive comparisons.",
+             "Standard Dirichlet keeps the global pool but allows client sizes, aggregation weights and step counts to change.","",
              "| Topology | Method | Overall | Non-tail | Tail |","|---|---|---:|---:|---:|"]
     for cell in paths:
         vals = [next(r["last20"] for r in performance if (r["topology"],r["method"])==cell and r["metric"]==f) for f in FIELDS]

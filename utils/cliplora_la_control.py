@@ -90,20 +90,27 @@ class LAControlRuntime:
         self.tail = np.array(protocol['tail_class_ids'], dtype=int)
         assert len(self.tail) == 20
         assert set(self.tail)==set(sorted(range(100),key=lambda c:(int(counts[c]),-c))[:20])
-        assert counts.sum().item() == 10847 and sum((n+31)//32 for n in self.sizes) == 352
+        assert counts.sum().item() == 10847
+        self.steps_per_epoch = sum((n+31)//32 for n in self.sizes)
         self.head = np.array(sorted(range(100), key=lambda c:(-int(counts[c]),c))[:20])
         self.middle = np.setdiff1d(np.arange(100), np.concatenate((self.head,self.tail)))
         self.prior = counts.double() / counts.sum()
         trainer.training_logit_adjustment = (self.tau * self.prior.log()).float().to(trainer.device) if self.tau else None
-        source = json.loads((self.root / 'protocol/source_metadata.json').read_text(encoding='utf-8'))
-        for key in ('pool_sha256','test_sha256','probe_images_sha256','probe_manifest_sha256','schedule_sha256','frozen_model_sha256'):
-            assert self.audit.meta[key] == source[key], key
-        assert self.sizes == source['client_sample_counts']
-        if int(source['seed']) == args.seed:
-            assert self.audit.meta['initial_lora_sha256'] == source['initial_lora_sha256']
+        replay = self.root / 'protocol/source_metadata.json'
+        reference = replay if replay.exists() else self.root / 'protocol/reference_metadata.json'
+        if reference.exists():
+            source = json.loads(reference.read_text(encoding='utf-8'))
+            for key in ('pool_sha256','test_sha256','probe_images_sha256','probe_manifest_sha256','schedule_sha256','frozen_model_sha256'):
+                assert self.audit.meta[key] == source[key], key
+            if replay.exists():
+                assert args.partition == source['topology']
+                assert self.sizes == source['client_sample_counts']
+            if int(source['seed']) == args.seed:
+                assert self.audit.meta['initial_lora_sha256'] == source['initial_lora_sha256']
         self.config = {'schema_version':'la_control_v1', 'method':self.method, 'seed':args.seed,
             'protocol_seed':args.split_seed,
-            'topology':args.partition, 'la_tau':self.tau, 'a_lr_mult':args.lac_a_lr_mult,
+            'topology':args.partition, 'dirichlet_beta':args.beta,
+            'la_tau':self.tau, 'a_lr_mult':args.lac_a_lr_mult,
             'extra_a_lr':.001*args.lac_a_lr_mult, 'extra_b_lr':.001,
             'normal_trainable_factor':self.normal_factor,
             'normal_a_lr':.001*args.lac_a_lr_mult if self.normal_factor=='AB' else None,
@@ -122,7 +129,9 @@ class LAControlRuntime:
             'rng_protocol':'v2: functional and official evaluations are observational; legacy CE results are historical only',
             'privacy':'simulated class sum/count uploads; class presence visible; no secure aggregation or DP',
             'primary_endpoint':'last20_committed_logical_rounds', 'checkpoint_encoding':'full base state plus exact changed tensors',
-            'normal_steps_expected':105600, 'extra_steps_expected':352*len(self.rounds)}
+            'steps_per_epoch':self.steps_per_epoch,
+            'normal_steps_expected':100*3*self.steps_per_epoch,
+            'extra_steps_expected':self.steps_per_epoch*len(self.rounds)}
         write_json(self.root / 'control_config.json', self.config)
         write_json(self.root / 'class_prior.json', {'counts':counts.tolist(), 'prior':self.prior.tolist(), 'tail_ids':self.tail.tolist()})
         (self.root / 'resolved_config.yaml').write_text(str(cfg), encoding='utf-8')
@@ -398,7 +407,7 @@ class LAControlRuntime:
                         rng_state=capture_rng_state(),config=self.config,progress=progress)
         if completed==100:
             assert normal==self.config['normal_steps_expected'] and extra==self.config['extra_steps_expected']
-            assert overhead==self.attempts*(352+self.h*1056)
+            assert overhead==self.attempts*self.steps_per_epoch*(1+3*self.h)
             assert progress['official_test_passes']==101
             if self.control:
                 assert progress['feedback_passes']==1+self.attempts*(4 if self.h else 2)

@@ -1,5 +1,7 @@
 # LA + 自适应 A/B 额外训练实验（E0–E5）
 
+**协议更新（2026-09-18）：** 后续新Dirichlet训练使用 `noniid-labeldir-fine`，不再运行matched-dirichlet。以下旧matched训练命令仅用于历史记录；新补跑命令及动态预算说明见 [普通Dirichlet补跑](cliplora_standard_dirichlet_rerun.md)。
+
 新增的 Client-LT E0/E1/J/S 消融、四节点命令和不同预算说明见 [补充实验指南](cliplora_la_ablation_e0_e1_j_s.md)。以下九次额外训练预算针对原 E0–E5；S 使用 90 次额外 A 训练。
 
 入口：`scripts/run_cliplora_la_control.py`。所有命令在仓库根目录、已激活的 clientlt 环境中执行。前台运行，错误直接显示；不使用 nohup，不自行分配或占用其它 GPU。

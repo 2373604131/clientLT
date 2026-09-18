@@ -45,6 +45,7 @@ def summarize(root):
         normal_phase = 'normal_AB' if cfg['method']=='j' else 'normal_B'
         normal_expected = cfg['normal_steps_expected']
         extra_expected = cfg['extra_steps_expected']
+        steps_per_epoch = cfg.get('steps_per_epoch', sum((int(n)+31)//32 for n in meta['client_sample_counts']))
         extra_rounds = cfg['candidate_rounds']
         # Older E2/E3 packages have per-class files but not these two group columns.
         if 'head20_acc' not in rows[0]:
@@ -59,7 +60,7 @@ def summarize(root):
         checks = {'complete':True,'101_unique_rounds':Counter(int(r['round']) for r in rows)==Counter(range(101)),
                   'normal_steps':progress['normal_optimizer_steps']==normal_expected,
                   'extra_steps':progress['extra_optimizer_steps']==extra_expected,
-                  'overhead_steps':progress['unselected_branch_optimizer_steps']==progress['attempted_decisions']*(352+1056*cfg['lookahead_rounds']),
+                  'overhead_steps':progress['unselected_branch_optimizer_steps']==progress['attempted_decisions']*steps_per_epoch*(1+3*cfg['lookahead_rounds']),
                   'official_test_count':progress['official_test_passes']==101,
                   'event_ids_unique':len(events)==len({r['event_id'] for r in events})}
         by_round = {int(r['round']):r for r in rows}
@@ -145,6 +146,8 @@ def summarize(root):
             b = baseline['config']
             if b['method'] not in targets or (b['seed'],b['topology'])!=(c['seed'],c['topology']):
                 continue
+            if b.get('dirichlet_beta',.5)!=c.get('dirichlet_beta',.5):
+                continue
             loss_contrast = (c['method'],b['method']) in (('e2','e0'),('e3','e1'),('e5','e4'))
             if not loss_contrast and b['la_tau']!=c['la_tau']:
                 continue
@@ -209,15 +212,25 @@ def summarize(root):
         for directory in runs:
             d = directory['config']
             fields = ('seed','method','la_tau','a_lr_mult','lookahead_rounds','min_gain','tail_tolerance','history_tolerance','patience')
-            if d['topology']!='matched-dirichlet' or any(c[k]!=d[k] for k in fields):
+            if d['topology'] not in ('matched-dirichlet','noniid-labeldir-fine') or any(c[k]!=d[k] for k in fields):
                 continue
             common = ('pool_sha256','test_sha256','probe_images_sha256','probe_manifest_sha256',
-                      'schedule_sha256','initial_lora_sha256','frozen_model_sha256',
-                      'client_sample_counts','training_code_hashes')
+                      'schedule_sha256','initial_lora_sha256','frozen_model_sha256')
             if any(clt['meta'][k]!=directory['meta'][k] for k in common):
                 continue
+            equal_sizes = clt['meta']['client_sample_counts']==directory['meta']['client_sample_counts']
+            if d['topology']=='matched-dirichlet' and not equal_sizes:
+                continue
+            same_code = clt['meta']['training_code_hashes']==directory['meta']['training_code_hashes']
+            equal_steps = clt['progress']['total_optimizer_steps']==directory['progress']['total_optimizer_steps']
             for metric in METRICS:
                 topology_rows.append({'CLT_run':clt['run'],'Dir_run':directory['run'],'method':c['method'],
+                    'dirichlet_partition':d['topology'],'dirichlet_beta':d.get('dirichlet_beta',.5),
+                    'client_sample_counts_equal':equal_sizes,'training_code_hashes_equal':same_code,
+                    'total_optimizer_steps_equal':equal_steps,
+                    'comparison':('fixed-marginal topology control' if d['topology']=='matched-dirichlet'
+                                  else 'standard fine-class Dirichlet; client sizes and FedAvg weights may differ')
+                                 + ('; same code' if same_code else '; cross-code descriptive comparison'),
                     'metric':metric,'last20_Dir_minus_CLT':float(np.mean([
                         float(directory['curve'][r][metric])-float(clt['curve'][r][metric]) for r in range(81,101)]))})
     valid = bool(runs) and all(all(v.values()) for v in audit.values())
@@ -244,6 +257,8 @@ def summarize(root):
               'Cross-code comparisons are exported with an explicit flag, not certified as identical-code pairs.',
               'E5 comparisons: E5 vs E2, then E5 vs E3 at the SAME A learning rate.',
               'Legacy C1/C2 are historical references, not matched v2-RNG CE controls.',
+              'noniid-labeldir-fine is standard class-wise Dirichlet; matched-dirichlet is historical fixed-capacity control.',
+              'Standard Dirichlet preserves the global pool but not client sizes, FedAvg weights, or exact optimizer-step counts.',
               'Training-side feedback is not held-out validation. No test checkpoint is selected.',
               'Phase budgets use audited events only; unselected branches and server restore are separate.',
               'Gate thresholds, look-ahead length and seeds are reported separately, never selected by test maximum.',
