@@ -142,7 +142,8 @@ class LAControlRuntime:
             self.audit.meta['training_code_hashes'][name] = hashlib.sha256((repo/name).read_bytes()).hexdigest()
         write_json(self.root / 'bridge_metadata.json', self.audit.meta)
         (self.root / 'checkpoints').mkdir(exist_ok=True)
-        torch.save(self.base_state, self.root / 'checkpoints/base_model.pt')
+        if not getattr(args, 'sfra_resume', ''):
+            torch.save(self.base_state, self.root / 'checkpoints/base_model.pt')
 
     def compressed_state(self, state):
         # Include every changed parameter/buffer, not merely named A/B tensors.
@@ -186,7 +187,8 @@ class LAControlRuntime:
                 'tail_g_mean':float(gap[self.tail].mean()), 'tail_g_std':float(gap[self.tail].std()),
                 'bottom5_g_std':float(gap[tail_ids].std())}
 
-    def train_phase(self, state, rnd, factor='B', extra=False, branch='main', candidate=0):
+    def train_phase(self, state, rnd, factor='B', extra=False, branch='main', candidate=0,
+                    return_deltas=False):
         phase = ('refresh_A' if factor=='A' else 'extra_B') if extra else f'normal_{factor}'
         event_id = f'r{rnd:03d}_c{candidate:03d}_{branch}_{phase}'
         selected = list(map(int,self.schedule[rnd-1]))
@@ -257,7 +259,7 @@ class LAControlRuntime:
         self.trainer.model.load_state_dict(after,strict=True)
         train_only(self.trainer.model,'B')
         print(f'LA-control phase complete: {event_id}',flush=True)
-        return after
+        return (after, deltas) if return_deltas else after
 
     def branch(self, start, rnd, factor, rng):
         restore_rng_state(rng)

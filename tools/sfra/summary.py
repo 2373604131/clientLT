@@ -1,0 +1,91 @@
+"""Offline summaries and an analysis-only archive; never select a checkpoint."""
+import csv
+import json
+from pathlib import Path
+import tarfile
+
+
+METRICS = ('overall_acc', 'head20_acc', 'middle60_acc', 'bottom20_tail_acc', 'non_tail_acc')
+
+
+def read_csv(path):
+    with Path(path).open(encoding='utf-8-sig', newline='') as stream:
+        return list(csv.DictReader(stream))
+
+
+def write_csv(path, rows):
+    with Path(path).open('w', encoding='utf-8', newline='') as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(dict.fromkeys(k for r in rows for k in r)))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def summarize(root, reference=None):
+    root = Path(root)
+    out = root/'analysis'
+    out.mkdir(parents=True, exist_ok=True)
+    paths = [p.parent for p in sorted(root.glob('seed*/*/*/*/sfra_config.json'))]
+    if reference is not None:
+        paths.append(Path(reference))
+    performance, costs, curves, mechanisms, status = [], [], [], [], []
+    for run in paths:
+        config_file = run/'sfra_config.json'
+        new = config_file.is_file()
+        cfg = json.loads((config_file if new else run/'control_config.json').read_text(encoding='utf-8'))
+        label = str(run)
+        complete = (run/'completion.json').is_file()
+        status.append(dict(run=label, complete=complete))
+        if not complete:
+            continue
+        rows = read_csv(run/'round_metrics.csv')
+        if sorted(int(r['round']) for r in rows) != list(range(101)):
+            raise ValueError(f'Expected exactly rounds 0..100: {run}')
+        final20 = [r for r in rows if 81 <= int(r['round']) <= 100]
+        info = dict(run=label, method=cfg['variant'] if new else cfg['method'],
+                    partition=cfg['partition'] if new else cfg['topology'], seed=cfg['seed'],
+                    retention_weight=cfg.get('retention_weight', ''))
+        row = dict(info)
+        for metric in METRICS:
+            row['last20_'+metric] = sum(float(r[metric]) for r in final20)/20
+        trained = [r for r in rows if int(r['round']) > 0]
+        peak = max(trained, key=lambda r:float(r['bottom20_tail_acc']))
+        row['tail_peak_round'] = int(peak['round'])
+        row['tail_peak_to_final'] = float(peak['bottom20_tail_acc'])-float(rows[-1]['bottom20_tail_acc'])
+        performance.append(row)
+        curves.extend({**info, **r} for r in rows)
+        if new:
+            rr = read_csv(run/'sfra_rounds.csv')
+            cc = read_csv(run/'sfra_costs.csv')
+            costs.append({**info, **{name:sum(float(r[name]) for r in cc)
+                          for name in ('seconds','forward_images','backward_images','downlink_bytes','upload_bytes')}})
+            mechanisms.extend({**info, **r} for r in rr)
+    for name, rows in [('performance',performance),('functional_costs',costs),('curves',curves),
+                       ('mechanisms',mechanisms),('status',status)]:
+        write_csv(out/f'{name}.csv', rows)
+    lines = ['# SFRA V1 results', '', 'Primary endpoint: committed rounds 81–100, no best-checkpoint selection.', '',
+             '| Run | Overall | Head20 | Middle60 | Tail20 | Tail peak-to-final |',
+             '|---|---:|---:|---:|---:|---:|']
+    for r in performance:
+        values = ' | '.join(f'{r["last20_"+key]:.3f}' for key in METRICS[:4])
+        lines.append(f'| {r["run"]} | {values} | {r["tail_peak_to_final"]:.3f} |')
+    lines += ['', f'Completed: {len(performance)} / discovered: {len(status)}.',
+              'Compare Full vs S, Full vs Current, and Full vs Flat at the SAME lambda.',
+              'Functional costs exclude unchanged local training and official test; these are in budget.csv and evaluation_budget.csv.',
+              'tokens.npz rows correspond to private_witness_manifest.json, with an explicit active/history-valid mask.',
+              'F_post_B(t+1) provides the next-round B retention measurement for F_committed(t).',
+              'Current/Full/Flat have the same rules and budget, not numerically identical evolving targets.',
+              'This is a single-seed development comparison, not significance or test-independent parameter selection.']
+    (out/'report.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
+    print(f'Summary written: {out/"report.md"}', flush=True)
+
+
+def pack(root):
+    root = Path(root).resolve()
+    destination = root.parent/(root.name+'_analysis.tar.gz')
+    # Keep scalar/token evidence, drop large models, per-client full updates and raw images.
+    allowed = {'.csv','.json','.yaml','.md','.npz'}
+    with tarfile.open(destination, 'w:gz') as archive:
+        for path in sorted(root.rglob('*')):
+            if path.is_file() and path.suffix in allowed:
+                archive.add(path, arcname=str(Path(root.name)/path.relative_to(root)))
+    print(f'Analysis archive: {destination} (not a training/resume checkpoint)', flush=True)

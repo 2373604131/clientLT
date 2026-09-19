@@ -1,0 +1,9 @@
+﻿topology,method,metric,delta_vs_e3
+client-longtail,J,overall,1.5505000000000138
+noniid-labeldir-fine,J,overall,2.689000000000007
+client-longtail,J,tail,-10.984999999999978
+noniid-labeldir-fine,J,tail,-0.6574999999999989
+client-longtail,S,overall,1.2645000000000124
+noniid-labeldir-fine,S,overall,1.4105000000000274
+client-longtail,S,tail,-2.592499999999987
+noniid-labeldir-fine,S,tail,0.2799999999999869

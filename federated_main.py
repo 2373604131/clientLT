@@ -4106,8 +4106,12 @@ def main(args):
 
     if args.lac_method != "off":
         from utils.cliplora_la_control import LAControlRuntime
-        runtime = LAControlRuntime(local_trainer, global_trainer, cfg, args, client_schedule,
-                                   run_promptfl_local_train_with_scheduler_policy)
+        runtime_class = LAControlRuntime
+        if args.sfra_variant != 'off':
+            from utils.cliplora_sfra import SFRARuntime
+            runtime_class = SFRARuntime
+        runtime = runtime_class(local_trainer, global_trainer, cfg, args, client_schedule,
+                                run_promptfl_local_train_with_scheduler_policy)
         runtime.run(global_weights)
         local_trainer.fed_after_train()
         if global_trainer is not local_trainer:
@@ -6479,6 +6483,10 @@ if __name__ == "__main__":
     parser.add_argument('--lac_tail_tolerance', type=float, default=0.002)
     parser.add_argument('--lac_history_tolerance', type=float, default=None)
     parser.add_argument('--lac_patience', type=int, default=2)
+    parser.add_argument('--sfra_variant', choices=['off', 's', 'current', 'full', 'flat'], default='off')
+    parser.add_argument('--sfra_retention_weight', type=float, default=10.)
+    parser.add_argument('--sfra_witness_batch_size', type=int, default=8)
+    parser.add_argument('--sfra_resume', default='')
     parser.add_argument('--capt_matched_v2', type=str2bool, default=False, help='reset CAPT local optimizer for the V2 budget-matched run')
     parser.add_argument('--selective_sync_enable', type=str2bool, default=False, help='enable persistent private-B functional selective synchronization')
     parser.add_argument('--selective_sync_receive_ratio', type=float, default=1.0, help='gamma applied to the global-private B difference')

@@ -1,0 +1,32 @@
+{
+  "images": [
+    "01_story_bridge",
+    "02_client_evidence",
+    "03_ab_protocol",
+    "04_learning_retention",
+    "05_la_interaction",
+    "06_standard_topology",
+    "07_topology_interaction",
+    "08_performance_tradeoff",
+    "09_group_gains",
+    "10_method_candidate",
+    "11_minimal_pilot",
+    "12_closure_roadmap",
+    "a1_full_results",
+    "a2_all_tail_classes",
+    "a3_factor_diagnostic"
+  ],
+  "count": 15,
+  "size": [
+    2560,
+    1440
+  ],
+  "format": "PNG only",
+  "evidence_checks": [
+    "Six standard-topology curves contain rounds 0..100; last20 means match summaries.",
+    "Client-LT last20 values and all 20 per-class tail deltas match the main table.",
+    "Both partitions contain 10847 training samples and 153 tail samples."
+  ],
+  "layout_warnings": [],
+  "status": "Rendered; visual audit recorded separately in 论文逻辑骨架与设计审查.md"
+}

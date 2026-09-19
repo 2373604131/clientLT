@@ -1,0 +1,9 @@
+﻿topology,comparison,metric,difference_pp
+client-longtail,j-e3,overall,1.5505000000000138
+client-longtail,s-e3,overall,1.2645000000000124
+noniid-labeldir-fine,j-e3,overall,2.689000000000007
+noniid-labeldir-fine,s-e3,overall,1.4105000000000274
+client-longtail,j-e3,tail,-10.984999999999978
+client-longtail,s-e3,tail,-2.592499999999987
+noniid-labeldir-fine,j-e3,tail,-0.6574999999999989
+noniid-labeldir-fine,s-e3,tail,0.2799999999999869
