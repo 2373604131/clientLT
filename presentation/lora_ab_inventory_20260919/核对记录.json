@@ -1,0 +1,16 @@
+{
+  "total_rows": 44,
+  "categories": {
+    "分离训练主线": 14,
+    "分离/联合/交替训练对照": 15,
+    "历史联训参照": 1,
+    "非LoRA参照": 1,
+    "历史联训与聚合探索": 8,
+    "历史功能保持探索": 5
+  },
+  "full_training_runs": 44,
+  "original_main_rows_recomputed_and_matched": 28,
+  "new_standard_dirichlet_runs": 3,
+  "scope": "completed_100_round_training_only",
+  "training_started": false
+}
