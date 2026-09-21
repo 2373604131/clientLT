@@ -27,7 +27,7 @@ def summarize(root, reference=None):
     paths = [p.parent for p in sorted(root.glob('seed*/*/*/*/sfra_config.json'))]
     if reference is not None:
         paths.append(Path(reference))
-    performance, costs, curves, mechanisms, status = [], [], [], [], []
+    performance, costs, curves, mechanisms, corrections, status = [], [], [], [], [], []
     for run in paths:
         config_file = run/'sfra_config.json'
         new = config_file.is_file()
@@ -43,7 +43,8 @@ def summarize(root, reference=None):
         final20 = [r for r in rows if 81 <= int(r['round']) <= 100]
         info = dict(run=label, method=cfg['variant'] if new else cfg['method'],
                     partition=cfg['partition'] if new else cfg['topology'], seed=cfg['seed'],
-                    retention_weight=cfg.get('retention_weight', ''))
+                    retention_weight=cfg.get('retention_weight', ''),
+                    classification_weight=cfg.get('classification_weight', ''))
         row = dict(info)
         for metric in METRICS:
             row['last20_'+metric] = sum(float(r[metric]) for r in final20)/20
@@ -58,19 +59,26 @@ def summarize(root, reference=None):
             cc = read_csv(run/'sfra_costs.csv')
             costs.append({**info, **{name:sum(float(r[name]) for r in cc)
                           for name in ('seconds','forward_images','backward_images','downlink_bytes','upload_bytes')}})
+            for name in ('classification_forward_images', 'classification_backward_images'):
+                if any(name in r for r in cc):
+                    costs[-1][name] = sum(float(r.get(name) or 0) for r in cc)
             mechanisms.extend({**info, **r} for r in rr)
+            for path in sorted((run/'sfra_rounds').glob('r*/correction_steps.csv')):
+                corrections.extend({**info, 'round':int(path.parent.name[1:]), **r} for r in read_csv(path))
     for name, rows in [('performance',performance),('functional_costs',costs),('curves',curves),
-                       ('mechanisms',mechanisms),('status',status)]:
+                       ('mechanisms',mechanisms),('correction_steps',corrections),('status',status)]:
         write_csv(out/f'{name}.csv', rows)
-    lines = ['# SFRA V1 results', '', 'Primary endpoint: committed rounds 81–100, no best-checkpoint selection.', '',
-             '| Run | Overall | Head20 | Middle60 | Tail20 | Tail peak-to-final |',
-             '|---|---:|---:|---:|---:|---:|']
+    lines = ['# SFRA results', '', 'Primary endpoint: committed rounds 81–100, no best-checkpoint selection.', '',
+             '| Run | Lambda | Mu | Overall | Head20 | Middle60 | Tail20 | Tail peak-to-final |',
+             '|---|---:|---:|---:|---:|---:|---:|---:|']
     for r in performance:
         values = ' | '.join(f'{r["last20_"+key]:.3f}' for key in METRICS[:4])
-        lines.append(f'| {r["run"]} | {values} | {r["tail_peak_to_final"]:.3f} |')
+        lines.append(f'| {r["run"]} | {r["retention_weight"]} | {r["classification_weight"]} | {values} | {r["tail_peak_to_final"]:.3f} |')
     lines += ['', f'Completed: {len(performance)} / discovered: {len(status)}.',
               'Compare Full vs S, Full vs Current, and Full vs Flat at the SAME lambda.',
+              'For full-cp, compare against the existing Full-10 first: retention lambda stays 10; mu is the new search parameter.',
               'Functional costs exclude unchanged local training and official test; these are in budget.csv and evaluation_budget.csv.',
+              'Classification forward_images are shared with functional evaluation, not an extra count to add to total forward_images; backward_images already includes both gradient traversals.',
               'tokens.npz rows correspond to private_witness_manifest.json, with an explicit active/history-valid mask.',
               'F_post_B(t+1) provides the next-round B retention measurement for F_committed(t).',
               'Current/Full/Flat have the same rules and budget, not numerically identical evolving targets.',

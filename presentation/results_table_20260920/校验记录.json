@@ -1,0 +1,162 @@
+[
+  {
+    "method": "E0",
+    "partition": "client-longtail",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "E1",
+    "partition": "client-longtail",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "E2",
+    "partition": "client-longtail",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "E3",
+    "partition": "client-longtail",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "E5",
+    "partition": "client-longtail",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "J",
+    "partition": "client-longtail",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "S",
+    "partition": "client-longtail",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "E0",
+    "partition": "noniid-labeldir-fine",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "E1",
+    "partition": "noniid-labeldir-fine",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "E2",
+    "partition": "noniid-labeldir-fine",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "E3",
+    "partition": "noniid-labeldir-fine",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "E5",
+    "partition": "noniid-labeldir-fine",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "J",
+    "partition": "noniid-labeldir-fine",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "S",
+    "partition": "noniid-labeldir-fine",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "Full-1",
+    "partition": "client-longtail",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "Full-3",
+    "partition": "client-longtail",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "Full-10",
+    "partition": "client-longtail",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "Current-10",
+    "partition": "client-longtail",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "Flat-10",
+    "partition": "client-longtail",
+    "rounds": 101,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": true,
+    "complete_100_rounds": true
+  },
+  {
+    "method": "CAPT",
+    "partition": "client-longtail",
+    "rounds": 100,
+    "last20_perclass_matches_metrics": true,
+    "completion_marker": false,
+    "complete_100_rounds": true
+  }
+]

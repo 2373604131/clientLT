@@ -1,4 +1,4 @@
-"""FP32, graph-free state and algebra for the fixed SFRA V1 protocol."""
+"""FP32, graph-free state and algebra for SFRA and its classification regularizer."""
 import torch
 
 
@@ -71,8 +71,16 @@ def functional_loss(scores, target, sigma, weights):
     return (weights * .5 * ((target-scores)/sigma).clamp_min(0).square().mean(-1)).sum()
 
 
-def projected_step(z, radius, gradient_a, strength, step_size=.1):
+def classification_preservation(loss, reference, scale):
+    """One-sided GLOBAL LA loss increase; inputs are detached round statistics."""
+    gap = max(float(loss) - float(reference), 0.)
+    return .5 * (gap / scale)**2, gap / scale**2
+
+
+def projected_step(z, radius, gradient_a, strength, step_size=.1, auxiliary_gradient=None):
     gradient_z = z + strength * radius * gradient_a
+    if auxiliary_gradient is not None:
+        gradient_z = gradient_z + radius * auxiliary_gradient
     require_finite(gradient_z=gradient_z)
     updated = z - step_size * gradient_z
     return (updated / updated.norm().clamp_min(1.)).detach()

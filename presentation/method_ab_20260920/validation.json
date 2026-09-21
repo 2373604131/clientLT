@@ -1,0 +1,45 @@
+{
+  "count": 9,
+  "slide_size": [
+    2560,
+    1440
+  ],
+  "format": "PNG only",
+  "images": [
+    "01_client_level_problem",
+    "02_tail_retention_evidence",
+    "03_why_intervene_on_A",
+    "04_A_method_overview",
+    "08_A_experiments_and_readout",
+    "09_B_evidence_and_hypothesis",
+    "10_B_transfer_direction",
+    "11_AB_joint_story",
+    "12_validation_and_next_steps"
+  ],
+  "layout_warnings": [],
+  "evidence_checks": [
+    "Six topology curves: rounds 0..100, last20 and peak-to-final verified.",
+    "Both partitions: 10847 total images, 153 Tail20 images.",
+    "E2 curve agrees with Client-LT result table.",
+    "B attribution is seven audited events; W + D - H - R agrees with net."
+  ],
+  "data_sources": {
+    "partition_structure.csv": "presentation\\redesign_20260919\\data\\partition_structure.csv",
+    "training_curves.csv": "presentation\\redesign_20260919\\data\\training_curves.csv",
+    "retention.csv": "presentation\\redesign_20260919\\data\\retention.csv",
+    "performance_clientlt.csv": "presentation\\redesign_20260919\\data\\performance_clientlt.csv",
+    "b_phase_attribution.csv": "output\\a_refresh_topology_bridge_analysis\\review\\phase_means_recomputed.csv"
+  },
+  "no_new_experimental_results": true,
+  "A_status": "implemented; this edit condenses the method only",
+  "B_status": "conceptual direction, not implemented",
+  "matched_dirichlet_in_current_comparison": false,
+  "schematic_pages": [
+    3,
+    4,
+    7,
+    8,
+    9
+  ],
+  "audit": "See 设计审查与数据口径.md for visual review and evidence boundaries."
+}

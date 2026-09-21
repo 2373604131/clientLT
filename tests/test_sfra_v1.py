@@ -13,7 +13,7 @@ import numpy as np
 import torch
 
 from utils.sfra_math import (FunctionalHistory, proposal_coordinates, source_statistics,
-                             make_targets, functional_loss, projected_step)
+                             make_targets, functional_loss, projected_step, classification_preservation)
 from utils.sfra_feedback import WitnessBank
 from utils.pfrf import capture_rng_state, restore_rng_state
 from utils.cliplora_sfra import SFRARuntime
@@ -294,6 +294,150 @@ class TestSFRA(unittest.TestCase):
             with tarfile.open(root.parent/'sfra_v1_analysis.tar.gz') as archive:
                 self.assertFalse(any(n.endswith('.pt') for n in archive.getnames()))
                 self.assertTrue(any(n.endswith('report.md') for n in archive.getnames()))
+
+
+class TestSFRAClassification(unittest.TestCase):
+    def bank(self, batch_size=2):
+        bank = tiny_bank(batch_size)
+        bank.core.logit_scale = torch.nn.Parameter(torch.tensor(3.).log(), requires_grad=False)
+        # Unequal original class counts, deliberately unlike the witness sample counts.
+        bank.tokens = [dict(client_id=0,class_id=0,local_positions=[0,1]),
+                       dict(client_id=0,class_id=2,local_positions=[2,3,4]),
+                       dict(client_id=1,class_id=1,local_positions=[0,1,2])]
+        bank.configure_classification([[18,0,2],[0,10,0]], torch.tensor([18.,10.,2.]).div(30).log())
+        return bank
+
+    def explicit_classification(self, bank):
+        total = torch.zeros(())
+        for token, weight in zip(bank.tokens, [.6, 2/30, 1/3]):
+            images = torch.stack([bank.datasets[token['client_id']][i]['img'] for i in token['local_positions']])
+            for flip in (False, True):
+                features = bank.core.image_encoder(images.flip(-1) if flip else images)
+                features = features / features.norm(dim=-1, keepdim=True)
+                logits = (bank.core.logit_scale.exp()*features) @ bank.text_features.T
+                logits = logits + bank.classification_logit_adjustment
+                labels = torch.full((len(images),), token['class_id'], dtype=torch.long)
+                total = total + .5*weight*torch.nn.functional.cross_entropy(logits, labels)
+        return total
+
+    def test_one_sided_penalty_and_exact_derivative(self):
+        for value in (.8, 1., 1.3):
+            actual, coefficient = classification_preservation(value, 1., .2)
+            loss = torch.tensor(value, dtype=torch.float64, requires_grad=True)
+            penalty = .5*((loss-1.)/.2).clamp_min(0).square()
+            gradient, = torch.autograd.grad(penalty, loss)
+            self.assertAlmostEqual(actual, float(penalty.detach()))
+            self.assertAlmostEqual(coefficient, float(gradient))
+
+    def test_joint_projected_step_and_first_step_identity(self):
+        z, radius = torch.tensor([.1,-.2]), torch.tensor(.03)
+        functional, auxiliary = torch.tensor([.2,.4]), torch.tensor([-.3,.1])
+        result = projected_step(z,radius,functional,10.,auxiliary_gradient=auxiliary)
+        torch.testing.assert_close(result,z-.1*(z+10*radius*functional+radius*auxiliary))
+        original = projected_step(z,radius,functional,10.)
+        first_cp = projected_step(z,radius,functional,10.,auxiliary_gradient=torch.zeros_like(z))
+        self.assertTrue(torch.equal(original,first_cp))
+
+    def test_classification_uses_all_tokens_original_weights_and_clip_logits(self):
+        bank = self.bank()
+        torch.testing.assert_close(bank.classification_client_weights,torch.tensor([2/3,1/3]))
+        torch.testing.assert_close(bank.classification_token_weights,torch.tensor([.9,.1,1.]))
+        target = dict(target=torch.ones(3,2), sigma=torch.ones(3,2),
+                      weights=torch.tensor([1.,0.,0.]), active=torch.tensor([True,False,False]))
+        observed = bank.evaluate(targets=target,all_scores=False,classification=True)
+        expected = self.explicit_classification(bank)
+        gradient, = torch.autograd.grad(expected,bank.parameters)
+        self.assertAlmostEqual(observed['classification_loss'],float(expected.detach()),places=6)
+        torch.testing.assert_close(observed['classification_gradient'],gradient.flatten(),atol=2e-7,rtol=1e-5)
+        self.assertTrue((observed['classification_scores'] > 0).all())
+        self.assertEqual(observed['forward_images'],16)
+        self.assertEqual(observed['classification_forward_images'],16)
+        self.assertEqual(observed['classification_backward_images'],16)
+        self.assertEqual(observed['backward_images'],20)  # 4 functional + 16 classification.
+        self.assertIsNone(bank.core.image_encoder.proj_lora_B.grad)
+
+    def test_classification_microbatches_rng_and_no_gradient_final_evaluation(self):
+        bank = self.bank(1)
+        before = copy.deepcopy(bank.model.state_dict())
+        rng = capture_rng_state()
+        small = bank.evaluate(classification=True)
+        actual = torch.rand(3)
+        restore_rng_state(rng)
+        torch.testing.assert_close(actual,torch.rand(3))
+        bank.batch_size = 8
+        large = bank.evaluate(classification=True)
+        final = bank.evaluate(classification=True,classification_gradient=False)
+        self.assertAlmostEqual(small['classification_loss'],large['classification_loss'],places=6)
+        torch.testing.assert_close(small['classification_gradient'],large['classification_gradient'],atol=2e-7,rtol=1e-5)
+        self.assertIsNone(final['classification_gradient'])
+        self.assertEqual(final['backward_images'],0)
+        self.assertEqual(final['classification_loss'],large['classification_loss'])
+        self.assertTrue(all(torch.equal(before[k],v) for k,v in bank.model.state_dict().items()))
+
+    def test_cp_refresh_reference_scale_logs_and_frozen_b(self):
+        from tools.sfra.summary import read_csv
+        bank = self.bank()
+        runtime = object.__new__(SFRARuntime)
+        runtime.trainer = SimpleNamespace(model=bank.model,device=bank.device)
+        runtime.bank, runtime.a_keys = bank, bank.keys
+        runtime.b_keys = ['image_encoder.proj_lora_B']
+        runtime.keys = sorted(runtime.a_keys+runtime.b_keys)
+        runtime.variant, runtime.strength, runtime.scaling = 'full-cp',10.,.5
+        runtime.classification_strength = .3
+        runtime.costs, runtime.events, runtime.q = [],[{}],{0:2/3,1:1/3}
+        middle = copy.deepcopy(bank.model.state_dict())
+        runtime.history = FunctionalHistory(bank.evaluate()['scores'],2)
+        runtime.history.valid[:] = True
+        runtime.history.level[:] = 1.5
+        da = torch.randn_like(middle[bank.keys[0]])*.01
+        db = torch.randn_like(da)*.01
+        ordinary = copy.deepcopy(middle)
+        ordinary[bank.keys[0]] += (2/3)*da+(1/3)*db
+        runtime.train_phase = lambda *a,**kw:(ordinary,{0:{bank.keys[0]:da},1:{bank.keys[0]:db}})
+        bank.model.load_state_dict(ordinary)
+        reference = bank.evaluate(classification=True)
+        with tempfile.TemporaryDirectory() as temp:
+            committed,_,arrays,summary = runtime.refresh(middle,1,Path(temp))
+            steps = read_csv(Path(temp)/'correction_steps.csv')
+        self.assertEqual(len(steps),3)
+        self.assertEqual(float(steps[0]['classification_penalty']),0.)
+        self.assertEqual(steps[0]['functional_classification_gradient_cosine'],'')
+        self.assertTrue(all(float(s['classification_reference_loss']) == reference['classification_loss'] for s in steps))
+        expected_scale = max(.001,summary['radius']*float(reference['classification_gradient'].norm()))
+        self.assertAlmostEqual(summary['classification_scale'],expected_scale)
+        self.assertTrue(torch.equal(committed[runtime.b_keys[0]],middle[runtime.b_keys[0]]))
+        torch.testing.assert_close(arrays['classification_global_token_weights'],torch.tensor([.6,2/30,1/3]))
+        final = bank.evaluate(classification=True,classification_gradient=False)
+        self.assertAlmostEqual(summary['committed_classification_loss'],final['classification_loss'])
+        penalty,_ = classification_preservation(final['classification_loss'],reference['classification_loss'],expected_scale)
+        self.assertAlmostEqual(summary['committed_classification_penalty'],penalty)
+
+    def test_cp_launcher_paths_flags_and_resume_original_configuration(self):
+        from scripts import run_cliplora_sfra as launcher
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            def prepare(args,run):
+                (run/'protocol').mkdir(parents=True)
+                return run/'protocol/full_schedule.json',''
+            for mu in (.3,1.,3.):
+                argv = ['run_cliplora_sfra.py','--method','full-cp','--classification-weight',str(mu),
+                        '--output-root',str(output)]
+                with patch('sys.argv',argv),patch.object(launcher,'prepare_protocol',prepare),patch.object(launcher.subprocess,'run') as execute,patch('builtins.print'):
+                    launcher.main()
+                    command = execute.call_args.args[0]
+                self.assertEqual(command[command.index('--sfra_variant')+1],'full-cp')
+                self.assertEqual(float(command[command.index('--sfra_classification_weight')+1]),mu)
+                self.assertEqual(float(command[command.index('--sfra_retention_weight')+1]),10.)
+                run = Path(command[command.index('--output-dir')+1])
+                self.assertIn(f'_mu{mu:g}_',run.name)
+                (run/'checkpoints').mkdir()
+                (run/'checkpoints/sfra_last.pt').touch()
+                with patch('sys.argv',argv+['--resume']),patch.object(launcher.subprocess,'run') as execute,patch('builtins.print'):
+                    launcher.main()
+                    resumed = execute.call_args.args[0]
+                self.assertEqual(resumed[resumed.index('--sfra_resume')+1],str(run/'checkpoints/sfra_last.pt'))
+                self.assertEqual(float(resumed[resumed.index('--sfra_classification_weight')+1]),mu)
+            self.assertEqual(len(list(output.glob('seed42/client-longtail/full-cp/*/command.json'))),3)
 
 
 if __name__ == '__main__':

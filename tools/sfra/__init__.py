@@ -1,1 +1,1 @@
-"""SFRA V1 result tools."""
+"""SFRA V1 and classification-preserving SFRA result tools."""

@@ -1,0 +1,15 @@
+﻿method,partition,same_partition_rows_as_S,same_schedule_as_S
+E0,client-longtail,True,True
+E1,client-longtail,True,True
+E2,client-longtail,True,True
+E3,client-longtail,True,True
+E5,client-longtail,True,True
+J,client-longtail,True,True
+S,client-longtail,True,True
+E0,noniid-labeldir-fine,True,True
+E1,noniid-labeldir-fine,True,True
+E2,noniid-labeldir-fine,True,True
+E3,noniid-labeldir-fine,True,True
+E5,noniid-labeldir-fine,True,True
+J,noniid-labeldir-fine,True,True
+S,noniid-labeldir-fine,True,True
