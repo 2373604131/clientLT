@@ -47,6 +47,10 @@ class SFRARuntime(LAControlRuntime):
                 classification_penalty='0.5 * positive((C-C0)/scale)^2 after global loss aggregation',
                 classification_scale='max(0.001, R * norm(global LA gradient at ordinary A))',
                 classification_scale_floor=.001, classification_gradient_upload='separate from functional gradient')
+        if getattr(args, 'b_transfer_enable', False):
+            from utils.cliplora_b_transfer import transfer_config
+            self.sfra_config['b_transfer'] = transfer_config(args)
+            self.method += '_b_transfer'
         self.resume_payload = None
         if args.sfra_resume:
             self.resume_payload = torch.load(args.sfra_resume, map_location='cpu', weights_only=False)
@@ -71,8 +75,19 @@ class SFRARuntime(LAControlRuntime):
             for token in self.bank.tokens:
                 token['raw_sample_ids'] = [identity[token['client_id'], j] for j in token['local_positions']]
             write_json(self.root/'private_witness_manifest.json', self.bank.tokens)
+        self.b_transfer = None
+        if 'b_transfer' in self.sfra_config:
+            from utils.cliplora_b_transfer import DonorBTransfer
+            self.b_transfer = DonorBTransfer(self)
         label = f', classification mu={self.classification_strength:g}' if self.variant == 'full-cp' else ''
         print(f'SFRA: {self.variant}, retention lambda={self.strength:g}{label}, A rounds=1..90', flush=True)
+        if self.b_transfer is not None:
+            print(f'B-transfer enabled: C lr={args.b_transfer_lr:g}, rounds=30,40,...,100', flush=True)
+
+    def prepare_b_aggregation(self, state, local_states, deltas, selected, rnd):
+        if self.b_transfer is None:
+            return local_states, deltas
+        return self.b_transfer.apply(state, local_states, deltas, selected, rnd)
 
     def functional(self, rnd, phase, **kwargs):
         print(f'SFRA round={rnd} phase={phase}', flush=True)
@@ -267,6 +282,8 @@ class SFRARuntime(LAControlRuntime):
             events=self.events, budget=self.budget, evaluations=self.evaluations,
             functional_costs=self.costs, round_summaries=self.summaries,
             elapsed_seconds=self.elapsed_before+time.perf_counter()-self.started)
+        if self.b_transfer is not None:
+            payload['b_transfer_state'] = self.b_transfer.state_dict()
         temporary = self.root/'checkpoints/sfra_last.tmp'
         torch.save(payload, temporary)
         temporary.replace(self.root/'checkpoints/sfra_last.pt')
@@ -288,6 +305,11 @@ class SFRARuntime(LAControlRuntime):
             elapsed_seconds=self.elapsed_before+time.perf_counter()-self.started)
         if self.variant == 'full-cp':
             progress['classification_weight'] = self.classification_strength
+        if self.b_transfer is not None:
+            self.b_transfer.flush()
+            progress.update(self.b_transfer.progress())
+            progress['total_optimizer_steps_including_transfer'] = (
+                normal+extra+progress['functional_correction_steps']+progress['b_transfer_optimizer_steps'])
         write_json(self.root/'progress.json', progress)
         if completed == 100:
             assert normal == self.config['normal_steps_expected'] and extra == self.config['extra_steps_expected']
@@ -300,6 +322,8 @@ class SFRARuntime(LAControlRuntime):
         state.update(saved['state_dict_overrides'])
         self.events, self.budget, self.evaluations = saved['events'], saved['budget'], saved['evaluations']
         self.costs, self.summaries = saved['functional_costs'], saved['round_summaries']
+        if self.b_transfer is not None:
+            self.b_transfer.load_state_dict(saved['b_transfer_state'])
         self.elapsed_before = saved['elapsed_seconds']
         if self.bank is not None:
             self.history = FunctionalHistory(torch.zeros(len(self.bank.tokens),2), len(self.sizes))
@@ -332,6 +356,8 @@ class SFRARuntime(LAControlRuntime):
         for rnd in range(completed+1, 101):
             try:
                 state = self.train_phase(state, rnd, 'B')
+                if self.b_transfer is not None:
+                    self.b_transfer.observe_global(state, rnd)
                 require_finite(**{k:state[k] for k in self.keys})
                 if self.variant == 's':
                     if rnd <= 90:
@@ -366,9 +392,13 @@ class SFRARuntime(LAControlRuntime):
                     self.summaries.append(summary)
                 self.trainer.model.load_state_dict(state, strict=True)
                 train_only(self.trainer.model, 'B')
+                if self.b_transfer is not None:
+                    self.b_transfer.observe_global(state, rnd, committed=True)
                 self.publish(state, rnd, rnd)
                 self.checkpoint(state, rnd)
                 label = f', mu={self.classification_strength:g}' if self.variant == 'full-cp' else ''
+                if self.b_transfer is not None:
+                    label += f', B-transfer lr={self.b_transfer.config["learning_rate"]:g}'
                 print(f'SFRA COMMITTED {rnd}/100: {self.variant}, lambda={self.strength:g}{label}', flush=True)
             except Exception as error:
                 # Fail visibly, including NaN/Inf; never submit a substitute model.

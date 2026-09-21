@@ -187,6 +187,10 @@ class LAControlRuntime:
                 'tail_g_mean':float(gap[self.tail].mean()), 'tail_g_std':float(gap[self.tail].std()),
                 'bottom5_g_std':float(gap[tail_ids].std())}
 
+    def prepare_b_aggregation(self, state, local_states, deltas, selected, rnd):
+        """Optional recipient-side work after ALL ordinary local updates are cached."""
+        return local_states, deltas
+
     def train_phase(self, state, rnd, factor='B', extra=False, branch='main', candidate=0,
                     return_deltas=False):
         phase = ('refresh_A' if factor=='A' else 'extra_B') if extra else f'normal_{factor}'
@@ -243,6 +247,8 @@ class LAControlRuntime:
                 'b_optimizer_steps':steps if factor in ('B','AB') else 0,
                 'upload_bytes':sum(v.numel()*v.element_size() for v in local_states[client].values()),
                 'modeled_downlink_bytes':sum(state[k].numel()*state[k].element_size() for k in self.keys)})
+        if factor == 'B' and not extra and branch == 'main':
+            local_states, deltas = self.prepare_b_aggregation(state, local_states, deltas, selected, rnd)
         if extra:
             after = aggregate_refresh_deltas(state,deltas,self.q,keys)
         else:

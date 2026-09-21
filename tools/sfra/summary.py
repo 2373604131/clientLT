@@ -28,6 +28,7 @@ def summarize(root, reference=None):
     if reference is not None:
         paths.append(Path(reference))
     performance, costs, curves, mechanisms, corrections, status = [], [], [], [], [], []
+    transfer_rounds, transfer_receivers, transfer_steps, transfer_probes = [], [], [], []
     for run in paths:
         config_file = run/'sfra_config.json'
         new = config_file.is_file()
@@ -45,6 +46,10 @@ def summarize(root, reference=None):
                     partition=cfg['partition'] if new else cfg['topology'], seed=cfg['seed'],
                     retention_weight=cfg.get('retention_weight', ''),
                     classification_weight=cfg.get('classification_weight', ''))
+        transfer = cfg.get('b_transfer')
+        if transfer:
+            info.update(method=info['method']+'+B-transfer', transfer_lr=transfer['learning_rate'],
+                        transfer_probe_step=transfer['probe_step'], transfer_reg=transfer['regularization'])
         row = dict(info)
         for metric in METRICS:
             row['last20_'+metric] = sum(float(r[metric]) for r in final20)/20
@@ -65,9 +70,20 @@ def summarize(root, reference=None):
             mechanisms.extend({**info, **r} for r in rr)
             for path in sorted((run/'sfra_rounds').glob('r*/correction_steps.csv')):
                 corrections.extend({**info, 'round':int(path.parent.name[1:]), **r} for r in read_csv(path))
+            if transfer:
+                transfer_rounds.extend({**info, **r} for r in read_csv(run/'b_transfer_rounds.csv'))
+                for folder in sorted((run/'b_transfer_rounds').glob('r*')):
+                    for name, destination in [('receiver_summary', transfer_receivers),
+                                               ('optimization_steps', transfer_steps),
+                                               ('probe_metrics', transfer_probes)]:
+                        destination.extend({**info, **r} for r in read_csv(folder/f'{name}.csv'))
     for name, rows in [('performance',performance),('functional_costs',costs),('curves',curves),
                        ('mechanisms',mechanisms),('correction_steps',corrections),('status',status)]:
         write_csv(out/f'{name}.csv', rows)
+    if transfer_rounds:
+        for name, rows in [('b_transfer_rounds', transfer_rounds), ('b_transfer_receivers', transfer_receivers),
+                           ('b_transfer_steps', transfer_steps), ('b_transfer_probes', transfer_probes)]:
+            write_csv(out/f'{name}.csv', rows)
     lines = ['# SFRA results', '', 'Primary endpoint: committed rounds 81–100, no best-checkpoint selection.', '',
              '| Run | Lambda | Mu | Overall | Head20 | Middle60 | Tail20 | Tail peak-to-final |',
              '|---|---:|---:|---:|---:|---:|---:|---:|']
@@ -83,6 +99,16 @@ def summarize(root, reference=None):
               'F_post_B(t+1) provides the next-round B retention measurement for F_committed(t).',
               'Current/Full/Flat have the same rules and budget, not numerically identical evolving targets.',
               'This is a single-seed development comparison, not significance or test-independent parameter selection.']
+    if transfer_rounds:
+        lines += ['', '## Donor B transfer', '',
+                  'Only C learning rate varies in the initial sweep; keep A settings fixed.',
+                  'Compare A+B against A-only with the SAME variant, lambda, mu, partition and training protocol.',
+                  'Use performance.csv for official test outcomes; transfer probe scores are training-side diagnostics.',
+                  'b_transfer_rounds.csv contains additional algorithm/diagnostic image counts and communication costs, separate from SFRA functional costs.',
+                  'Local before/after and ordinary/transferred global B scores use the same fixed witness images.',
+                  'committed_global includes the subsequent A update (none in round 100); it is not a no-transfer counterfactual.',
+                  'Local non-tail monitoring is a fixed at-most-16-image subset, not the full non-tail test set.',
+                  'Transfer group scores average present classes within each receiver, then average receivers; they are not official global class-macro accuracy.']
     (out/'report.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
     print(f'Summary written: {out/"report.md"}', flush=True)
 
