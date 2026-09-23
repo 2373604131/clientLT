@@ -156,12 +156,17 @@ class CustomCLIP(nn.Module):
     def forward(self, image):
         image_features = self.image_encoder(image.type(self.dtype))
 
-        prompts = self.prompt_learner()
-        tokenized_prompts = self.tokenized_prompts
-        text_features = self.text_encoder(prompts, tokenized_prompts)
+        text_cache = getattr(self, '_sfra_text_cache', None)
+        if text_cache is None:
+            prompts = self.prompt_learner()
+            tokenized_prompts = self.tokenized_prompts
+            text_features = self.text_encoder(prompts, tokenized_prompts)
+        else:
+            text_features = text_cache.get()
 
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+        if text_cache is None:
+            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
 
         logit_scale = self.logit_scale.exp()
         logits = logit_scale * image_features @ text_features.t()

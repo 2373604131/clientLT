@@ -191,9 +191,13 @@ class LinearLoRA(nn.Linear, LoRALayer):
             return original_output
 
         lora_input = self.dropout(x) if self.dropout is not None and self.training else x
-        lora_adjustment = torch.matmul(
-            lora_input, self.merge_BA('weight').transpose(0, 1)
-        ) * self.scaling
+        if getattr(self, '_sfra_low_rank_execution', False) and not self.fan_in_fan_out:
+            # Same scaling and dropout, without constructing a dense B @ A.
+            lora_adjustment = F.linear(F.linear(lora_input, self.w_lora_A), self.w_lora_B) * self.scaling
+        else:
+            lora_adjustment = torch.matmul(
+                lora_input, self.merge_BA('weight').transpose(0, 1)
+            ) * self.scaling
         return original_output + lora_adjustment
 
 class Conv1d(nn.Conv1d, LoRALayer):

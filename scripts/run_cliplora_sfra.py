@@ -27,6 +27,8 @@ def run_directory(args):
         setting += f'_b_lr{args.transfer_lr:g}_probe{args.probe_step:g}_reg{args.transfer_reg:g}'
     if getattr(args, 'b_aggregation', 'sample') == 'uniform-transfer-rounds':
         setting += '_bagg_uniform8'
+    if getattr(args, 'fast_execution', False):
+        setting += '_fast'
     return args.output_root.resolve()/f'seed{args.seed}'/args.partition/args.method/setting
 
 
@@ -84,6 +86,8 @@ def main(default_b_transfer=False):
     parser.add_argument('--schedule-file', type=Path)
     parser.add_argument('--num-workers', type=int, default=8)
     parser.add_argument('--witness-batch-size', type=int, default=8, help='Memory setting, not witness count or algorithm budget')
+    parser.add_argument('--fast-execution', action='store_true',
+                        help='Opt-in FP32 execution caches and equivalent feedback batching; separate _fast directory')
     parser.add_argument('--resume', action='store_true', help='Resume this configuration directory at its last completed round')
     args = parser.parse_args()
     os.chdir(REPO)
@@ -137,6 +141,9 @@ def main(default_b_transfer=False):
         if args.b_aggregation != 'sample':
             index = command.index('DATALOADER.NUM_WORKERS')
             command[index:index] = ['--sfra_b_aggregation', args.b_aggregation]
+        if args.fast_execution:
+            index = command.index('DATALOADER.NUM_WORKERS')
+            command[index:index] = ['--sfra_fast_execution']
         if args.b_transfer:
             index = command.index('DATALOADER.NUM_WORKERS')
             command[index:index] = ['--b_transfer_enable', '--b_transfer_lr', str(args.transfer_lr),

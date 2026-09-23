@@ -68,11 +68,26 @@ class SFRARuntime(LAControlRuntime):
         write_json(self.root/'sfra_config.json', self.sfra_config)
         self.costs, self.summaries = [], []
         self.elapsed_before = 0.
+        self.execution_config = None
+        self._execution_loader = None
+        if getattr(args, 'sfra_fast_execution', False):
+            from utils.sfra_execution import FAST_EXECUTION_CONFIG, LoRAStateLoader, enable_model_execution
+            self.execution_config = dict(FAST_EXECUTION_CONFIG)
+            enable_model_execution(trainer.model)
+            enable_model_execution(global_trainer.model)
+            self._execution_loader = LoRAStateLoader(trainer.model, self.keys)
+            write_json(self.root/'execution_config.json', self.execution_config)
+        if self.resume_payload:
+            assert self.resume_payload.get('execution_config') == self.execution_config, 'Resume execution mode differs'
         self.history, self.bank = None, None
         if self.variant != 's':
             tokens = self.resume_payload['witness_tokens'] if self.resume_payload else None
             self.bank = WitnessBank(trainer, cfg, self.a_keys, args.seed,
                                     args.sfra_witness_batch_size, tokens=tokens)
+            if self.execution_config is not None:
+                from utils.sfra_fast_feedback import FastWitnessFeedback
+                self.bank._fast_feedback = FastWitnessFeedback(
+                    self.bank, self.execution_config['feedback_forward_batch_size'])
             if self.variant.endswith('-cp'):
                 self.bank.configure_classification(self.audit.counts, trainer.training_logit_adjustment)
             # Preserve both local positions and original image identities in the experiment artifact.
@@ -93,6 +108,16 @@ class SFRARuntime(LAControlRuntime):
         if 'b_aggregation' in self.sfra_config:
             print('B aggregation: uniform over all 30 clients at rounds 30,40,...,100 only; '
                   'all other B rounds and every A proposal stay sample-weighted.', flush=True)
+        if self.execution_config is not None:
+            print('SFRA fast execution: FP32 caches, LoRA-only restores, low-rank forward, '
+                  'client-local feedback batching. Algorithm and training budgets unchanged.', flush=True)
+
+    def load_training_state(self, state):
+        loader = getattr(self, '_execution_loader', None)
+        if loader is None:
+            super().load_training_state(state)
+        else:
+            loader.load(state)
 
     def phase_aggregation_weights(self, selected, rnd, factor, extra=False, branch='main'):
         mode = self.sfra_config.get('b_aggregation', {}).get('mode', 'sample')
@@ -112,6 +137,9 @@ class SFRARuntime(LAControlRuntime):
         if 'classification_loss' in result:
             self.costs[-1].update(classification_forward_images=result['classification_forward_images'],
                                  classification_backward_images=result['classification_backward_images'])
+        for key in ('execution_forward_batches', 'execution_zero_gradient_batches'):
+            if key in result:
+                self.costs[-1][key] = result[key]
         return result
 
     def effective_norms(self, before, ordinary, committed):
@@ -137,7 +165,7 @@ class SFRARuntime(LAControlRuntime):
         self.costs.append(dict(round=rnd, phase='proposal_QR', seconds=time.perf_counter()-qr_started,
             forward_images=0, backward_images=0,
             downlink_bytes=len(client_ids)*basis.numel()*basis.element_size(), upload_bytes=0))
-        self.trainer.model.load_state_dict(middle, strict=True)
+        self.load_training_state(middle)
         source_measurement = self.functional(rnd, 'source_at_post_B', basis=basis)
         n_tokens = len(self.bank.tokens)
         # h is the compact client-to-server message; never replace sigma by ||h||.
@@ -166,7 +194,7 @@ class SFRARuntime(LAControlRuntime):
         classification_reference = classification_scale = classification_reference_gradient_norm = None
         proposal_classification_scores = proposal_classification_client_losses = None
         for step in range(0 if skip else 3):
-            self.trainer.model.load_state_dict(committed, strict=True)
+            self.load_training_state(committed)
             measurement = self.functional(rnd, f'correction_{step+1}', targets=targets,
                                           all_scores=(step == 0), classification=classification)
             if step == 0:
@@ -217,7 +245,7 @@ class SFRARuntime(LAControlRuntime):
                      f'cls_penalty={penalty:.6g} |g_func|={fn:.5g} |g_cls|={cn:.5g} '
                      f'mu={self.classification_strength:g}' if classification else '')
             print(f'SFRA round={rnd} step={step+1}/3 loss={measurement["loss"]:.6g} |z|={z.norm():.5g}{label}', flush=True)
-        self.trainer.model.load_state_dict(committed, strict=True)
+        self.load_training_state(committed)
         final_measurement = self.functional(rnd, 'committed_A', classification=classification,
                                             classification_gradient=False)
         self.costs[-1]['downlink_bytes'] = len(client_ids)*matrix.shape[0]*4
@@ -298,6 +326,8 @@ class SFRARuntime(LAControlRuntime):
             elapsed_seconds=self.elapsed_before+time.perf_counter()-self.started)
         if self.b_transfer is not None:
             payload['b_transfer_state'] = self.b_transfer.state_dict()
+        if getattr(self, 'execution_config', None) is not None:
+            payload['execution_config'] = self.execution_config
         temporary = self.root/'checkpoints/sfra_last.tmp'
         torch.save(payload, temporary)
         temporary.replace(self.root/'checkpoints/sfra_last.pt')
@@ -351,7 +381,7 @@ class SFRARuntime(LAControlRuntime):
         with path.open(encoding='utf-8', newline='') as stream:
             rows = [r for r in csv.DictReader(stream) if int(r['round']) <= completed]
         write_csv(path, rows)
-        self.trainer.model.load_state_dict(state, strict=True)
+        self.load_training_state(state)
         train_only(self.trainer.model, 'B')
         restore_rng_state(saved['rng_state'])  # Restore AFTER reconstructing data/model/witnesses.
         self.resume_payload = None
@@ -363,7 +393,7 @@ class SFRARuntime(LAControlRuntime):
         if self.resume_payload:
             state, completed = self.restore()
         else:
-            self.trainer.model.load_state_dict(initial_state, strict=True)
+            self.load_training_state(initial_state)
             state, completed = snapshot(self.trainer.model), 0
             if self.bank is not None:
                 initial = self.functional(0, 'initial_reference')['scores']
@@ -407,7 +437,7 @@ class SFRARuntime(LAControlRuntime):
                         summary['mean_previous_history_gap'] = float((arrays['history_before'][valid,None]-scores[valid]).clamp_min(0).mean())
                     write_json(folder/'summary.json', summary)
                     self.summaries.append(summary)
-                self.trainer.model.load_state_dict(state, strict=True)
+                self.load_training_state(state)
                 train_only(self.trainer.model, 'B')
                 if self.b_transfer is not None:
                     self.b_transfer.observe_global(state, rnd, committed=True)

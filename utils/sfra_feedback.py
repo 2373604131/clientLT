@@ -62,17 +62,23 @@ class WitnessBank:
         self.classification_logit_adjustment = logit_adjustment.detach().to(self.device).float()
 
     def token_feedback(self, images, label, flip, gradient,
-                       classification=False, classification_gradient=False):
+                       classification=False, classification_gradient=False, encoded_prefix=None):
         value = torch.zeros((), device=self.device)
         grad = torch.zeros(self.numel, device=self.device) if gradient else None
         ce_value = torch.zeros((), device=self.device) if classification else None
         ce_grad = torch.zeros(self.numel, device=self.device) if classification_gradient else None
-        for chunk in images.split(self.batch_size):
-            chunk = chunk.to(self.device)
-            if flip:
-                chunk = chunk.flip(-1)
+        for chunk_id, chunk in enumerate(images.split(self.batch_size)):
+            if encoded_prefix is None:
+                chunk = chunk.to(self.device)
+                if flip:
+                    chunk = chunk.flip(-1)
             with torch.set_grad_enabled(gradient or classification_gradient):
-                features = self.core.image_encoder(chunk.type(self.core.dtype))
+                if encoded_prefix is None:
+                    features = self.core.image_encoder(chunk.type(self.core.dtype))
+                else:
+                    start = chunk_id*self.batch_size
+                    features = self._fast_feedback.prefix.forward_suffix(
+                        encoded_prefix[start:start+len(chunk)].to(self.device))
                 features = features / features.norm(dim=-1, keepdim=True)
                 scores = features @ self.text_features.T
                 correct = scores[:, label]
@@ -111,6 +117,11 @@ class WitnessBank:
         Token gradients are reduced immediately: no Q x n_A tensor or retained
         multi-client graph. Microbatches use sum/|W_q|, not mean(batch_means).
         """
+        fast = getattr(self, '_fast_feedback', None)
+        if fast is not None:
+            fast.prepare()
+            if basis is None:
+                return fast.evaluate(targets, all_scores, classification, classification_gradient)
         started = time.perf_counter()
         count = len(self.tokens)
         scores = torch.zeros(count, 2, device=self.device)
@@ -139,11 +150,14 @@ class WitnessBank:
                     if not all_scores and not active and not classification:
                         continue
                     gradient = basis is not None or active
-                    images = torch.stack([self.datasets[token['client_id']][j]['img']
-                                          for j in token['local_positions']])
+                    images = (fast.token_images(q) if fast is not None else
+                              torch.stack([self.datasets[token['client_id']][j]['img']
+                                           for j in token['local_positions']]))
                     for view in range(2):
+                        prefix = fast.token_prefix(q, view) if fast is not None else None
                         value, grad, ce_value, ce_grad = self.token_feedback(
-                            images, token['class_id'], view == 1, gradient, classification, ce_gradient)
+                            images, token['class_id'], view == 1, gradient, classification, ce_gradient,
+                            encoded_prefix=prefix)
                         scores[q, view] = value
                         forward_images += len(images)
                         backward_images += len(images) if gradient else 0

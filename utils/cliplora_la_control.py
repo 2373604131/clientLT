@@ -194,6 +194,9 @@ class LAControlRuntime:
     def phase_aggregation_weights(self, selected, rnd, factor, extra=False, branch='main'):
         return self.q
 
+    def load_training_state(self, state):
+        self.trainer.model.load_state_dict(state, strict=True)
+
     def train_phase(self, state, rnd, factor='B', extra=False, branch='main', candidate=0,
                     return_deltas=False):
         phase = ('refresh_A' if factor=='A' else 'extra_B') if extra else f'normal_{factor}'
@@ -204,7 +207,7 @@ class LAControlRuntime:
         keys = self.keys if factor=='AB' else (self.a_keys if factor=='A' else self.b_keys)
         phase_started = time.perf_counter()
         for client in selected:
-            self.trainer.model.load_state_dict(state, strict=True)
+            self.load_training_state(state)
             train_only(self.trainer.model, factor)
             if extra:
                 from trainers.cliplora import cliplora_optimizer_step
@@ -266,7 +269,7 @@ class LAControlRuntime:
         info = json.loads((self.root / 'events' / event_id / 'event.json').read_text(encoding='utf-8'))
         self.events.append({**info,'committed':branch=='main','decision_round':rnd if branch=='main' else None,
                             'seconds':time.perf_counter()-phase_started,'state_path':f'events/{event_id}/state.pt'})
-        self.trainer.model.load_state_dict(after,strict=True)
+        self.load_training_state(after)
         train_only(self.trainer.model,'B')
         print(f'LA-control phase complete: {event_id}',flush=True)
         return (after, deltas) if return_deltas else after
