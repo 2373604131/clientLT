@@ -17,7 +17,7 @@ from scripts.run_cliplora_a_refresh import build_command
 
 def run_directory(args):
     setting = f'lambda{args.retention_weight:g}_protocol{args.protocol_seed}'
-    if args.method == 'full-cp':
+    if args.method.endswith('-cp'):
         setting = f'lambda{args.retention_weight:g}_mu{args.classification_weight:g}_protocol{args.protocol_seed}'
     if args.method == 's':
         setting = f'baseline_protocol{args.protocol_seed}'
@@ -25,6 +25,8 @@ def run_directory(args):
         setting += f'_beta{args.dirichlet_beta:g}'
     if args.b_transfer:
         setting += f'_b_lr{args.transfer_lr:g}_probe{args.probe_step:g}_reg{args.transfer_reg:g}'
+    if getattr(args, 'b_aggregation', 'sample') == 'uniform-transfer-rounds':
+        setting += '_bagg_uniform8'
     return args.output_root.resolve()/f'seed{args.seed}'/args.partition/args.method/setting
 
 
@@ -58,21 +60,23 @@ def prepare_protocol(args, run):
 def main(default_b_transfer=False):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--stage', choices=['train', 'summary', 'pack'], default='train')
-    parser.add_argument('--method', choices=['s', 'current', 'full', 'flat', 'full-cp'],
+    parser.add_argument('--method', choices=['s', 'current', 'full', 'flat', 'full-cp', 'flat-cp', 'current-cp'],
                         default='full-cp' if default_b_transfer else 'full')
     parser.add_argument('--b-transfer', action='store_true', default=default_b_transfer)
+    parser.add_argument('--b-aggregation', choices=['sample', 'uniform-transfer-rounds'], default='sample',
+                        help='Uniform whole-client B aggregation only at rounds 30,40,...,100; A is unchanged')
     parser.add_argument('--transfer-lr', type=float, default=.1, help='Adam learning rate for donor matrices C')
     parser.add_argument('--probe-step', type=float, default=.1, help='Temporary injection epsilon, not final transfer strength')
     parser.add_argument('--transfer-reg', type=float, default=.001, help='Mean squared-matrix penalty coefficient')
     parser.add_argument('--retention-weight', type=float, default=10., help='Retention lambda; keep 10 for the full-cp pilot')
-    parser.add_argument('--classification-weight', type=float, default=1., help='Classification preservation mu; full-cp only')
+    parser.add_argument('--classification-weight', type=float, default=1., help='Classification preservation mu; all -cp variants')
     parser.add_argument('--partition', choices=['client-longtail', 'noniid-labeldir-fine'], default='client-longtail')
     parser.add_argument('--dirichlet-beta', type=float, default=.5)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--protocol-seed', type=int, default=42)
     parser.add_argument('--data-root', type=Path, default=Path('DATA'))
     parser.add_argument('--output-root', type=Path,
-                        help='Default under output/cifar100_LT: sfra_b_transfer with B transfer, sfra_cp for full-cp, sfra_v1 otherwise')
+                        help='Default under output/cifar100_LT: sfra_b_aggregation for the uniform8 control, otherwise sfra_b_transfer / sfra_cp / sfra_v1')
     parser.add_argument('--bridge-root', type=Path, default=Path('output/cifar100_LT/a_refresh_topology_bridge'))
     parser.add_argument('--reference-run', type=Path,
                         help='Replay the partition/order/schedule of an existing complete Full-10 or S run; not its trained weights')
@@ -84,7 +88,8 @@ def main(default_b_transfer=False):
     args = parser.parse_args()
     os.chdir(REPO)
     if args.output_root is None:
-        name = 'sfra_b_transfer' if args.b_transfer else ('sfra_cp' if args.method == 'full-cp' else 'sfra_v1')
+        name = ('sfra_b_aggregation' if args.b_aggregation == 'uniform-transfer-rounds' else
+                ('sfra_b_transfer' if args.b_transfer else ('sfra_cp' if args.method.endswith('-cp') else 'sfra_v1')))
         args.output_root = Path('output/cifar100_LT') / name
     if args.stage != 'train':
         from tools.sfra.summary import summarize, pack
@@ -129,6 +134,9 @@ def main(default_b_transfer=False):
             '--sfra_retention_weight',str(args.retention_weight),
             '--sfra_classification_weight',str(args.classification_weight),
             '--sfra_witness_batch_size',str(args.witness_batch_size), '--sfra_resume','']
+        if args.b_aggregation != 'sample':
+            index = command.index('DATALOADER.NUM_WORKERS')
+            command[index:index] = ['--sfra_b_aggregation', args.b_aggregation]
         if args.b_transfer:
             index = command.index('DATALOADER.NUM_WORKERS')
             command[index:index] = ['--b_transfer_enable', '--b_transfer_lr', str(args.transfer_lr),

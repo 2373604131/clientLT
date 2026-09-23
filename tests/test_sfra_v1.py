@@ -257,6 +257,7 @@ class TestSFRA(unittest.TestCase):
         runtime.costs, runtime.summaries = [],[]
         runtime.started, runtime.elapsed_before = time.perf_counter(),0.
         runtime.variant, runtime.strength, runtime.sfra_config = 'full',3.,{'test':'round_boundary'}
+        runtime.b_transfer = None
         runtime.sizes = [5,3]
         with tempfile.TemporaryDirectory() as temp:
             runtime.root = Path(temp)

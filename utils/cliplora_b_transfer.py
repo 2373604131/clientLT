@@ -14,10 +14,11 @@ from torch.nn import functional as F
 
 from utils.cliplora_a_refresh import isolated_rng, product_norm_squared, train_only
 from utils.cliplora_bridge_audit import write_csv, write_json
+from utils.b_aggregation import B_TRANSFER_ROUNDS
 
 
 def transfer_config(args):
-    return dict(schema_version='donor_b_v1', rounds=list(range(30, 101, 10)),
+    return dict(schema_version='donor_b_v1', rounds=list(B_TRANSFER_ROUNDS),
                 warmup=20, interval=10, probe_step=args.b_transfer_probe_step,
                 learning_rate=args.b_transfer_lr, regularization=args.b_transfer_reg,
                 optimizer='Adam', betas=[.9, .999], adam_eps=1e-8, weight_decay=0.,
@@ -29,7 +30,9 @@ def transfer_config(args):
                 calibration_sampling='class-cyclic tail coverage over two steps; no repeats within a step',
                 calibration_transform='deterministic evaluation transform; autograd enabled',
                 calibration_probe_overlap='allowed training-side proxy',
-                aggregation='unchanged_sample_weighted_B_FedAvg',
+                aggregation=('uniform_whole_B_at_transfer_rounds'
+                             if getattr(args, 'sfra_b_aggregation', 'sample') == 'uniform-transfer-rounds'
+                             else 'unchanged_sample_weighted_B_FedAvg'),
                 privacy='sequential FL simulation; class presence and donor identities visible')
 
 
@@ -253,11 +256,13 @@ class DonorBTransfer:
             extra_downlink_bytes=0, extra_upload_bytes=0, seconds=0.)
         self.pending = dict(round=rnd, folder=folder, summary=summary, metrics=[], steps=[], receivers=[])
         candidate_rows, manifests, matrices_archive = [], {}, {}
+        weights = self.runtime.phase_aggregation_weights(selected, rnd, 'B')
+        summary['aggregation'] = self.config['aggregation']
         ordinary_b = {}
         for key in self.keys:
             ordinary_b[key] = torch.zeros_like(start[key])
             for k in selected:
-                ordinary_b[key].add_(local_states[k][key], alpha=self.runtime.q[k])
+                ordinary_b[key].add_(local_states[k][key], alpha=weights[k])
         new_states = dict(local_states)  # Original local states and deltas remain immutable.
         with self.session():
             self.copy_parameters(start)
@@ -311,7 +316,7 @@ class DonorBTransfer:
                     effective_norm = 0.
                 after = self.measure_client(client, 'local_after')
                 self.pending['receivers'].append(dict(round=rnd, client_id=client, candidates=len(candidates),
-                    donors=len(donors), sample_weight=self.runtime.q[client],
+                    donors=len(donors), sample_weight=self.runtime.q[client], aggregation_weight=weights[client],
                     effective_transfer_norm=effective_norm,
                     **{'before_'+k:v for k,v in before.items()}, **{'after_'+k:v for k,v in after.items()}))
                 print(f'B-transfer r{rnd:03d} client={client}: {len(donors)}/{len(candidates)} donors, '
@@ -319,7 +324,7 @@ class DonorBTransfer:
         global_residual = {key: torch.zeros_like(start[key]) for key in self.keys}
         for client in selected:
             for key in self.keys:
-                global_residual[key].add_(new_states[client][key]-local_states[client][key], alpha=self.runtime.q[client])
+                global_residual[key].add_(new_states[client][key]-local_states[client][key], alpha=weights[client])
         summary['effective_global_transfer_norm'] = self.effective_norm(global_residual, start)
         summary['seconds'] += time.perf_counter()-started
         write_csv(folder/'donor_scores.csv', candidate_rows)

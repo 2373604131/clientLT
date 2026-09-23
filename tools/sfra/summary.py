@@ -29,6 +29,7 @@ def summarize(root, reference=None):
         paths.append(Path(reference))
     performance, costs, curves, mechanisms, corrections, status = [], [], [], [], [], []
     transfer_rounds, transfer_receivers, transfer_steps, transfer_probes = [], [], [], []
+    aggregation_rows = []
     for run in paths:
         config_file = run/'sfra_config.json'
         new = config_file.is_file()
@@ -45,7 +46,11 @@ def summarize(root, reference=None):
         info = dict(run=label, method=cfg['variant'] if new else cfg['method'],
                     partition=cfg['partition'] if new else cfg['topology'], seed=cfg['seed'],
                     retention_weight=cfg.get('retention_weight', ''),
-                    classification_weight=cfg.get('classification_weight', ''))
+                    classification_weight=cfg.get('classification_weight', ''),
+                    b_aggregation=cfg.get('b_aggregation', {}).get('mode', 'sample'),
+                    b_transfer_enabled=bool(cfg.get('b_transfer')))
+        if info['b_aggregation'] == 'uniform-transfer-rounds':
+            info['method'] += '+uniform8'
         transfer = cfg.get('b_transfer')
         if transfer:
             info.update(method=info['method']+'+B-transfer', transfer_lr=transfer['learning_rate'],
@@ -60,6 +65,15 @@ def summarize(root, reference=None):
         performance.append(row)
         curves.extend({**info, **r} for r in rows)
         if new:
+            if cfg.get('b_aggregation'):
+                sizes = json.loads((run/'bridge_metadata.json').read_text(encoding='utf-8'))['client_sample_counts']
+                for event in read_csv(run/'event_manifest.csv'):
+                    clients = json.loads(event['selected_client_ids'])
+                    weights = json.loads(event['server_weights'])
+                    for client, weight in zip(clients, weights):
+                        aggregation_rows.append({**info, 'round':int(event['round']), 'phase':event['phase'],
+                            'client_id':client, 'sample_weight':sizes[client]/sum(sizes),
+                            'aggregation_weight':weight})
             rr = read_csv(run/'sfra_rounds.csv')
             cc = read_csv(run/'sfra_costs.csv')
             costs.append({**info, **{name:sum(float(r[name]) for r in cc)
@@ -80,6 +94,8 @@ def summarize(root, reference=None):
     for name, rows in [('performance',performance),('functional_costs',costs),('curves',curves),
                        ('mechanisms',mechanisms),('correction_steps',corrections),('status',status)]:
         write_csv(out/f'{name}.csv', rows)
+    if aggregation_rows:
+        write_csv(out/'aggregation_weights.csv', aggregation_rows)
     if transfer_rounds:
         for name, rows in [('b_transfer_rounds', transfer_rounds), ('b_transfer_receivers', transfer_receivers),
                            ('b_transfer_steps', transfer_steps), ('b_transfer_probes', transfer_probes)]:
@@ -99,9 +115,17 @@ def summarize(root, reference=None):
               'F_post_B(t+1) provides the next-round B retention measurement for F_committed(t).',
               'Current/Full/Flat have the same rules and budget, not numerically identical evolving targets.',
               'This is a single-seed development comparison, not significance or test-independent parameter selection.']
+    if aggregation_rows:
+        lines += ['', '## Eight-round B aggregation control', '',
+                  'uniform-transfer-rounds changes the WHOLE local B aggregation to 1/K at rounds 30,40,...,100 only.',
+                  'The no-transfer control uses exactly the same eight intervention rounds.',
+                  'All other B rounds, all A proposals, and the classification-preservation weights remain sample-weighted.',
+                  'Donor selection and C optimization still use the original local B; this is not shared-C training.',
+                  'Compare transfer on/off under the SAME B aggregation rule; then compare the transfer increment across rules.',
+                  'aggregation_weights.csv contains the actual audited weights for both B and A phases.']
     if transfer_rounds:
         lines += ['', '## Donor B transfer', '',
-                  'Only C learning rate varies in the initial sweep; keep A settings fixed.',
+                  'Keep A settings fixed. In the original sweep only C learning rate varies; in the aggregation control C learning is unchanged.',
                   'Compare A+B against A-only with the SAME variant, lambda, mu, partition and training protocol.',
                   'Use performance.csv for official test outcomes; transfer probe scores are training-side diagnostics.',
                   'b_transfer_rounds.csv contains additional algorithm/diagnostic image counts and communication costs, separate from SFRA functional costs.',

@@ -51,7 +51,7 @@ def source_statistics(responses, cache, sample_weights):
 def make_targets(scores, source, history, history_valid, variant):
     current = (scores + .5 * source['u'][:, None]).clamp_max(2.)
     has_current = source['supported']
-    has_history = history_valid if variant != 'current' else torch.zeros_like(history_valid)
+    has_history = history_valid if variant not in ('current', 'current-cp') else torch.zeros_like(history_valid)
     active = has_current | has_history
     # Inactive entries are storage placeholders, never baseline-maintenance targets.
     target = torch.zeros_like(scores)
@@ -60,7 +60,7 @@ def make_targets(scores, source, history, history_valid, variant):
     target[only_history] = history[only_history, None]
     both = has_current & has_history
     target[both] = torch.maximum(target[both], history[both, None])
-    raw = torch.ones_like(history) if variant == 'flat' else source['cache'].clone()
+    raw = torch.ones_like(history) if variant in ('flat', 'flat-cp') else source['cache'].clone()
     raw[~active] = 0
     weights = raw / raw.sum() if active.any() else raw
     return dict(current=current, target=target, active=active, weights=weights)

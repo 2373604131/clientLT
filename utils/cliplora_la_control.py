@@ -191,6 +191,9 @@ class LAControlRuntime:
         """Optional recipient-side work after ALL ordinary local updates are cached."""
         return local_states, deltas
 
+    def phase_aggregation_weights(self, selected, rnd, factor, extra=False, branch='main'):
+        return self.q
+
     def train_phase(self, state, rnd, factor='B', extra=False, branch='main', candidate=0,
                     return_deltas=False):
         phase = ('refresh_A' if factor=='A' else 'extra_B') if extra else f'normal_{factor}'
@@ -247,18 +250,19 @@ class LAControlRuntime:
                 'b_optimizer_steps':steps if factor in ('B','AB') else 0,
                 'upload_bytes':sum(v.numel()*v.element_size() for v in local_states[client].values()),
                 'modeled_downlink_bytes':sum(state[k].numel()*state[k].element_size() for k in self.keys)})
+        weights = self.phase_aggregation_weights(selected, rnd, factor, extra, branch)
         if factor == 'B' and not extra and branch == 'main':
             local_states, deltas = self.prepare_b_aggregation(state, local_states, deltas, selected, rnd)
         if extra:
-            after = aggregate_refresh_deltas(state,deltas,self.q,keys)
+            after = aggregate_refresh_deltas(state,deltas,weights,keys)
         else:
-            after = aggregate_lora_state(state,local_states,selected,keys,self.q)
+            after = aggregate_lora_state(state,local_states,selected,keys,weights)
         context = {'event_id':event_id,'branch':branch,'candidate_round':candidate}
         self.audit.event_context = context
         if extra:
-            self.audit.save(state,after,deltas,selected,self.q,rnd,phase)
+            self.audit.save(state,after,deltas,selected,weights,rnd,phase)
         else:
-            self.audit.normal(state,after,local_states,selected,self.q,rnd,factor=factor)
+            self.audit.normal(state,after,local_states,selected,weights,rnd,factor=factor)
         info = json.loads((self.root / 'events' / event_id / 'event.json').read_text(encoding='utf-8'))
         self.events.append({**info,'committed':branch=='main','decision_round':rnd if branch=='main' else None,
                             'seconds':time.perf_counter()-phase_started,'state_path':f'events/{event_id}/state.pt'})

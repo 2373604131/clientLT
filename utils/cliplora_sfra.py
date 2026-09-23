@@ -13,6 +13,7 @@ from utils.cliplora_functional_feedback import snapshot
 from utils.cliplora_la_control import LAControlRuntime
 from utils.pfrf import capture_rng_state, restore_rng_state
 from utils.sfra_feedback import WitnessBank
+from utils.b_aggregation import B_TRANSFER_ROUNDS, phase_weights
 from utils.sfra_math import (FunctionalHistory, flatten, unflatten, proposal_coordinates,
                              source_statistics, make_targets, projected_step, require_finite, functional_loss,
                              classification_preservation)
@@ -24,7 +25,7 @@ class SFRARuntime(LAControlRuntime):
         super().__init__(trainer, global_trainer, cfg, args, schedule, normal_train)
         self.variant = args.sfra_variant
         self.strength = args.sfra_retention_weight
-        self.classification_strength = args.sfra_classification_weight if self.variant == 'full-cp' else 0.
+        self.classification_strength = args.sfra_classification_weight if self.variant.endswith('-cp') else 0.
         assert self.strength >= 0 and np.isfinite(self.strength)
         assert args.sfra_witness_batch_size > 0
         self.method = 'sfra_' + self.variant
@@ -40,13 +41,19 @@ class SFRARuntime(LAControlRuntime):
             normalization='one global active-token normalization; no further client weighting',
             privacy='sequential FL simulation with local diagnostics; no DP or secure aggregation',
             precision='fp32', commit_rule='fixed_third_step', refresh_rounds=list(range(1,91)))
-        if self.variant == 'full-cp':
+        if self.variant.endswith('-cp'):
             self.sfra_config.update(schema_version='sfra_cp_v1', classification_weight=self.classification_strength,
                 classification_objective='global sample-weighted LA on all witness tokens and both views',
                 classification_reference='same-round ordinary A proposal with fixed post-B model',
                 classification_penalty='0.5 * positive((C-C0)/scale)^2 after global loss aggregation',
                 classification_scale='max(0.001, R * norm(global LA gradient at ordinary A))',
                 classification_scale_floor=.001, classification_gradient_upload='separate from functional gradient')
+        if getattr(args, 'sfra_b_aggregation', 'sample') == 'uniform-transfer-rounds':
+            self.sfra_config['b_aggregation'] = dict(mode='uniform-transfer-rounds',
+                rounds=list(B_TRANSFER_ROUNDS), scope='whole local B, including transfer residual if enabled',
+                other_B_rounds='sample_weighted', A_aggregation='sample_weighted',
+                classification_preservation_weights='original_sample_weighted')
+            self.method += '_bagg_uniform8'
         if getattr(args, 'b_transfer_enable', False):
             from utils.cliplora_b_transfer import transfer_config
             self.sfra_config['b_transfer'] = transfer_config(args)
@@ -66,7 +73,7 @@ class SFRARuntime(LAControlRuntime):
             tokens = self.resume_payload['witness_tokens'] if self.resume_payload else None
             self.bank = WitnessBank(trainer, cfg, self.a_keys, args.seed,
                                     args.sfra_witness_batch_size, tokens=tokens)
-            if self.variant == 'full-cp':
+            if self.variant.endswith('-cp'):
                 self.bank.configure_classification(self.audit.counts, trainer.training_logit_adjustment)
             # Preserve both local positions and original image identities in the experiment artifact.
             with (self.root/'partition_manifest.csv').open(encoding='utf-8', newline='') as stream:
@@ -79,10 +86,17 @@ class SFRARuntime(LAControlRuntime):
         if 'b_transfer' in self.sfra_config:
             from utils.cliplora_b_transfer import DonorBTransfer
             self.b_transfer = DonorBTransfer(self)
-        label = f', classification mu={self.classification_strength:g}' if self.variant == 'full-cp' else ''
+        label = f', classification mu={self.classification_strength:g}' if self.variant.endswith('-cp') else ''
         print(f'SFRA: {self.variant}, retention lambda={self.strength:g}{label}, A rounds=1..90', flush=True)
         if self.b_transfer is not None:
             print(f'B-transfer enabled: C lr={args.b_transfer_lr:g}, rounds=30,40,...,100', flush=True)
+        if 'b_aggregation' in self.sfra_config:
+            print('B aggregation: uniform over all 30 clients at rounds 30,40,...,100 only; '
+                  'all other B rounds and every A proposal stay sample-weighted.', flush=True)
+
+    def phase_aggregation_weights(self, selected, rnd, factor, extra=False, branch='main'):
+        mode = self.sfra_config.get('b_aggregation', {}).get('mode', 'sample')
+        return phase_weights(self.q, selected, rnd, mode, factor, extra, branch)
 
     def prepare_b_aggregation(self, state, local_states, deltas, selected, rnd):
         if self.b_transfer is None:
@@ -111,7 +125,7 @@ class SFRARuntime(LAControlRuntime):
         return rows
 
     def refresh(self, middle, rnd, folder):
-        classification = self.variant == 'full-cp'
+        classification = self.variant.endswith('-cp')
         ordinary, deltas = self.train_phase(middle, rnd, 'A', True, return_deltas=True)
         self.events[-1]['state_role'] = 'ordinary_A_proposal_before_functional_correction'
         device = self.trainer.device
@@ -274,7 +288,7 @@ class SFRARuntime(LAControlRuntime):
         return committed, final_measurement['scores'], arrays, summary
 
     def checkpoint(self, state, completed):
-        payload = dict(schema_version='sfra_cp_v1' if self.variant == 'full-cp' else 'sfra_v1',
+        payload = dict(schema_version='sfra_cp_v1' if self.variant.endswith('-cp') else 'sfra_v1',
             completed_round=completed, sfra_config=self.sfra_config,
             state_dict_overrides=self.compressed_state(state), rng_state=capture_rng_state(),
             witness_tokens=None if self.bank is None else self.bank.tokens,
@@ -303,8 +317,11 @@ class SFRARuntime(LAControlRuntime):
             functional_correction_steps=sum(r['correction_steps'] for r in self.summaries),
             official_test_passes=len(self.evaluations),
             elapsed_seconds=self.elapsed_before+time.perf_counter()-self.started)
-        if self.variant == 'full-cp':
+        if self.variant.endswith('-cp'):
             progress['classification_weight'] = self.classification_strength
+        if 'b_aggregation' in self.sfra_config:
+            progress['b_aggregation'] = self.sfra_config['b_aggregation']['mode']
+            progress['uniform_B_rounds_completed'] = sum(r <= completed for r in B_TRANSFER_ROUNDS)
         if self.b_transfer is not None:
             self.b_transfer.flush()
             progress.update(self.b_transfer.progress())
@@ -375,7 +392,7 @@ class SFRARuntime(LAControlRuntime):
                                       history_before=self.history.level.clone(), history_valid_before=self.history.valid.clone())
                         summary = dict(round=rnd, variant=self.variant, retention_weight=self.strength,
                                        correction_steps=0, skip_reason='B_only_schedule')
-                    if self.variant == 'full-cp':
+                    if self.variant.endswith('-cp'):
                         summary['classification_weight'] = self.classification_strength
                     changed = self.history.commit(scores, rnd)  # Only now, effective next round.
                     arrays.update(history_after=self.history.level, history_valid_after=self.history.valid,
@@ -396,7 +413,7 @@ class SFRARuntime(LAControlRuntime):
                     self.b_transfer.observe_global(state, rnd, committed=True)
                 self.publish(state, rnd, rnd)
                 self.checkpoint(state, rnd)
-                label = f', mu={self.classification_strength:g}' if self.variant == 'full-cp' else ''
+                label = f', mu={self.classification_strength:g}' if self.variant.endswith('-cp') else ''
                 if self.b_transfer is not None:
                     label += f', B-transfer lr={self.b_transfer.config["learning_rate"]:g}'
                 print(f'SFRA COMMITTED {rnd}/100: {self.variant}, lambda={self.strength:g}{label}', flush=True)
