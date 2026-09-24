@@ -55,9 +55,12 @@ class SFRARuntime(LAControlRuntime):
                 classification_preservation_weights='original_sample_weighted')
             self.method += '_bagg_uniform8'
         if getattr(args, 'b_transfer_enable', False):
-            from utils.cliplora_b_transfer import transfer_config
+            if getattr(args, 'b_transfer_mode', 'local') == 'shared':
+                from utils.cliplora_b_shared_transfer import shared_transfer_config as transfer_config
+            else:
+                from utils.cliplora_b_transfer import transfer_config
             self.sfra_config['b_transfer'] = transfer_config(args)
-            self.method += '_b_transfer'
+            self.method += '_b_shared_transfer' if getattr(args, 'b_transfer_mode', 'local') == 'shared' else '_b_transfer'
         self.resume_payload = None
         if args.sfra_resume:
             self.resume_payload = torch.load(args.sfra_resume, map_location='cpu', weights_only=False)
@@ -70,9 +73,14 @@ class SFRARuntime(LAControlRuntime):
         self.elapsed_before = 0.
         self.execution_config = None
         self._execution_loader = None
-        if getattr(args, 'sfra_fast_execution', False):
+        execution_v2 = getattr(args, 'sfra_fast_execution_v2', False)
+        if getattr(args, 'sfra_fast_execution', False) or execution_v2:
             from utils.sfra_execution import FAST_EXECUTION_CONFIG, LoRAStateLoader, enable_model_execution
             self.execution_config = dict(FAST_EXECUTION_CONFIG)
+            if execution_v2:
+                from utils.sfra_resident_feedback import execution_config_v2
+                self.execution_config = execution_config_v2(
+                    args.sfra_feedback_batch_size, args.sfra_feedback_cache_gib)
             enable_model_execution(trainer.model)
             enable_model_execution(global_trainer.model)
             self._execution_loader = LoRAStateLoader(trainer.model, self.keys)
@@ -88,6 +96,12 @@ class SFRARuntime(LAControlRuntime):
                 from utils.sfra_fast_feedback import FastWitnessFeedback
                 self.bank._fast_feedback = FastWitnessFeedback(
                     self.bank, self.execution_config['feedback_forward_batch_size'])
+                if execution_v2:
+                    from utils.sfra_resident_feedback import ResidentWitnessFeedback
+                    self.bank._fast_feedback = ResidentWitnessFeedback(
+                        self.bank, self.execution_config['feedback_forward_batch_size'],
+                        self.execution_config['device_cache_gib'],
+                        self.execution_config['device_cache_reserve_gib'])
             if self.variant.endswith('-cp'):
                 self.bank.configure_classification(self.audit.counts, trainer.training_logit_adjustment)
             # Preserve both local positions and original image identities in the experiment artifact.
@@ -99,18 +113,29 @@ class SFRARuntime(LAControlRuntime):
             write_json(self.root/'private_witness_manifest.json', self.bank.tokens)
         self.b_transfer = None
         if 'b_transfer' in self.sfra_config:
-            from utils.cliplora_b_transfer import DonorBTransfer
-            self.b_transfer = DonorBTransfer(self)
+            if self.sfra_config['b_transfer'].get('mode') == 'shared':
+                from utils.cliplora_b_shared_transfer import SharedDonorBTransfer
+                self.b_transfer = SharedDonorBTransfer(self)
+            else:
+                from utils.cliplora_b_transfer import DonorBTransfer
+                self.b_transfer = DonorBTransfer(self)
         label = f', classification mu={self.classification_strength:g}' if self.variant.endswith('-cp') else ''
         print(f'SFRA: {self.variant}, retention lambda={self.strength:g}{label}, A rounds=1..90', flush=True)
         if self.b_transfer is not None:
             print(f'B-transfer enabled: C lr={args.b_transfer_lr:g}, rounds=30,40,...,100', flush=True)
+            if self.sfra_config['b_transfer'].get('mode') == 'shared':
+                print('Shared B transfer: original recipients/batches; two joint C steps; '
+                      'one post-FedAvg residual, no second client weighting.', flush=True)
         if 'b_aggregation' in self.sfra_config:
             print('B aggregation: uniform over all 30 clients at rounds 30,40,...,100 only; '
                   'all other B rounds and every A proposal stay sample-weighted.', flush=True)
         if self.execution_config is not None:
             print('SFRA fast execution: FP32 caches, LoRA-only restores, low-rank forward, '
                   'client-local feedback batching. Algorithm and training budgets unchanged.', flush=True)
+            if execution_v2:
+                print(f'SFRA execution v2: feedback batch={args.sfra_feedback_batch_size}, '
+                      f'device prefix cache limit={args.sfra_feedback_cache_gib:g} GiB; '
+                      'source gradients remain independent.', flush=True)
 
     def load_training_state(self, state):
         loader = getattr(self, '_execution_loader', None)
@@ -126,7 +151,30 @@ class SFRARuntime(LAControlRuntime):
     def prepare_b_aggregation(self, state, local_states, deltas, selected, rnd):
         if self.b_transfer is None:
             return local_states, deltas
+        if self.sfra_config['b_transfer'].get('mode') == 'shared':
+            if self.b_transfer.scheduled(rnd):
+                self.b_transfer.cache_updates(deltas, selected)
+            return local_states, deltas
         return self.b_transfer.apply(state, local_states, deltas, selected, rnd)
+
+    def train_phase(self, state, rnd, factor='B', extra=False, branch='main', candidate=0,
+                    return_deltas=False):
+        result = super().train_phase(state, rnd, factor, extra, branch, candidate, return_deltas)
+        if (factor == 'B' and not extra and branch == 'main'
+                and self.sfra_config.get('b_transfer', {}).get('mode') == 'shared'
+                and self.b_transfer.scheduled(rnd)):
+            ordinary = result[0] if return_deltas else result
+            committed = self.b_transfer.apply_shared(state, ordinary, rnd)
+            # The inherited dump reconstructs ordinary FedAvg from RAW local updates.
+            # Preserve it, and explicitly link the separately committed shared residual.
+            event = self.events[-1]
+            event.update(state_role='ordinary_B_before_shared_transfer',
+                         shared_transfer_state_path=f'b_transfer_rounds/r{rnd:03d}/commit.pt')
+            write_json(self.root/'events'/event['event_id']/'event.json', event)
+            self.load_training_state(committed)
+            train_only(self.trainer.model, 'B')
+            return (committed, result[1]) if return_deltas else committed
+        return result
 
     def functional(self, rnd, phase, **kwargs):
         print(f'SFRA round={rnd} phase={phase}', flush=True)
@@ -137,7 +185,9 @@ class SFRARuntime(LAControlRuntime):
         if 'classification_loss' in result:
             self.costs[-1].update(classification_forward_images=result['classification_forward_images'],
                                  classification_backward_images=result['classification_backward_images'])
-        for key in ('execution_forward_batches', 'execution_zero_gradient_batches'):
+        for key in ('execution_forward_batches', 'execution_zero_gradient_batches',
+                    'execution_zero_coefficient_batches', 'execution_device_cache_bytes',
+                    'execution_cpu_prefix_cache_bytes'):
             if key in result:
                 self.costs[-1][key] = result[key]
         return result
@@ -390,6 +440,10 @@ class SFRARuntime(LAControlRuntime):
         return state, completed
 
     def run(self, initial_state):
+        stop = getattr(self.args, 'sfra_stop_after_round', 0)
+        if not 0 <= stop <= 100:
+            raise ValueError('sfra_stop_after_round must be between 0 and 100')
+        last_round = stop or 100
         if self.resume_payload:
             state, completed = self.restore()
         else:
@@ -400,7 +454,7 @@ class SFRARuntime(LAControlRuntime):
                 self.history = FunctionalHistory(initial, len(self.sizes))
             self.publish(state, 0, 0)
             self.checkpoint(state, 0)
-        for rnd in range(completed+1, 101):
+        for rnd in range(completed+1, last_round+1):
             try:
                 state = self.train_phase(state, rnd, 'B')
                 if self.b_transfer is not None:
@@ -453,3 +507,6 @@ class SFRARuntime(LAControlRuntime):
                                 current_lora={k:v.detach().cpu() for k,v in self.trainer.model.state_dict().items() if k in self.keys},
                                 rng_state=capture_rng_state()), self.root/'failure_diagnostic.pt')
                 raise
+        if last_round < 100:
+            print(f'SFRA timing run paused after committed round {max(completed, last_round)}; '
+                  'the planned schedule remains 100 rounds. Resume with --stop-after-round 0.', flush=True)

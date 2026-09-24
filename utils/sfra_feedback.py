@@ -62,7 +62,8 @@ class WitnessBank:
         self.classification_logit_adjustment = logit_adjustment.detach().to(self.device).float()
 
     def token_feedback(self, images, label, flip, gradient,
-                       classification=False, classification_gradient=False, encoded_prefix=None):
+                       classification=False, classification_gradient=False, encoded_prefix=None,
+                       check_finite=True):
         value = torch.zeros((), device=self.device)
         grad = torch.zeros(self.numel, device=self.device) if gradient else None
         ce_value = torch.zeros((), device=self.device) if classification else None
@@ -101,13 +102,14 @@ class WitnessBank:
                 if classification_gradient:
                     parts = torch.autograd.grad(ce, self.parameters, create_graph=False)
                     ce_grad += torch.cat([p.detach().reshape(-1) for p in parts])
-        require_finite(score=value)
-        if gradient:
-            require_finite(functional_gradient=grad)
-        if classification:
-            require_finite(classification_loss=ce_value)
-        if classification_gradient:
-            require_finite(classification_gradient=ce_grad)
+        if check_finite:
+            require_finite(score=value)
+            if gradient:
+                require_finite(functional_gradient=grad)
+            if classification:
+                require_finite(classification_loss=ce_value)
+            if classification_gradient:
+                require_finite(classification_gradient=ce_grad)
         return value, grad, ce_value, ce_grad
 
     def evaluate(self, basis=None, targets=None, all_scores=True,
@@ -122,6 +124,9 @@ class WitnessBank:
             fast.prepare()
             if basis is None:
                 return fast.evaluate(targets, all_scores, classification, classification_gradient)
+        deferred_checks = getattr(fast, 'defer_source_finite_checks', False)
+        if deferred_checks and torch.device(self.device).type == 'cuda':
+            torch.cuda.synchronize(self.device)
         started = time.perf_counter()
         count = len(self.tokens)
         scores = torch.zeros(count, 2, device=self.device)
@@ -157,7 +162,7 @@ class WitnessBank:
                         prefix = fast.token_prefix(q, view) if fast is not None else None
                         value, grad, ce_value, ce_grad = self.token_feedback(
                             images, token['class_id'], view == 1, gradient, classification, ce_gradient,
-                            encoded_prefix=prefix)
+                            encoded_prefix=prefix, check_finite=not deferred_checks)
                         scores[q, view] = value
                         forward_images += len(images)
                         backward_images += len(images) if gradient else 0
@@ -186,6 +191,12 @@ class WitnessBank:
                     parameter.requires_grad_(flag)
                 for module, mode in modes:
                     module.training = mode
+        if deferred_checks:
+            # Every independent full-gradient norm/projection is still checked
+            # before any source decision. Avoid thousands of host waits per pass.
+            require_finite(scores=scores, gradient_norms=norms)
+            if coordinates is not None:
+                require_finite(coordinates=coordinates)
         result = dict(scores=scores.cpu(), gradient_norms=norms.cpu(),
                       coordinates=None if coordinates is None else coordinates.cpu(),
                       gradient=None if client_gradients is None else client_gradients.sum(0),
@@ -204,4 +215,10 @@ class WitnessBank:
                           classification_client_losses=ce_clients.cpu(), classification_scores=ce_scores.cpu(),
                           classification_forward_images=classification_forward_images,
                           classification_backward_images=classification_backward_images)
+        if deferred_checks:
+            result['execution_device_cache_bytes'] = fast.device_cache_bytes
+            result['execution_cpu_prefix_cache_bytes'] = fast.cpu_cache_bytes
+            if torch.device(self.device).type == 'cuda':
+                torch.cuda.synchronize(self.device)
+            result['seconds'] = time.perf_counter()-started
         return result

@@ -6490,7 +6490,14 @@ if __name__ == "__main__":
     parser.add_argument('--sfra_resume', default='')
     parser.add_argument('--sfra_b_aggregation', choices=['sample', 'uniform-transfer-rounds'], default='sample')
     parser.add_argument('--sfra_fast_execution', action='store_true')
+    parser.add_argument('--sfra_fast_execution_v2', action='store_true')
+    parser.add_argument('--sfra_feedback_batch_size', type=int, default=64)
+    parser.add_argument('--sfra_feedback_cache_gib', type=float, default=4.,
+                        help='GPU fixed-prefix cache budget in GiB, between 0 and 4')
+    parser.add_argument('--sfra_stop_after_round', type=int, default=0,
+                        help='Pause after a committed round for timing; 0 runs the unchanged 100-round schedule')
     parser.add_argument('--b_transfer_enable', action='store_true')
+    parser.add_argument('--b_transfer_mode', choices=['local', 'shared'], default='local')
     parser.add_argument('--b_transfer_lr', type=float, default=.1)
     parser.add_argument('--b_transfer_probe_step', type=float, default=.1)
     parser.add_argument('--b_transfer_reg', type=float, default=.001)

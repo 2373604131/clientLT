@@ -53,7 +53,9 @@ def summarize(root, reference=None):
             info['method'] += '+uniform8'
         transfer = cfg.get('b_transfer')
         if transfer:
-            info.update(method=info['method']+'+B-transfer', transfer_lr=transfer['learning_rate'],
+            mode = transfer.get('mode', 'local')
+            info.update(method=info['method']+('+B-shared' if mode == 'shared' else '+B-transfer'),
+                        transfer_mode=mode, transfer_lr=transfer['learning_rate'],
                         transfer_probe_step=transfer['probe_step'], transfer_reg=transfer['regularization'])
         row = dict(info)
         for metric in METRICS:
@@ -129,10 +131,19 @@ def summarize(root, reference=None):
                   'Compare A+B against A-only with the SAME variant, lambda, mu, partition and training protocol.',
                   'Use performance.csv for official test outcomes; transfer probe scores are training-side diagnostics.',
                   'b_transfer_rounds.csv contains additional algorithm/diagnostic image counts and communication costs, separate from SFRA functional costs.',
-                  'Local before/after and ordinary/transferred global B scores use the same fixed witness images.',
+                  'Local-mode receiver rows are local before/after; shared-mode rows compare the same ordinary/transferred shared B.',
                   'committed_global includes the subsequent A update (none in round 100); it is not a no-transfer counterfactual.',
                   'Local non-tail monitoring is a fixed at-most-16-image subset, not the full non-tail test set.',
                   'Transfer group scores average present classes within each receiver, then average receivers; they are not official global class-macro accuracy.']
+    if any(r.get('transfer_mode') == 'shared' for r in performance):
+        lines += ['', '## Shared-model B transfer', '',
+                  'B-shared uses the original tail-present recipients and exactly the original two calibration batches.',
+                  'Each global C step averages the original local group-balanced LA losses, with one C regularizer; all clients see the same C.',
+                  'Two global optimizer steps are NOT two image batches: compare algorithm_backward_images and client_backward_batches.',
+                  'Ordinary B FedAvg and all A rules are unchanged. The residual is added once AFTER ordinary B aggregation.',
+                  'Normal-B event dumps remain raw ordinary FedAvg; their state_role and shared_transfer_state_path link the separate commit.pt.',
+                  'No local_tail_la_gain is reported for shared C; shared_receiver_tail_la_gain_mean uses the shared model.',
+                  'The old local donor screen and new shared donor screen can accept different donors; this is not a pure placement-only change.']
     (out/'report.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
     print(f'Summary written: {out/"report.md"}', flush=True)
 
