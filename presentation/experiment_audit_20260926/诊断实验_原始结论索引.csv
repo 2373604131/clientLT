@@ -1,0 +1,30 @@
+﻿来源,字段,记录内容
+output/carrier_access_audit/analysis_b/experiment_b_summary.json,evidence_boundary,Candidate-only local updates use equal samples and steps from theta0. Semantic similarity is evaluated as a donor-enrichment prior; positive transfer remains class-conditional.
+output/carrier_access_audit/analysis_b/experiment_b_summary.json,verdict,SEMANTIC_PRIOR_ENRICHES_FUNCTIONAL_DONORS
+output/carrier_access_audit/analysis_c/experiment_c_summary.json,evidence_boundary,"Joint versus separate optimizer trajectory is the treatment. Samples, per-role gradient calls, theta0 and private selection evidence are controlled; raw update norms are reported as a diagnostic."
+output/carrier_access_audit/analysis_c/experiment_c_summary.json,verdict,PARTIAL_PLACEMENT_SUPPORT
+output/carrier_access_audit/experiment_a/experiment_a_summary.json,evidence_boundary,"Natural Client-LT versus Dirichlet carrier-local association before aggregation; client size, steps, class composition and exposure are intentionally not matched."
+output/carrier_access_audit/experiment_a/experiment_a_summary.json,verdict,DIRICHLET_CARRIERS_FUNCTIONALLY_BROADER
+output/compatibility_retention_bridge/summary.json,claim_boundary,Tests whether under-constrained c+r updates retain a smaller fraction of their local target gain under one identical real class-absent Client-LT FedAvg update. It does not attribute all of the observed 13.85pp final accuracy gap to this mechanism.
+output/compatibility_retention_bridge/summary.json,verdict,COMPATIBILITY_TO_RETENTION_BRIDGE_SUPPORTED
+output/e1_seed42_results_for_analysis/e1_strength_breadth/formal/seed42/analysis/e1_seed42_summary.json,gate_pass,False
+output/e1_seed42_results_for_analysis/e1_strength_breadth/formal/seed42/analysis/e1_seed42_summary.json,verdict,SEED42_STRONG_BUT_NOT_NARROW
+output/functional_breadth_p0_p1_seed42_v2/p1_functional_breadth/p1_summary.json,verdict,PARTIAL
+output/functional_cusp_gate_seed42/summary/two_topology_gate_summary.json,verdict,FAIL
+output/p0_v1_context_colocation_v2/v1_summary.json,evidence_boundary,"V1 measures local positive-example co-location. It does not establish positive transfer, gradient compatibility, formation of new LoRA knowledge, or an accuracy causal effect."
+output/pfrf_kill_v1/analysis/screening_summary.json,scientific_verdict,pending_external_probe_and_additional_seeds
+output/post_write_rewrite_audit/analysis_d1/d1_summary.json,evidence_boundary,"D1 uses fixed, norm-equalized class-absent updates. It supports state-conditioned signed functional rewriting under this frozen vision-LoRA substrate, not a universal causal claim."
+output/post_write_rewrite_audit/analysis_d1/d1_summary.json,gate_checks,"{""donor_to_rewriter_turnover_is_widespread"": false, ""enough_valid_tail_writers"": true, ""private_effect_has_positive_rank_signal"": true, ""private_sign_prediction_above_chance"": true, ""signed_post_effects_are_widespread"": true}"
+output/post_write_rewrite_audit/analysis_d1/d1_summary.json,gate_pass,False
+output/post_write_rewrite_audit/analysis_d1/d1_summary.json,verdict,POST_WRITE_REWRITE_SUPPORTED_WITHOUT_FULL_TURNOVER_CHAIN
+output/post_write_rewrite_audit/analysis_d2/d2_summary.json,evidence_boundary,"D2 replays fixed saved, norm-equalized updates. It tests whether private post-write risk orders later test forgetting; it is not a full federated trajectory with client retraining."
+output/post_write_rewrite_audit/analysis_d2/d2_summary.json,gate_checks,"{""high_risk_replay_is_worse_than_blind"": true, ""low_risk_replay_beats_blind"": true, ""private_risk_predicts_blind_forgetting"": true}"
+output/post_write_rewrite_audit/analysis_d2/d2_summary.json,gate_pass,True
+output/post_write_rewrite_audit/analysis_d2/d2_summary.json,verdict,REWRITE_RISK_PREDICTS_RETENTION
+output/v2_v3_semantic_acquisition/v2_full/v2_summary.json,evidence_boundary,isolated functional semantic-acquisition mechanism; not a full Client-LT accuracy decomposition
+output/v2_v3_semantic_acquisition/v2_full/v2_summary.json,verdict,NO_FUNCTIONAL_SUPPORT
+output/v2_v3_semantic_acquisition/v2_topology_full/v2_joint_summary.json,semantic_intervention_verdict,NO_FUNCTIONAL_SUPPORT
+output/v2_v3_semantic_acquisition/v2_topology_full/v2_joint_summary.json,topology_verdict,NO_STABLE_TOPOLOGY_FORMATION_GAP
+output/v2_v3_semantic_acquisition/v2_topology_full/v2_joint_summary.json,verdict,FORMATION_CHAIN_NOT_SUPPORTED
+output/v2_v3_semantic_acquisition/v2_topology_full/v2_topology_summary.json,evidence_boundary,"one-round frozen 30-client partition replay; topology effect includes support dispersion, client size, batching and local path"
+output/v2_v3_semantic_acquisition/v2_topology_full/v2_topology_summary.json,verdict,NO_STABLE_TOPOLOGY_FORMATION_GAP

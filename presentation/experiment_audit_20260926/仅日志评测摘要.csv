@@ -1,0 +1,2 @@
+﻿编号,来源,显式Overall记录数,最后记录,说明
+R522ccee8e,output/test/log.txt,18,"{""Overall accuracy"": ""94.04"", ""Head accuracy (top 75%)"": ""96.85"", ""Medium accuracy (75%-95%)"": ""91.00"", ""Tail accuracy (bottom 5%)"": ""92.74""}",日志原文标签；未验证分组语义或重算，不能与正式CSV混算。

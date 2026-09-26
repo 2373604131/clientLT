@@ -1,0 +1,10 @@
+﻿组,run_id,记录seed,路径,处理
+Xc86c9274,Rb20a56182,1,output/cifar100_LT/fedtef_v10_topology_observer/seed1/frac0.4/FedTEF-v10-topology_noniid-labeldir,不同seed的整条记录精度相同；须追溯来源，不能据此估计跨seed方差。
+Xc86c9274,Rcaba3e3b0,3407,output/cifar100_LT/fedtef_v10_topology_observer/seed3407/frac0.4/FedTEF-v10-topology_noniid-labeldir,不同seed的整条记录精度相同；须追溯来源，不能据此估计跨seed方差。
+Xc86c9274,R8f22b5dbd,42,output/cifar100_LT/fedtef_v10_topology_observer/seed42/frac0.4/FedTEF-v10-topology_noniid-labeldir,不同seed的整条记录精度相同；须追溯来源，不能据此估计跨seed方差。
+X1b2f758d,Ra71ee48b2,1,output/cifar100_LT/fedtef_v2_strong_k30_hard_l05_margin_prior/seed1/frac0.4/FedTEF-v2_client-longtail,不同seed的整条记录精度相同；须追溯来源，不能据此估计跨seed方差。
+X1b2f758d,Rd7b716fbc,3407,output/cifar100_LT/fedtef_v2_strong_k30_hard_l05_margin_prior/seed3407/frac0.4/FedTEF-v2_client-longtail,不同seed的整条记录精度相同；须追溯来源，不能据此估计跨seed方差。
+X1b2f758d,R2d84aff81,42,output/cifar100_LT/fedtef_v2_strong_k30_hard_l05_margin_prior/seed42/frac0.4/FedTEF-v2_client-longtail,不同seed的整条记录精度相同；须追溯来源，不能据此估计跨seed方差。
+Xea497ff1,R9c65ad117,1,output/cifar100_LT/fedtef_v2_strong_k30_hard_l05_margin_prior/seed1/frac0.4/FedTEF-v2_noniid-labeldir,不同seed的整条记录精度相同；须追溯来源，不能据此估计跨seed方差。
+Xea497ff1,R812e1e546,3407,output/cifar100_LT/fedtef_v2_strong_k30_hard_l05_margin_prior/seed3407/frac0.4/FedTEF-v2_noniid-labeldir,不同seed的整条记录精度相同；须追溯来源，不能据此估计跨seed方差。
+Xea497ff1,Rdef42ae6a,42,output/cifar100_LT/fedtef_v2_strong_k30_hard_l05_margin_prior/seed42/frac0.4/FedTEF-v2_noniid-labeldir,不同seed的整条记录精度相同；须追溯来源，不能据此估计跨seed方差。

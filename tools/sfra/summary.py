@@ -30,6 +30,7 @@ def summarize(root, reference=None):
     performance, costs, curves, mechanisms, corrections, status = [], [], [], [], [], []
     transfer_rounds, transfer_receivers, transfer_steps, transfer_probes = [], [], [], []
     transfer_loss_traces = []
+    problem2_tables = {name: [] for name in ('class_weights', 'class_loss_trace', 'class_changes', 'class_change_summary')}
     aggregation_rows = []
     for run in paths:
         config_file = run/'sfra_config.json'
@@ -63,9 +64,15 @@ def summarize(root, reference=None):
                             transfer_tail_weight=transfer.get('tail_weight', .5))
                 if transfer.get('calibration_profile') == 'coverage_tradeoff':
                     info['method'] += '-tradeoff'
+                if transfer.get('calibration_profile') == 'problem2':
+                    info.update(problem2_variant=transfer['problem2_variant'], harm_beta=transfer['harm_beta'])
+                    info['method'] += '-problem2-' + transfer['problem2_variant']
         row = dict(info)
         for metric in METRICS:
             row['last20_'+metric] = sum(float(r[metric]) for r in final20)/20
+        if transfer and transfer.get('calibration_profile') == 'problem2':
+            from tools.sfra.b_problem2 import frequency_metrics
+            row.update(frequency_metrics(run))
         trained = [r for r in rows if int(r['round']) > 0]
         peak = max(trained, key=lambda r:float(r['bottom20_tail_acc']))
         row['tail_peak_round'] = int(peak['round'])
@@ -102,6 +109,9 @@ def summarize(root, reference=None):
                     trace_path = folder/'c_loss_trace.csv'
                     if trace_path.is_file():
                         transfer_loss_traces.extend({**info, **r} for r in read_csv(trace_path))
+                    for name, destination in problem2_tables.items():
+                        if (folder/f'{name}.csv').is_file():
+                            destination.extend({**info, **r} for r in read_csv(folder/f'{name}.csv'))
     for name, rows in [('performance',performance),('functional_costs',costs),('curves',curves),
                        ('mechanisms',mechanisms),('correction_steps',corrections),('status',status)]:
         write_csv(out/f'{name}.csv', rows)
@@ -113,6 +123,9 @@ def summarize(root, reference=None):
             write_csv(out/f'{name}.csv', rows)
     if transfer_loss_traces:
         write_csv(out/'b_transfer_loss_trace.csv', transfer_loss_traces)
+    for name, rows in problem2_tables.items():
+        if rows:
+            write_csv(out/f'b_problem2_{name}.csv', rows)
     lines = ['# SFRA results', '', 'Primary endpoint: committed rounds 81–100, no best-checkpoint selection.', '',
              '| Run | Lambda | Mu | B non-tail sampling | B tail weight | Overall | Head20 | Middle60 | Tail20 | Tail peak-to-final |',
              '|---|---:|---:|---|---:|---:|---:|---:|---:|---:|']
@@ -152,7 +165,7 @@ def summarize(root, reference=None):
         lines += ['', '## Shared-model B transfer', '',
                   'B-shared uses the original tail-present recipients, two calibration batches and unchanged tail sample positions.',
                   'The original profile keeps image-uniform non-tail sampling and 50:50 group LA; the tradeoff profile is labeled separately.',
-                  'Each global C step averages recipient losses, with one C regularizer; all clients see the same C.',
+                  'All clients see the same C, with one C regularizer. Original/tradeoff profiles average recipient losses; problem2 weights are recorded separately.',
                   'Two global optimizer steps are NOT two image batches: compare algorithm_backward_images and client_backward_batches.',
                   'Ordinary B FedAvg and all A rules are unchanged. The residual is added once AFTER ordinary B aggregation.',
                   'Normal-B event dumps remain raw ordinary FedAvg; their state_role and shared_transfer_state_path link the separate commit.pt.',
@@ -161,10 +174,10 @@ def summarize(root, reference=None):
         if transfer_loss_traces:
             lines += ['', '### C learning-rate diagnostics', '',
                       'b_transfer_loss_trace.csv evaluates the SAME TWO calibration batches at C=0, after step 1 and after step 2.',
-                      'Use fixed_pool_objective (weighted LA + C penalty) for cross-step comparisons. Original la_before values use different step batches.',
+                      'Use fixed_pool_objective for cross-step comparisons; problem2 additionally includes its configured harm term. Original la_before values use different step batches.',
                       'b_transfer_steps.csv also records same_batch_la_after and objective_after_same_batch for paired before/after checks.',
                       'Tail/non-tail accuracy is raw-logit, group sample-mean per client/batch, then averaged; it is neither the official test metric nor independent validation.',
-                      'These extra no-gradient forward passes are diagnostic_forward_images, not training steps. They do not change lr, pick a step, or revert any update.',
+                      'Post-step traces are diagnostic forwards; problem2 counts C=0 reference forwards as algorithm work for every arm. No trace picks a step or reverts an update.',
                       'Earlier completed rounds have no trace if they ran before diagnostic logging was added; resume only records subsequent rounds.']
     if any(r.get('method', '').endswith('+B-shared-tradeoff') for r in performance):
         lines += ['', '## Shared-C coverage / tradeoff pilot', '',
@@ -176,6 +189,14 @@ def summarize(root, reference=None):
                   'calibration_manifest.json stores the actual positions; client_feedback_steps.csv records the actual group loss weights.',
                   'Compare the 0.5 coverage-only configuration against the existing shared-C run, then compare the 0.35 / 0.2 tradeoff settings.',
                   'Report the whole predeclared sweep; no test-based update gate or checkpoint rollback is introduced.']
+    if any(r.get('problem2_variant') for r in performance):
+        lines += ['', '## Problem 2 shared-C controls', '',
+                  'E00/E10/E01/E11 use all selected original donor updates; the positive-gain union no longer selects sources.',
+                  'Class averaging preserves each step\'s original actual tail/non-tail mass, including tail-only clients.',
+                  'Harm is the positive per-receiver-class loss increase relative to C=0 on the SAME step images.',
+                  'Class changes use common macro metrics and record calibration overlap; they are not held-out test estimates.',
+                  'performance.csv includes problem2_variant, harm_beta and available last20 many/medium/few accuracy from epochs 80..99.',
+                  'If frequency_metrics_available is false, recover the class prior and all per-class files before interpreting those groups.']
     (out/'report.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
     print(f'Summary written: {out/"report.md"}', flush=True)
 

@@ -1,0 +1,16 @@
+{
+  "run_directory_counts": {
+    "建议归档": 116,
+    "待定用途": 119,
+    "必须保留": 28
+  },
+  "family_count": 91,
+  "core_selected_rows": 40,
+  "cross_seed_groups": 3,
+  "cross_seed_directories": 9,
+  "incomplete_class_directories": 15,
+  "archive_metric_tables": 4,
+  "archive_unmatched_tables": 0,
+  "assets": 322,
+  "diagnostic_decisions": 29
+}

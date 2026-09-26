@@ -35,6 +35,9 @@ def run_directory(args):
         setting += f'_b_lr{args.transfer_lr:g}_probe{args.probe_step:g}_reg{args.transfer_reg:g}'
         if shared_tradeoff_enabled(args):
             setting += f'_nt{args.transfer_non_tail_sampling}_tw{args.transfer_tail_weight:g}'
+        if getattr(args, 'problem2_variant', 'off') != 'off':
+            beta = args.harm_beta if args.problem2_variant[2] == '1' else 0.
+            setting += f'_p2{args.problem2_variant}_harm{beta:g}'
     if getattr(args, 'b_aggregation', 'sample') == 'uniform-transfer-rounds':
         setting += '_bagg_uniform8'
     if getattr(args, 'fast_execution_v2', False):
@@ -72,7 +75,7 @@ def prepare_protocol(args, run):
 
 
 def main(default_b_transfer=False, default_transfer_mode='local',
-         default_non_tail_sampling='sample', default_tail_weight=.5):
+         default_non_tail_sampling='sample', default_tail_weight=.5, default_problem2='off'):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--stage', choices=['train', 'summary', 'pack'], default='train')
     parser.add_argument('--method', choices=['s', 'current', 'full', 'flat', 'full-cp', 'flat-cp', 'current-cp'],
@@ -92,6 +95,8 @@ def main(default_b_transfer=False, default_transfer_mode='local',
     parser.add_argument('--transfer-tail-weight', type=float, default=default_tail_weight,
                         help='Shared C tail LA loss fraction; non-tail uses 1-weight, tail-only clients use 1')
     parser.add_argument('--retention-weight', type=float, default=10., help='Retention lambda; keep 10 for the full-cp pilot')
+    parser.add_argument('--problem2-variant', choices=['off', 'E00', 'E10', 'E01', 'E11'], default=default_problem2)
+    parser.add_argument('--harm-beta', type=float, default=1., help='Problem 2 only: positive class loss-increase weight')
     parser.add_argument('--classification-weight', type=float, default=1., help='Classification preservation mu; all -cp variants')
     parser.add_argument('--partition', choices=['client-longtail', 'noniid-labeldir-fine'], default='client-longtail')
     parser.add_argument('--dirichlet-beta', type=float, default=.5)
@@ -121,7 +126,8 @@ def main(default_b_transfer=False, default_transfer_mode='local',
     args = parser.parse_args()
     os.chdir(REPO)
     if args.output_root is None:
-        name = ('sfra_b_shared_tradeoff' if shared_tradeoff_enabled(args) else
+        name = ('sfra_b_problem2' if args.problem2_variant != 'off' else
+                'sfra_b_shared_tradeoff' if shared_tradeoff_enabled(args) else
                 'sfra_b_shared_transfer' if args.b_transfer and args.transfer_mode == 'shared' else
                 'sfra_b_aggregation' if args.b_aggregation == 'uniform-transfer-rounds' else
                 ('sfra_b_transfer' if args.b_transfer else ('sfra_cp' if args.method.endswith('-cp') else 'sfra_v1')))
@@ -132,6 +138,13 @@ def main(default_b_transfer=False, default_transfer_mode='local',
         if args.stage == 'pack':
             pack(args.output_root)
         return
+    if args.problem2_variant != 'off':
+        if not (args.b_transfer and args.transfer_mode == 'shared' and args.b_aggregation == 'sample'):
+            parser.error('Problem 2 requires shared C and sample-weighted ordinary B')
+        if not math.isfinite(args.harm_beta) or args.harm_beta < 0:
+            parser.error('--harm-beta must be finite and nonnegative')
+    elif args.harm_beta != 1.:
+        parser.error('--harm-beta requires a problem2 variant')
     if not math.isfinite(args.retention_weight) or args.retention_weight < 0:
         parser.error('--retention-weight must be finite and nonnegative')
     if not math.isfinite(args.classification_weight) or args.classification_weight < 0:
@@ -169,6 +182,11 @@ def main(default_b_transfer=False, default_transfer_mode='local',
         command = json.loads((run/'command.json').read_text(encoding='utf-8'))
         command[0] = sys.executable
         command[command.index('--sfra_resume')+1] = str(checkpoint)
+        if args.problem2_variant != 'off':
+            for flag, value in [('--b_problem2_variant', args.problem2_variant),
+                                ('--b_problem2_harm_beta', str(args.harm_beta))]:
+                if flag not in command or command[command.index(flag)+1] != value:
+                    parser.error('Problem-2 resume differs from the saved command; use its original configuration')
         print('Resuming the ORIGINAL saved configuration; only an explicit stop-after-round may change.', flush=True)
     else:
         if run.exists() and any(run.iterdir()):
@@ -208,6 +226,10 @@ def main(default_b_transfer=False, default_transfer_mode='local',
                     index = command.index('DATALOADER.NUM_WORKERS')
                     command[index:index] = ['--b_transfer_non_tail_sampling', args.transfer_non_tail_sampling,
                                            '--b_transfer_tail_weight', str(args.transfer_tail_weight)]
+            if args.problem2_variant != 'off':
+                index = command.index('DATALOADER.NUM_WORKERS')
+                command[index:index] = ['--b_problem2_variant', args.problem2_variant,
+                                       '--b_problem2_harm_beta', str(args.harm_beta)]
     if args.stop_after_round is not None:
         flag = '--sfra_stop_after_round'
         if flag in command:

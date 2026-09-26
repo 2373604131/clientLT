@@ -1,0 +1,4 @@
+﻿方法,轮次,有效更新范数比_各自普通提案,A参数方向余弦_各自普通提案,投影边界步数,CP激活步骤2和3比例,CP与功能项梯度余弦_均值非零步,提交后训练LA高于普通提案轮数,提交后训练LA变化均值,来源
+Full-CP μ1,61–90,0.3773010252700139,0.20254880723853905,0,1.0,-0.8785346031188965,30,0.0008746246496836344,output/sfra_cp_analysis/sfra_cp/seed42/client-longtail/full-cp/lambda10_mu1_protocol42
+Full-CP μ3,61–90,0.47407389890515267,0.3775883133212725,0,1.0,-0.8558724780877431,30,0.0005654394626617432,output/sfra_cp_analysis/sfra_cp/seed42/client-longtail/full-cp/lambda10_mu3_protocol42
+Flat-CP μ1,61–90,0.47132337467482655,0.5699556360642115,0,1.0,-0.8047078798214594,30,0.0003898183504740397,output/sfra_cp_analysis_new/sfra_cp/seed42/client-longtail/flat-cp/lambda10_mu1_protocol42_fast

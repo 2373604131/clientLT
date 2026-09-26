@@ -1,0 +1,38 @@
+{
+  "schema_version": "b_problem2_replay_v1",
+  "source": "G:\\桌面\\CAPT\\output\\sfra_b_shared_transfer_analysis\\sfra_b_shared_transfer\\seed42\\client-longtail\\full-cp\\lambda10_mu1_protocol42_bshared_b_lr0.3_probe0.1_reg0.001_fast_v2_f64_c4",
+  "rounds": [
+    30,
+    60,
+    90
+  ],
+  "ready": false,
+  "missing": [
+    "checkpoints/base_model.pt",
+    "events/r030_c000_main_normal_B/state.pt",
+    "b_transfer_rounds/r030/commit.pt",
+    "events/r060_c000_main_normal_B/state.pt",
+    "b_transfer_rounds/r060/commit.pt",
+    "events/r090_c000_main_normal_B/state.pt",
+    "b_transfer_rounds/r090/commit.pt"
+  ],
+  "errors": [],
+  "events": [
+    {
+      "round": 30,
+      "source_donors": 30,
+      "feedback_clients": 22
+    },
+    {
+      "round": 60,
+      "source_donors": 30,
+      "feedback_clients": 22
+    },
+    {
+      "round": 90,
+      "source_donors": 30,
+      "feedback_clients": 22
+    }
+  ],
+  "note": "File/config preflight only; tensor and identity checks run on replay. No training started."
+}

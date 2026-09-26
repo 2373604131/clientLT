@@ -4110,6 +4110,14 @@ def main(args):
         if args.sfra_variant != 'off':
             from utils.cliplora_sfra import SFRARuntime
             runtime_class = SFRARuntime
+        if args.method_a_diagnostic_manifest:
+            from utils.sfra_diagnostics import MethodADiagnosticRuntime
+            runtime_class = MethodADiagnosticRuntime
+        if args.b_problem2_replay_manifest:
+            if args.method_a_diagnostic_manifest:
+                raise ValueError('Method A diagnostics and B replay are separate jobs')
+            from utils.b_problem2_replay import Problem2ReplayRuntime
+            runtime_class = Problem2ReplayRuntime
         runtime = runtime_class(local_trainer, global_trainer, cfg, args, client_schedule,
                                 run_promptfl_local_train_with_scheduler_policy)
         runtime.run(global_weights)
@@ -6488,6 +6496,8 @@ if __name__ == "__main__":
     parser.add_argument('--sfra_classification_weight', type=float, default=1.)
     parser.add_argument('--sfra_witness_batch_size', type=int, default=8)
     parser.add_argument('--sfra_resume', default='')
+    parser.add_argument('--method_a_diagnostic_manifest', default='',
+                        help='Isolated Method A diagnostic job; use scripts/run_method_a_diagnostics.py')
     parser.add_argument('--sfra_b_aggregation', choices=['sample', 'uniform-transfer-rounds'], default='sample')
     parser.add_argument('--sfra_fast_execution', action='store_true')
     parser.add_argument('--sfra_fast_execution_v2', action='store_true')
@@ -6503,6 +6513,9 @@ if __name__ == "__main__":
     parser.add_argument('--b_transfer_reg', type=float, default=.001)
     parser.add_argument('--b_transfer_non_tail_sampling', choices=['sample', 'class-cyclic'], default='sample')
     parser.add_argument('--b_transfer_tail_weight', type=float, default=.5)
+    parser.add_argument('--b_problem2_variant', choices=['off', 'E00', 'E10', 'E01', 'E11'], default='off')
+    parser.add_argument('--b_problem2_harm_beta', type=float, default=1.)
+    parser.add_argument('--b_problem2_replay_manifest', default='', help='Isolated saved-event B replay job')
     parser.add_argument('--capt_matched_v2', type=str2bool, default=False, help='reset CAPT local optimizer for the V2 budget-matched run')
     parser.add_argument('--selective_sync_enable', type=str2bool, default=False, help='enable persistent private-B functional selective synchronization')
     parser.add_argument('--selective_sync_receive_ratio', type=float, default=1.0, help='gamma applied to the global-private B difference')

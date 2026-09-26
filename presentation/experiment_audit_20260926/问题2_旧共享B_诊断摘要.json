@@ -1,0 +1,31 @@
+{
+  "source_run": "G:\\桌面\\CAPT\\output\\sfra_b_shared_transfer_analysis\\sfra_b_shared_transfer\\seed42\\client-longtail\\full-cp\\lambda10_mu1_protocol42_bshared_b_lr0.3_probe0.1_reg0.001_fast_v2_f64_c4",
+  "events": 8,
+  "comparison": "ordinary_global_B to transferred_global_B, before the same-round A phase",
+  "sign_rule": "gain = before_LA - after_LA; strict zero, no threshold tuning",
+  "weighting": "mean within each class across receivers, then mean over observed classes",
+  "limitations": [
+    "Training-side probes may overlap calibration; not held-out generalization evidence.",
+    "Round-receiver-class rows are repeated measurements, not independent seeds.",
+    "Non-tail probes cover only observed classes and feedback clients.",
+    "These counts cannot be compared as like-for-like percentages with raw donor-pair conflict rates."
+  ],
+  "totals": {
+    "tail": {
+      "units": 584,
+      "improved_units": 486,
+      "harmed_units": 98,
+      "unchanged_units": 0,
+      "mean_round_class_macro_gain": 0.013545697669986922,
+      "mean_round_class_macro_harm": 0.0017812909814529142
+    },
+    "non_tail": {
+      "units": 1776,
+      "improved_units": 1198,
+      "harmed_units": 578,
+      "unchanged_units": 0,
+      "mean_round_class_macro_gain": 3.505908425893498e-05,
+      "mean_round_class_macro_harm": 0.0038554013405198767
+    }
+  }
+}

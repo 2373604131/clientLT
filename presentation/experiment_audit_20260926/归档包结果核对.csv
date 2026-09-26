@@ -1,0 +1,5 @@
+﻿归档包,成员,记录行数,最后epoch,最后round,最后Overall,最后Tail,字节相同本地运行,结论
+output/capt_global_start_seed42_results/analysis/collection_check.zip,runs/run_01/round_metrics.csv,37,98,,67.26,70.3,Rc69998660,与已登记结果完全相同，不新增计数
+output/capt_global_start_seed42_results/analysis/collection_check.zip,runs/run_02/round_metrics.csv,37,98,,68.58,64.2,R033123cb7,与已登记结果完全相同，不新增计数
+output/cifar100_LT/output.tar.gz,output/cifar100_LT/CAPT_cluster_vit_b16_batchSize32/ExperimentD_AlignedPartitionCompare/partition=noniid-labeldir-fine_beta=0.5_IF=0.01_localE=3_seed=1/round_metrics.csv,36,96,,67.49,63.7,R95b3b9a3a,与已登记结果完全相同，不新增计数
+output/cifar100_LT/output.tar.gz,output/cifar100_LT/CAPT_cluster_vit_b16_batchSize32/ExperimentD_AlignedPartitionCompare/partition=client-longtail_lambda=0.75_alpha=0.5_rho=3.0_IF=0.01_localE=3_seed=1/round_metrics.csv,35,92,,67.73,65.4,R179ebd4bd,与已登记结果完全相同，不新增计数

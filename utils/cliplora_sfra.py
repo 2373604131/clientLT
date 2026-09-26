@@ -60,7 +60,16 @@ class SFRARuntime(LAControlRuntime):
             else:
                 from utils.cliplora_b_transfer import transfer_config
             self.sfra_config['b_transfer'] = transfer_config(args)
+            problem2 = getattr(args, 'b_problem2_variant', 'off')
+            if problem2 != 'off':
+                from utils.b_problem2_math import problem2_config
+                self.sfra_config['b_transfer'] = problem2_config(
+                    self.sfra_config['b_transfer'], problem2, getattr(args, 'b_problem2_harm_beta', 1.))
             self.method += '_b_shared_transfer' if getattr(args, 'b_transfer_mode', 'local') == 'shared' else '_b_transfer'
+            if problem2 != 'off':
+                self.method += '_problem2_' + problem2
+        elif getattr(args, 'b_problem2_variant', 'off') != 'off':
+            raise ValueError('Problem 2 requires shared B transfer')
         self.resume_payload = None
         if args.sfra_resume:
             self.resume_payload = torch.load(args.sfra_resume, map_location='cpu', weights_only=False)
@@ -113,7 +122,10 @@ class SFRARuntime(LAControlRuntime):
             write_json(self.root/'private_witness_manifest.json', self.bank.tokens)
         self.b_transfer = None
         if 'b_transfer' in self.sfra_config:
-            if self.sfra_config['b_transfer'].get('mode') == 'shared':
+            if self.sfra_config['b_transfer'].get('calibration_profile') == 'problem2':
+                from utils.cliplora_b_problem2 import Problem2DonorBTransfer
+                self.b_transfer = Problem2DonorBTransfer(self)
+            elif self.sfra_config['b_transfer'].get('mode') == 'shared':
                 from utils.cliplora_b_shared_transfer import SharedDonorBTransfer
                 self.b_transfer = SharedDonorBTransfer(self)
             else:
@@ -202,10 +214,14 @@ class SFRARuntime(LAControlRuntime):
                              committed_effective_norm=(self.scaling**2*product_norm_squared(b,da))**.5))
         return rows
 
-    def refresh(self, middle, rnd, folder):
+    def refresh(self, middle, rnd, folder, prepared=None):
         classification = self.variant.endswith('-cp')
-        ordinary, deltas = self.train_phase(middle, rnd, 'A', True, return_deltas=True)
-        self.events[-1]['state_role'] = 'ordinary_A_proposal_before_functional_correction'
+        if prepared is None:
+            ordinary, deltas = self.train_phase(middle, rnd, 'A', True, return_deltas=True)
+            self.events[-1]['state_role'] = 'ordinary_A_proposal_before_functional_correction'
+        else:
+            # Diagnostic candidates share one ordinary proposal, without repeating local training.
+            ordinary, deltas = prepared
         device = self.trainer.device
         client_ids = sorted(deltas)
         matrix = torch.stack([flatten(deltas[k], self.a_keys) for k in client_ids], 1).to(device)

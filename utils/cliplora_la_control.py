@@ -142,7 +142,8 @@ class LAControlRuntime:
             self.audit.meta['training_code_hashes'][name] = hashlib.sha256((repo/name).read_bytes()).hexdigest()
         write_json(self.root / 'bridge_metadata.json', self.audit.meta)
         (self.root / 'checkpoints').mkdir(exist_ok=True)
-        if not getattr(args, 'sfra_resume', ''):
+        if (not getattr(args, 'sfra_resume', '') and not getattr(args, 'method_a_diagnostic_manifest', '')
+                and not getattr(args, 'b_problem2_replay_manifest', '')):
             torch.save(self.base_state, self.root / 'checkpoints/base_model.pt')
 
     def compressed_state(self, state):

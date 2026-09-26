@@ -1,0 +1,10 @@
+{
+  "coverage": "263/263运行目录和91/91族级资产已分类",
+  "source_metric_files_sha256_unchanged": 248,
+  "xlsx": "10工作表XML完整，所有运行表263行",
+  "html": "263行及筛选属性齐全；未进行浏览器渲染验收",
+  "checked_existing_links": 558,
+  "key_numeric_claims": "原始LoRA、A/S、来源消融、B及报告表格核对通过",
+  "training_performed": false,
+  "original_results_modified": false
+}

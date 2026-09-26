@@ -1,0 +1,8 @@
+﻿优先级,项目,目前状态,为什么需要,最小行动,入口,原协议
+P0,同版Current-CP及五组正文结果,Full-CP、Flat-CP、Full无CP、S有seed42历史完整记录；未发现current-cp完整结果，未发现method_a_maintext新入口的五组完整回传。,独立检验历史目标；不能用无CP的Current冒充。,先确认服务器结果；若确实缺失，只补缺失组。复用其他组前核对初始化、版本、划分、见证及执行路径。,scripts/run_method_a_maintext.py,docs/method_a_maintext_experiments.md
+P0,主方法关键配对的重复种子,核心SFRA主要为seed42；旧PromptFL/FedTEF不同seed不能替代。,验证A来源/历史增益和小幅B增益是否稳定。,沿已定计划42/43/44优先完成S、Full-CP、关键消融；已有42先核对再复用。固定数据划分的训练seed验证不等于跨划分泛化。,scripts/run_method_a_maintext.py,docs/method_a_maintext_experiments.md
+P0（B若保留）,B的收益、代价与独立价值,共享B Tail+0.1525pp、Overall+0.0695pp；已有uniform8负对照；未发现shared_tradeoff三组本地结果。,不足以声称B已显著改善长期保持；新tradeoff属于收益优化而非因果验证。,先回收w=0.5/0.35/0.2已计划结果；若稳定有效再补同预算普通更新/无定向选择对照，避免立即扩展更多模块。,scripts/run_cliplora_b_shared_tradeoff.py,docs/cliplora_b_shared_tradeoff.md
+P1,公平外部方法与普通Dir最终主表,普通Dir E0/E1/E2/E3/E5/J/S已有完整结果；同配置CAPT标准Dir尚未找到；SFRA主方法双拓扑完整结果未找到。,旧matched Dir不可替代普通Dir；CAPT各版训练流程差异大。,纠正旧状态表；先定CAPT无测试反馈、起点/优化器/预算协议。是否补SFRA普通Dir按最终主表范围决定。,scripts/run_main_table_standard_dirichlet.py,docs/main_table_standard_dirichlet_status_20260920.md
+P1（机制若作强主张）,新A/B方法下的功能机制验证,ERI属于旧LoRA；SFRA有功能/来源日志，但旧归因不能直接归给新方法。,证明方法改变了相关功能作用，而不只终值改善。,优先分析现有SFRA修正前后和历史目标日志；若缺必要状态再决定补采集。来源稀缺与支持总量分别控制。,scripts/run_cliplora_sfra.py,docs/cliplora_method_a_full_cp.md
+P2（可选）,固定边际ERI H3干预,ERI报告H3 NOT RUN；现有support-normalized普通Dir 2×2不是该H3。,只有要声称严格因果机制时才需要补闭环。,保留当前机制为有边界证据；如坚持因果结论，再按ERI原协议补干预，不重开旧项目全套。,scripts/run_eri_closure.py,docs/evidence_rewrite_imbalance_closure_experiment.md
+不建议补,旧路线与大规模无目标参数扫描,PFRF、FedTEF、CUSP/SCA、gap-C3、private-B及语义形成链已留结果或失败门槛。,不服务当前主方法的必要证据链。,保留原始和失败结论，停止追加训练；不因效果差而删除记录。,,

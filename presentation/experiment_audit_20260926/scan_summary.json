@@ -1,0 +1,15 @@
+{
+  "scanned_files": 34403,
+  "families": 91,
+  "run_directories": 263,
+  "complete100_directories": 183,
+  "curve_records": 12507,
+  "duplicate_curve_groups": 39,
+  "duplicate_member_directories": 88,
+  "recomputed_per_class_files": 11707,
+  "metric_comparisons": 34622,
+  "error_count": 0,
+  "analysis_csv_tables": 1564,
+  "reports": 57,
+  "archives": 2
+}
