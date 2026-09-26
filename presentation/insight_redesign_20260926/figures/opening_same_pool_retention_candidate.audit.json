@@ -1,0 +1,22 @@
+{
+  "status": "design candidate",
+  "seed": 42,
+  "comparison": "Client-LT minus Dirichlet, S with LA",
+  "last20_delta_pp": {
+    "overall": -0.10400000000001342,
+    "nontail": 0.7787500000000023,
+    "tail": -3.634999999999991
+  },
+  "peak_to_final_drop_pp": {
+    "client-longtail": 3.450000000000003,
+    "noniid-labeldir-fine": 0.9000000000000057
+  },
+  "optimizer_steps": {
+    "client-longtail": 137280,
+    "noniid-labeldir-fine": 138060
+  },
+  "source_csvs": [
+    "G:\\桌面\\CAPT\\presentation\\insights_20260925\\data\\performance_retention.csv",
+    "G:\\桌面\\CAPT\\presentation\\insights_20260925\\data\\training_curves.csv"
+  ]
+}

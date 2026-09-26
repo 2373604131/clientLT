@@ -1,0 +1,28 @@
+{
+  "status": "design candidate; historical no-CP v1 method ablation",
+  "lambda": 10,
+  "seed": 42,
+  "partition": "client-longtail",
+  "variants": {
+    "full": {
+      "last20_tail": 71.07249999999998,
+      "last20_overall": 70.56500000000001,
+      "tail_peak": 71.55,
+      "tail_peak_round": 64,
+      "tail_final": 70.85,
+      "peak_to_final_drop": 0.7000000000000028
+    },
+    "current": {
+      "last20_tail": 68.96249999999999,
+      "last20_overall": 70.861,
+      "tail_peak": 71.8,
+      "tail_peak_round": 48,
+      "tail_final": 68.55,
+      "peak_to_final_drop": 3.25
+    }
+  },
+  "full_minus_current_last20_overall_pp": -0.29599999999999227,
+  "full_minus_current_last20_tail_pp": 2.109999999999985,
+  "peak_to_final_drop_reduction_pp": 2.549999999999997,
+  "verified_raw_curve_points": 202
+}

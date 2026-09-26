@@ -1,0 +1,38 @@
+DESIGN CANDIDATE — historical method ablation, not a new causal discovery.
+
+Similar early peaks, different late retention. This comparison uses the original
+SFRA v1 Full and Current variants on the Client-LT allocation, without CP, at the
+same retention weight lambda=10 and seed=42. Full uses current and historical
+retention information; Current uses current information only. The original
+analysis explicitly states that the variants use the same rules and budget,
+but their evolving targets are not numerically identical. Therefore the curves
+are a method-level historical ablation and must not be described as the newer
+current-cp experiment or as an isolated causal intervention on target history.
+
+The main panel shows all raw tail macro-accuracy observations from rounds 0–100.
+The shaded window is rounds 81–100, not uncertainty. Horizontal segments show
+the mean over that window: Full 71.0725%, Current 68.9625%. These are not the
+round-100 endpoints, which are 70.85% and 68.55%, respectively. Full minus Current
+is +2.110 percentage points (pp) for late tail accuracy and −0.296 pp for late
+overall accuracy (70.565% versus 70.861%). Thus the comparison includes a trade-
+off and should not be presented as a gain on every group or as universal Pareto
+improvement. Peak-to-final tail drop, defined as max over rounds 0–100 minus the
+round-100 value, changes from 3.25 pp for Current (71.80%, round 48) to 0.70 pp
+for Full (71.55%, round 64), a reduction of 2.55 pp. This descriptive metric is
+different from the last-20-round mean. No significance claim, error band, or
+best-checkpoint model selection is included.
+
+Evidence scope: single seed, one original v1 configuration, retrospective
+method ablation. This supports examining persistent retention in addition to
+current information; it does not prove that every current-only method must
+forget, nor does it identify effective client sources or establish a mechanism.
+
+All 202 curve points were checked against the original per-class accuracy CSVs.
+The last-20 means and peak-to-final summaries were independently recomputed and
+matched against analysis/performance.csv. Tail is the fixed bottom 20 classes
+by the saved global class counts, with equal weight per class.
+
+Sources under output/sfra_v1_analysis/sfra_v1/:
+analysis/curves.csv; analysis/performance.csv; analysis/report.md
+seed42/client-longtail/full/lambda10_protocol42/per_class_accuracy_epoch_*.csv
+seed42/client-longtail/current/lambda10_protocol42/per_class_accuracy_epoch_*.csv

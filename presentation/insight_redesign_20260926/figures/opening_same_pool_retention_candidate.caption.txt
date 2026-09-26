@@ -1,0 +1,32 @@
+DESIGN CANDIDATE — supplied evidence only; not a final paper figure.
+
+Same global data, different tail retention. Two client allocations use the same
+global image pool and global class counts, the same logit-adjusted (LA) objective,
+and the same staged update recipe (S). Client-LT is compared with label-Dirichlet
+allocation (beta=0.5). The upper panel reports Client-LT minus Dirichlet in macro
+accuracy, averaged over the last 20 logged rounds (81–100): overall −0.104 pp,
+non-tail +0.77875 pp, and tail −3.635 pp. Non-tail combines the fixed head and
+middle class sets with equal weight per class; it is not an unweighted average
+of two group means. The lower panel plots all 101 raw tail-accuracy observations
+without smoothing. Peak-to-final drop is the run's maximum tail accuracy over
+rounds 0–100 minus its accuracy at round 100: Client-LT 71.80% at round 46 to
+68.35%, drop 3.45 pp; Dirichlet 72.90% at round 57 to 72.00%, drop 0.90 pp.
+Peak circles and brackets are descriptive, retrospective summaries, not causal
+estimates or model-selection recommendations. Gray shading marks the B-only
+stage after round 90.
+
+Evidence limitations: these are single-seed (42), macro class-accuracy results.
+There are no replicate error bars or significance claims. Allocation changes
+several aspects of local data composition; this figure does not isolate a causal
+effect of class concentration or identify effective knowledge-source clients.
+Identical training recipes do not imply identical realized compute: logged
+optimizer steps are 137,280 (Client-LT) and 138,060 (Dirichlet). Thus the left
+schematic deliberately does not claim that allocation is the only changing
+quantity. The upper panel's last-20-round mean and the lower panel's round-100
+endpoint are different summaries and must not be conflated. All numbers come
+from the supplied CSV exports; global-pool matching is a protocol condition
+documented in the source audit, not inferred from these two aggregate CSVs.
+
+Source CSVs:
+presentation/insights_20260925/data/performance_retention.csv
+presentation/insights_20260925/data/training_curves.csv

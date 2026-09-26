@@ -1,0 +1,1347 @@
+                                           CAPT: Class-Aware Prompt Tuning for Federated Long-Tailed Learning with
+                                                                  Vision-Language Model
+
+                                          Shihao Hou1 Xinyi Shang2 Shreyank N Gowda3                                              Yang Lu1 * Chao Wu4 Yan Yan1 Hanzi Wang1
+                                           1
+                                             Xiamen University 2 University College London                                    3
+                                                                                                                                  University of Nottingham 4 Zhejiang University
+                                            houshihao@stu.xmu.edu.cn, xinyi.shang.23@ucl.ac.uk, Shreyank.Narayanagowda@nottingham.ac.uk,
+arXiv:2503.06993v1 [cs.LG] 10 Mar 2025
+
+
+
+
+                                                     luyang@xmu.edu.cn, chao.wu@zju.edu.cn, yanyan@xmu.edu.cn, hanzi.wang@xmu.edu.cn
+
+
+
+                                                                                                                                         CIFAR-100-LT, IF=100                                           Imagenet-LT
+                                                                  Abstract                                                   80          Overall      Head      Tail              80           Overall        Head      Tail
+
+
+
+
+                                                                                                                                                                                                                               PromptFL
+                                                                                                                                                                       PromptFL
+                                                                                                                             70                                                   70   Zero-shot CLIP
+                                                                                                                                  Zero-shot CLIP
+                                         Effectively handling the co-occurrence of non-IID data and
+
+
+
+                                                                                                              Accuracy (%)
+                                                                                                                             60                                                   60
+                                         long-tailed distributions remains a critical challenge in fed-
+                                                                                                                             50                                                   50
+                                         erated learning. While fine-tuning vision-language models
+                                                                                                                             60                                                   60
+                                         (VLMs) like CLIP has shown to be promising in address-
+
+
+
+
+                                                                                                                                                                                                                               CAPT
+                                                                                                                                                                       CAPT
+                                                                                                                                  Zero-shot CLIP
+                                                                                                                                                                                       Zero-shot CLIP
+                                                                                                                             70                                                   70
+                                         ing non-IID data challenges, this approach leads to severe
+                                         degradation of tail classes in federated long-tailed scenar-                        80
+                                                                                                                                    α=0.05         α=0.1     α=0.5
+                                                                                                                                                                                  80
+                                                                                                                                                                                         α=0.05            α=0.1      α=0.5
+                                         ios. Under the composite effects of strong non-IID data dis-
+                                         tribution and long-tailed class imbalances, VLM fine-tuning          Figure 1. Performance comparison between PromptFL (upper
+                                                                                                              part) and our proposed CAPT (lower part) on CIFAR-100-LT and
+                                         may even fail to yield any improvement. To address this
+                                                                                                              ImageNet-LT. As client heterogeneity increases (α decreases from
+                                         issue, we propose Class-Aware Prompt Learning for Fed-
+                                                                                                              0.5 to 0.05), PromptFL exhibits an expanding performance gap
+                                         erated Long-tailed Learning (CAPT), a novel framework                between head and tail classes, with overall accuracy even falling
+                                         that leverages a pre-trained VLM to effectively handle both          below zero-shot CLIP baseline (dashed line). In contrast, CAPT
+                                         data heterogeneity and long-tailed distributions. CAPT in-           effectively mitigates the impact of client heterogeneity and signifi-
+                                         troduces a dual-prompt mechanism that synergizes general             cantly reduces the head-tail performance disparity while maintain-
+                                         and class-aware prompts, enabling the framework to cap-              ing superior overall accuracy across all settings.
+                                         ture global trends while preserving class-specific knowl-
+                                         edge. To better aggregate and share knowledge across                 and long-tailed distributions. In federated settings, local
+                                         clients, we introduce a heterogeneity-aware client cluster-          data distributions vary significantly across clients [11, 46],
+                                         ing strategy that groups clients based on their data distribu-       and real-world data often follows a long-tailed distribution,
+                                         tions, enabling efficient collaboration and knowledge shar-          where a few classes (head classes) have abundant samples,
+                                         ing. Extensive experiments on various long-tailed datasets           while the majority (tail classes) are severely underrepre-
+                                         with different levels of data heterogeneity demonstrate that         sented [20, 45]. The combination of non-IID data distri-
+                                         CAPT significantly improves tail class performance with-             bution and long-tailed class imbalance exacerbates the bias
+                                         out compromising overall accuracy, outperforming state-of-           towards head classes. This issue is particularly challeng-
+                                         the-art methods in federated long-tailed learning scenarios.         ing for tail classes, as their scarce samples are further frag-
+                                                                                                              mented across heterogeneous clients. Such fragmentation
+                                                                                                              significantly complicates the learning of effective represen-
+                                         1. Introduction                                                      tations for these underrepresented classes [15, 16].
+                                                                                                                  This composite problem, known as federated long-tailed
+                                         Federated learning (FL) [22] enables multiple parties to
+                                                                                                              learning, has attracted increasing attention in recent years
+                                         collaboratively train a shared model without exposing pri-
+                                                                                                              [9, 29, 35, 36, 43]. To address these challenges, researchers
+                                         vate data, providing a privacy-preserving solution for lever-
+                                                                                                              have proposed various approaches [3, 17, 21, 39, 41]. These
+                                         aging distributed data to build powerful machine learning
+                                                                                                              methods can be broadly categorized into data-centric and
+                                         models [37]. However, FL faces substantial challenges in
+                                                                                                              model-centric strategies. Data-centric methods aim to alle-
+                                         real-world scenarios, primarily due to the coexistence of
+                                                                                                              viate class imbalance by generating synthetic features for
+                                         non-independent and identically distributed (non-IID) data
+                                                                                                              tail classes or aggregating features from both local and
+                                           * Corresponding Author: Yang Lu (luyang@xmu.edu.cn)                global models. Model-centric methods focus on adapting
+
+
+                                                                                                          1
+the learning process. However, these methods may intro-               benefiting tail classes. To facilitate prompt aggregation in
+duce noise that disrupts model robustness and risk overfit-           an FL setting, we propose a heterogeneity-aware client clus-
+ting on minority classes, leading to inconsistency between            tering strategy that groups clients based on their data distri-
+local and global models[15]. Moreover, most existing meth-            butions, enabling efficient knowledge sharing among clients
+ods have been designed for traditional FL settings and may            with similar long-tailed characteristics.
+not fully exploit the potential of emerging techniques, such              Our extensive empirical study demonstrates that CAPT
+as prompt learning with pre-trained models [12, 48].                  effectively bridges the performance gap between head and
+    Recently, the success of pre-trained vision-language              tail classes while unveiling the potential of prompt tuning
+models, such as CLIP [24], has opened up new possibilities            in federated long-tailed scenarios. Furthermore, we provide
+for FL. These foundation models, trained on massive image-            a theoretical analysis that formally characterizes why tradi-
+text pairs, have demonstrated remarkable generalization ca-           tional prompt tuning methods struggle with federated long-
+pabilities and transferability to various downstream tasks            tailed learning. The main contributions of this work are:
+[44]. By adapting pre-trained models to specific tasks us-            • We reveal the limitations of existing prompt tuning-based
+ing lightweight prompt tuning, researchers have developed                methods in FL under long-tailed data distributions, high-
+federated prompt learning [6], where prompts are learned                 lighting their negative impact on tail class performance
+locally at clients and periodically aggregated at the server to          and the need for novel solutions addressing the joint prob-
+share knowledge across the federation. This approach has                 lem of non-IID and long-tailed data.
+shown promise in addressing the non-IID problem while re-             • We propose CAPT, a novel framework introducing class-
+ducing communication overhead [19].                                      aware prompts and heterogeneity-aware client clustering,
+    However, despite these advances, the effectiveness of                which effectively addresses the challenges of federated
+CLIP and prompt-tuning methods in federated learning un-                 long-tailed learning using pre-trained VLM.
+der long-tailed distributions remains largely unexplored. It          • Our approach achieves state-of-the-art performance on
+is unclear whether these approaches can successfully ad-                 multiple long-tailed datasets, significantly improving tail
+dress the unique challenges posed by long-tailed data in                 class performance while maintaining competitive overall
+federated settings. To investigate this, we conducted a pre-             accuracy in federated learning scenarios.
+liminary investigation into the application of prompt tuning
+techniques in federated long-tailed scenarios. Our findings,          2. Related works
+as illustrated in Fig. 1, reveal a significant challenge: while
+prompt tuning improves overall performance in FL, it simul-           2.1. Federated Long-Tailed Learning
+taneously exacerbates the long-tail problem. As the degree            Federated learning with long-tailed data distribution has
+of client heterogeneity increases, the performance gap be-            emerged as a critical research topic, addressing the chal-
+tween head and tail classes widens significantly. Notably,            lenges posed by data heterogeneity and class imbalance
+tail classes suffer from substantial performance degrada-             across clients. Early attempts focused on adapting loss
+tion, leading to a decline in model accuracy under high het-          functions to handle class imbalance in the federated set-
+erogeneity conditions. This unexpected phenomenon high-               ting. Fed-Focal Loss [27] and Ratio Loss [33] introduced
+lights the limitations of current prompt-tuning approaches            re-weighting strategies in local training. However, these ap-
+in federated long-tailed learning and raises three key re-            proaches often struggled with representation learning and
+search questions:                                                     relied on impractical assumptions about global class dis-
+    RQ 1: What causes prompt tuning to disproportionately             tributions. To address these limitations, subsequent works
+affect tail classes in federated long-tailed scenarios?               shifted towards feature-based solutions. FEDIC [28] pi-
+    RQ 2: How can we leverage the power of pre-trained                oneered the use of decoupled training, separating feature
+vision-language models while addressing the problem of                learning and classifier adaptation. Building upon this idea,
+the sharp decrease in performance for the tail categories             CReFF [29] further improved performance through auxil-
+brought about by non-IID data?                                        iary datasets and refined classifier re-training, though its ef-
+    RQ 3: Is there a way to improve tail class performance            fectiveness was constrained by federated feature quality.
+without sacrificing head class accuracy?                                  More recent works have focused on enhancing the qual-
+    To answer the above-mentioned key questions, we                   ity of feature representation and classifier learning by in-
+propose Class-Aware Prompt Tuning (CAPT) for feder-                   corporating additional information and techniques. Zeng
+ated long-tailed learning, leveraging a pre-trained vision-           et al. [43] proposed a global balanced multi-expert frame-
+language model. The core of our approach is a dual-prompt             work, which used a global proxy estimated from uploaded
+learning mechanism, which introduces a general prompt to              client gradients to guide client grouping and train a multi-
+learn domain-invariant features and class-aware prompts to            expert model. Fed-GraB [36] and RedGrape [38] utilized
+capture fine-grained information for each class, particularly         global statistics to guide local training, with Fed-GraB in-
+
+
+                                                                  2
+troducing adaptive gradient balancing and RedGrape in-               3. Proposed Method
+corporating gradient prototypes. CLIP2FL [30] leveraged
+the vision-language model CLIP to guide both client and              In this section, we present CAPT, a framework tailored for
+server model training, and FedLoGe [35] enhanced perfor-             federated learning with long-tailed data. CAPT combines
+mance through representation learning and classifier align-          a dual-prompt mechanism—consisting of a general prompt
+                                                                     for shared features and class-aware prompts for class-
+ment within a neural collapse framework. It uses a sparsi-
+fied classifier to enhance representation learning by pruning        specific knowledge—with a heterogeneity-aware client
+noisy features and realigns the backbone to the server and           clustering strategy. This clustering strategy consists of two
+clients based on classifier weight norms.                            complementary components: similarity-based clustering
+                                                                     groups clients with similar data distributions to enhance tail
+   While these methods have shown promising results, they
+                                                                     class learning, and heterogeneity-based clustering balances
+often struggle to effectively balance the trade-off between
+                                                                     head and tail class representation across clusters. Addi-
+maintaining global model consistency and addressing local
+                                                                     tionally, a Multi-Armed Bandit (MAB) scheduler optimizes
+data imbalances. Additionally, many of these approaches
+                                                                     communication efficiency by dynamically adjusting aggre-
+require significant computational resources or rely on as-
+                                                                     gation frequency. The entire framework is shown in Fig. 2.
+sumptions about client data availability that may not hold in
+real-world federated scenarios [15].                                 3.1. Preliminaries
+                                                                     We consider a FL system with K clients and a central
+2.2. Prompt Learning in Vision-Language Models
+                                                                     server, where each client k has a local dataset Dk =
+                                                                                 |D |
+Prompt learning has emerged as a promising approach for              {(xi , yi )}i=1k with xi ∈ Rd and yi ∈ {1, ..., C}. The
+                                                                                            SK
+adapting large-scale VLMs [24] to downstream tasks while             global dataset D = k=1 Dk follows a long-tailed distri-
+preserving their generalization capabilities. CoOp [48] and          bution [32], with classes ordered as n1 ≥ n2 ≥ ... ≥ nC ,
+CoCoOp [47] learned text prompts to adapt CLIP’s lan-                where nc is the sample count for class c. We define classes
+guage branch, with CoCoOp enhancing generalization to                with larger nc as head classes and those with smaller nc as
+novel classes through image-conditioned prompts. MaPLe               tail classes. The non-IID data distribution across clients is
+[12] extended prompt learning to both vision and language            simulated using a Dirichlet distribution with parameter α,
+branches, demonstrating the benefits of a complete prompt-           creating varying imbalance patterns among clients.
+ing approach. Other works have explored various aspects of               Our work builds upon the CLIP model [24], which learns
+prompt learning, such as text-to-text optimization [1, 40],          visual concepts from natural language supervision. CLIP
+multi-label recognition [31], and unsupervised adaptation            consists of an image encoder f (x) and a text encoder g(t),
+[8]. These approaches have shown significant improve-                both mapping inputs to a shared d-dimensional embedding
+ments in adapting pre-trained VLMs to specific tasks.                space. The image encoder can be a convolutional neural
+    Recent research has extended prompt learning to feder-           network or a vision transformer (ViT), while the text en-
+ated learning environments. PromptFL [6] initiated this di-          coder is typically transformer-based.
+rection by replacing traditional model training with prompt              To adapt CLIP for downstream tasks without fine-tuning
+learning in distributed settings. FedOTP [14] and FedPGP             the entire model, we employ prompt learning [48]. This
+[4] further explored prompt-based knowledge sharing and              technique optimizes text prompts used to represent dif-
+personalization strategies in federated settings. However,           ferent classes. Hand-crafted prompts are replaced with
+these methods primarily focus on addressing data hetero-             learnable prompts as ti = [V1 , V2 , ..., VM , CLASSi ],
+geneity and do not explicitly tackle the challenges posed by         where [V1 , V2 , ..., VM ] are M learnable context tokens
+long-tailed data distributions in federated settings. Conse-         and CLASSi is the name of class i. These context tokens
+quently, they often struggle with inconsistent client updates        can be randomly initialized or initialized with pre-trained
+due to class imbalance and missing classes, leading to de-           word embeddings and then optimized to improve model
+creased performance in tail classes, particularly in scenarios       performance.
+with high client heterogeneity.
+    In contrast to these approaches, our proposed CAPT               3.2. Dual-Prompt Learning Mechanism
+framework directly tackles the challenges of federated               In federated long-tail scenarios, conventional prompt tun-
+learning with long-tailed data distributions. By introducing         ing methods face significant challenges when encounter-
+class-aware prompts and a heterogeneity-aware client clus-           ing long-tailed data distributions, where tail class samples
+tering strategy, CAPT enables more effective learning from           are not only limited but also unevenly distributed across
+imbalanced data across clients while maintaining commu-              clients. To address these challenges, we propose a novel
+nication efficiency. This novel approach not only addresses          federated prompt learning mechanism with three comple-
+the class imbalance issue but also mitigates the negative ef-        mentary components: a general prompt that learns univer-
+fects of client heterogeneity on tail class performance.             sal features shared across all classes to maintain model ro-
+
+
+                                                                 3
+                                                                                                         Phase 2: Heterogeneity-Aware Client Clustering
+     Learnable    Frozen           General Prompt           Class-aware Prompt       Clients
+                                                                                                          Heterogeneity Cluster                            Similarity Cluster
+
+                           Phase 1: Local Client Training
+
+
+
+
+                                      Text
+                                     Encoder
+                                                                                                                           ...                              ...
+
+                                                               Text                            Local Data Distribution           Local Data Distribution          Local Data Distribution
+                                                              Feature                                 Client 1                          Client                           Client
+
+                                                                                                                           Phase 3: Server Inference
+                                                                                                                                                                          "dog"
+
+                                       Image
+                                                                                                                  Image                                       Text
+                                      Encoder
+                                                                                                                 Encoder                                     Encoder
+
+
+                                                              Image
+                                                              Feature
+
+                                            Figure 2. An overview of our proposed CAPT framework.
+
+bustness, class-aware prompts that enables more nuanced                               temperature parameter. However, while the general prompt
+feature representations for each specific class, and a vision-                        effectively captures shared features, it may not sufficiently
+language alignment mechanism that bridges the semantic                                represent the unique characteristics of individual classes,
+gap between visual and textual modalities. Our design par-                            particularly those in the tail of the distribution where sam-
+ticularly benefits tail classes through a synergistic combi-                          ples are scarce and heterogeneous.
+nation: the general prompt provides robust common fea-                                Class-Aware Prompt. To address this limitation and the
+tures learned from abundant data of all classes, while class-                         disproportionate effect of prompt tuning on tail classes, we
+aware prompts capture fine-grained discriminative features                            introduce a class-aware prompt Pc ∈ RC×T ×d , where T
+specific to each class.                                                               is the number of learnable tokens per class. This prompt
+   We also provide a theoretical analysis to formally char-                           is designed to capture class-specific characteristics, allow-
+acterize the challenges in federated long-tailed learning                             ing for more nuanced representations of both head and tail
+with prompt tuning methods. Our analysis reveals that the                             classes. For class i, its corresponding prompt is represented
+gradient variance in conventional methods increases pro-                              as Pic = [Vi1 , Vi2 , ..., ViT ] ∈ RT ×d . During training, only
+portionally with both the imbalance ratio and client hetero-                          the prompt corresponding to the true class of each sample
+geneity, leading to slower convergence and degraded per-                              is updated. The class-aware prompt is optimized using the
+formance, particularly on tail classes. The complete Theo-                            following loss function:
+rem 1 and Theorem 2 and their proofs can be found in Ap-
+pendix F. This theoretical analysis answers RQ1 by reveal-                                           1 X
+                                                                                                            N
+                                                                                                                πy exp(cos(tyc i , zi )/τ )
+ing why prompt tuning methods struggle with tail classes in                                Lca = −         log PC i                j
+                                                                                                                                             ,                                          (2)
+                                                                                                     N i=1      j=1 πj exp(cos(tc , zi )/τ )
+federated long-tailed scenarios.
+General Prompt. We introduce a learnable general
+                                                                                      where yi is the true class of sample i, tjc = g([Pjc , CLASSj ])
+prompt Pg to capture universal features shared by all
+                                                                                      is the text feature encoded from the class-aware prompt
+classes. This general prompt serves as a foundation for
+                                                                                      concatenated with the corresponding class token, and πj is
+learning domain-invariant representations, which is crucial
+                                                                                      the global prior probability of class j to handle the long-
+for maintaining overall accuracy in federated learning set-
+                                                                                      tailed distribution. Along with the general prompt, the
+tings. The general prompt is optimized using a contrastive
+                                                                                      dual-prompt learning mechanism can effectively balance
+loss:
+                                                                                      between learning shared domain-invariant representations
+                    N                                                                 and class-specific characteristics, thereby enabling robust
+                 1 X         exp(cos(tig , zi )/τ )
+      Lge = −          log PC               j
+                                                      ,                 (1)           knowledge transfer across clients while preserving fine-
+                 N i=1      j=1 exp(cos(tg , zj )/τ )                                 grained features particularly beneficial for tail classes.
+where zi = f (xi ) represents the image feature. The text                             Vision-Language Alignment. While our dual-prompt
+feature tig = g([Pg , CLASSi ]) is encoded from the general                           mechanism effectively learns both general and class-
+prompt concatenated with the corresponding class token.                               specific features in the text domain, there remains a chal-
+Here, C denotes the total number of classes, and τ is the                             lenge in aligning these textual representations with their
+
+
+                                                                                 4
+corresponding visual features. To bridge this semantic                 Heterogeneity-based Clustering. To further address the
+gap and enhance the interaction between visual and tex-                non-IID challenge and balance the representation of head
+tual modalities, we introduce a vision-language alignment              and tail classes, we introduce a heterogeneity-based cluster-
+mechanism. Inspired by MaPLe [12], we design a mapping                 ing method. This approach groups clients with complemen-
+function F : Rd → Rv that aligns the learned language                  tary class distributions, allowing clients with head classes
+prompts with the visual feature space:                                 to collaborate with those possessing tail classes, leading to
+                                                                       a more balanced global model. We calculate the comple-
+         z′i = f ([xi , P̃g ]),   where   P̃g = F(Pg ).     (3)        mentarity between clients i and j as:
+   For each sample, we combine the general and class-                                              X
+aware prompts to form an integrated prompt representation:                     Comp(di , dj ) =           di (c)(1 − dj (c)),    (6)
+Pi = [Pg , Pcyi , CLASSi ], which is then processed through                                       c∈H∪T
+CLIP’s text encoder: ti = g(Pi ). To optimize this multi-
+                                                                       where H and T denote the sets of head and tail classes,
+modal framework, we propose a joint training objective that
+                                                                       respectively. Based on this measure, we construct a com-
+combines general and class-aware prompt learning:
+                                                                       plementarity matrix C and apply K-means clustering. The
+                         L = Lge + λLca ,                   (4)        primary objective of this heterogeneity-based clustering is
+                                                                       to ensure that each cluster contains a balanced mix of clients
+where λ is a balancing parameter. This joint optimization              with head classes and those with tail classes. Within these
+enables our model to simultaneously learn domain-invariant             heterogeneous clusters, we aggregate the general prompts
+features through the general prompt and class-specific rep-            from all clients. By balancing head and tail class repre-
+resentations through the class-aware prompt while main-                sentations within clusters, it mitigates biases towards head
+taining effective cross-modal alignment in federated long-             classes, addresses non-IID data challenges, and promotes
+tailed scenarios.                                                      the synthesis of diverse features, ultimately enabling the
+3.3. Heterogeneity-Aware Client Clustering                             general prompt to capture more robust and generalized rep-
+                                                                       resentations across global information.
+To enable effective prompt aggregation across heteroge-
+neous clients while preserving class-specific characteristics,         Communication-Efficient Learning. To optimize com-
+we introduce a heterogeneity-aware client clustering strat-            munication efficiency while maintaining model perfor-
+egy. This strategy comprises two complementary methods:                mance, we employ an MAB approach to adaptively ad-
+similarity-based and heterogeneity-based clustering.                   just intra-cluster iterations and global aggregation fre-
+Similarity-based Clustering. We introduce a similarity-                quency. This adaptive mechanism helps reduce communi-
+based clustering method that groups clients with similar               cation overhead while ensuring effective knowledge sharing
+class distributions together. This allows for more effec-              across clients. The detailed formulation of the MAB sched-
+tive aggregation of class-aware prompts within each cluster,           uler and parameter updates, and the whole training process
+as clients with similar class distributions are more likely to         algorithm of CAPT are shown in Appendix A.
+benefit from sharing class-specific information. To measure               Remarks: The proposed CAPT framework provides a
+the similarity between clients’ class distributions, we em-            solution to RQ 2 through its carefully designed architec-
+ploy the Jensen-Shannon (JS) divergence. For clients i and             ture. Through heterogeneity-aware client clustering, the
+j, their JS divergence is calculated as:                               general prompt learns robust universal features by aggre-
+                                                                       gating knowledge from clients with complementary class
+                   1                1                                  distributions, effectively handling the non-IID challenge.
+  JS(di ||dj) =      DKL(di ||dM ) + DKL(dj ||dM ), (5)
+                   2                2                                  Meanwhile, the class-aware prompts capture fine-grained
+where di and dj are normalized class distribution vectors              discriminative features by grouping clients with similar data
+for the respective clients, dM = 21 (di + dj ), and DKL is             patterns, particularly benefiting tail categories where sam-
+the Kullback-Leibler divergence. We construct a similarity             ples are limited and unevenly distributed across clients.
+matrix S and apply the K-means algorithm to form clusters.
+This clustering strategy enables clients to learn from oth-            3.4. Privacy discussions of CAPT
+ers with similar data distributions while mitigating the ad-           It is important to note that the CAPT framework inher-
+verse effects of incorporating data from clients with signif-          ently leverages aggregated statistics of client label distri-
+icantly different distributions. In the context of long-tailed         butions for clustering. While such aggregated statistical in-
+data, this approach is particularly beneficial for tail classes,       formation could potentially pose privacy considerations, we
+as it allows clients with similar rare class distributions to          clarify that these distributions are aggregated anonymously
+pool their limited data effectively, thereby improving the             and irreversibly, without revealing the raw data or identi-
+learning of tail class features without being overwhelmed              fiable details from individual clients [9]. Furthermore, the
+by head class data from dissimilar clients.
+
+                                                                   5
+Table 1. Performance comparison of CAPT against baseline methods on long-tailed datasets under different degrees of data hetero-
+geneity (α). Results show accuracy (%) for overall, head, mid, and tail classes. The best results are in bold. The second-best results are
+underlined. Blue numbers indicate improvement of our method over the second-best baseline.
+                                                  α = 0.05                                        α = 0.1                                     α = 0.5
+      Dataset        Method
+                                    Overall     Head       Mid        Tail         Overall    Head       Mid         Tail      Overall     Head      Mid        Tail
+                     FedCLIP [19]    84.81      98.10     90.20      76.26           85.55    98.45      90.67     77.32       86.26       97.25     89.50     79.92
+                     PromptFL [6]    88.67      95.30     86.50      84.93           89.32    94.07      88.83     85.23       90.59       96.63     87.43     88.77
+                     FedTPG [23]     87.78      96.70     87.90      84.14           88.91    96.60      84.70     88.36       88.90       98.30     91.40     83.64
+   CIFAR-10-LT       FedOTP [14]     83.27      83.70     82.13      83.78           85.15    96.65      85.97     80.06       86.97       97.65     86.50     82.98
+                     FedPGP [4]      88.76      97.05     88.10      84.64           86.96    98.15      84.83     83.76       87.49       97.95     91.23     81.06
+                     Ours            93.78      97.50     90.47      94.28           93.98    98.60      89.70     94.70       94.04       97.80     93.17     93.06
+                                     ↑ 5.02     ↓ 0.60    ↑ 0.27     ↑ 9.35          ↑ 4.66   ↑ 0.15     ↓ 0.97    ↑ 6.34      ↑ 3.45      ↓ 0.50    ↑ 1.77    ↑ 4.29
+                     FedCLIP [19]    61.52      74.83     64.19      49.69           61.46    74.00      63.00     50.83       62.10       74.93     64.16     50.09
+                     PromptFL [6]    63.21      74.00     68.10      51.60           65.09    76.34      67.16     55.33       65.79       76.03     63.35     60.25
+                     FedTPG [23]     66.01      67.48     66.84      64.30           64.52    71.17      65.55     58.90       65.56       79.48     69.26     52.60
+   CIFAR-100-LT      FedOTP [14]     60.74      70.45     54.58      57.51           61.22    72.24      61.74     52.62       59.43       75.41     61.68     45.84
+                     FedPGP [4]      65.07      78.72     64.29      55.77           65.47    76.31      62.77     59.70       66.42       71.17     65.39     63.32
+                     Ours            72.91      78.59     72.52      69.10           73.89    78.52      73.97     70.47       73.77       79.00     72.52     70.95
+                                     ↑ 6.90     ↓ 0.13    ↑ 4.42     ↑ 4.80          ↑ 8.42   ↑ 2.18     ↑ 6.81   ↑ 10.77      ↑ 7.35      ↓ 0.48    ↑ 3.26    ↑ 7.63
+                     FedCLIP [19]    73.56      98.70     91.37       52.82          73.66    98.40      91.43     53.10       74.21       97.95     90.37      55.02
+                     PromptFL [6]    74.21      98.85     88.37       55.86          76.47    98.60      90.50     59.20       77.65       98.80     90.97      61.20
+                     FedTPG [23]     76.10      96.50     91.00       59.00          77.30    95.50      90.20     62.28       78.24       98.35     91.80      62.06
+ Fashion-MNIST-LT    FedOTP [14]     73.30      96.25     89.27       54.54          75.65    95.80      86.70     60.96       74.31       99.00     84.97      58.04
+                     FedPGP [4]      71.31      91.60     87.00       53.78          73.31    98.10      86.60     55.42       77.10       98.95     88.73      61.38
+                     Ours            83.41      97.15     92.90       72.22          84.63    97.75      93.87     73.84       85.74       98.25     94.47      75.50
+                                     ↑ 7.31     ↓ 1.70    ↑ 1.53     ↑ 13.22         ↑ 7.33   ↓ 0.85     ↑ 2.44   ↑ 11.56      ↑ 7.50      ↓ 0.70    ↑ 2.67    ↑ 13.44
+
+Table 2. Comparison of CAPT with prompt-tuning methods. Results show accuracy for overall, head, mid, and tail classes on CIFAR-
+10-LT, CIFAR-100-LT, and Fashion-MNIST-LT under varying degrees of data heterogeneity. Baseline methods are combined with FedAvg
+for parameter aggregation. Bold indicates best performance, underline indicates second-best performance.
+                                                          α = 0.05                                     α = 0.1                                 α = 0.5
+      Dataset        Method
+                                          Overall        Head      Mid        Tail      Overall    Head      Mid        Tail     Overall     Head       Mid      Tail
+                     CoCoop+Fedavg            87.77      97.70     90.57     82.12       87.73     95.85     87.97     84.34      88.21      97.05     85.80    86.12
+                     MaPle+Fedavg             90.39      99.35     89.23     87.50       91.25     98.90     88.40     89.90      92.05      99.20     94.07    87.98
+   CIFAR-10-LT       KgCoOp+Fedavg            88.21      97.05     87.67     85.00       87.67     97.50     85.40     85.10      86.93      97.95     89.20    81.16
+                     CLIP-LoRA+Fedavg         87.77      89.65     86.10     88.02       87.90     89.31     89.31     88.26      87.91      89.81     86.34    88.09
+                     Ours                     93.78      97.50     90.47     94.28       93.98     98.60     89.70     94.70      94.04      97.80     93.17    93.06
+                     CoCoop+Fedavg            59.37      80.14     62.16     42.15       60.85     77.76     64.94     47.35      61.62      77.76     64.94    47.35
+                     MaPle+Fedavg             70.12      82.17     72.45     59.58       70.50     82.55     74.23     58.88      70.94      85.55     74.45    57.62
+   CIFAR-100-LT      KgCoOp+Fedavg            65.81      79.00     67.48     54.95       66.75     80.83     70.23     53.85      66.99      80.86     71.32    53.58
+                     CLIP-LoRA+Fedavg         64.97      66.76     65.51     63.25       64.88     66.74     66.74     63.15      64.94      66.59     65.55    63.27
+                     Ours                     72.91      78.59     72.52     69.10       73.89     78.52     73.97     70.47      73.77      79.00     72.52    70.95
+                     CoCoop+Fedavg            74.23      96.65     90.17     55.70       75.25     99.00     88.67     57.70      77.04      98.70     90.97    60.02
+                     MaPle+Fedavg             80.56      99.30     93.57     65.26       84.00     99.15     93.37     72.32      84.91      99.20     94.30    73.56
+ Fashion-MNIST-LT    KgCoOp+Fedavg            73.42      97.05     89.63     54.24       75.15     98.50     88.27     57.94      75.73      98.50     89.20    58.54
+                     CLIP-LoRA+Fedavg         64.47      90.71     60.29     56.48       64.24     89.99     60.03     56.46      64.51      90.60     61.22    56.05
+                     Ours                     83.41      97.15     92.90     72.22       84.63     97.75     93.87     73.84      85.74      98.25     94.47    75.50
+
+
+prompt-based learning approach employed in CAPT miti-                                datasets. For the first three datasets, we follow [2] to cre-
+gates privacy leakage risks typically associated with tradi-                         ate long-tailed versions using exponential decay with imbal-
+tional federated learning setups, as gradients from prompts                          ance factors (ρ = N max/N min). For ImageNet-LT, we
+alone significantly limit the effectiveness of gradient inver-                       use the standard version from [18]. Following [35], we an-
+sion attacks [6]. A comprehensive privacy analysis and fur-                          alyze performance across Head, Mid, and Tail class groups
+ther discussions are provided in Appendix E.                                         based on sample frequency.
+
+4. Experiment                                                                        Baselines. We evaluate CAPT against state-of-the-art
+                                                                                     methods in both federated learning and prompt-tuning do-
+4.1. Experimental Setup                                                              mains using ViT-B/16 as the backbone architecture. We
+Datasets. We evaluate our method on CIFAR-10-LT,                                     compare with FedCLIP [19] and PromptFL [6], which are
+CIFAR-100-LT, Fashion-MNIST-LT, and ImageNet-LT                                      representative CLIP-based federated learning methods, as
+
+
+                                                                               6
+                                                                      Overall        Head          Tail
+                                                                                                              Table 3. Comparison of CAPT with state-of-the-art methods on
+                         Overall        Head        Tail
+                                                                                                              ImageNet-LT under various non-IID settings.
+                 10                                         10
+Accuracy Gain
+
+
+
+
+                                                                                                                    #α    Method         Overall   Head    Mid     Tail
+                     0                                          0                                                         FedCLIP [19]    60.51    63.90   58.72   56.47
+                                                                                                                          PromptFL [6]    65.54    75.22   64.05   56.50
+                 10      PromptFL      CAPT                 10       PromptFL        CAPT
+                                                                                                                   0.05   FedTPG [23]     66.18    70.16   65.27   61.93
+                                                                                                                          MaPle+FedAvg    65.75    75.88   63.75   54.93
+                         (a) CIFAR-100-LT                              (b) ImageNet-LT                                    Ours            73.06    75.71   72.92   70.04
+   Figure 3. Accuracy gains (%) comparison between PromptFL                                                               FedCLIP [19]    60.83    64.25   58.93   56.63
+   and CAPT relative to CLIP. CAPT achieves superior perfor-                                                              PromptFL [6]    66.14    75.94   64.59   57.02
+   mance across head classes, tail classes, and overall categories, with                                            0.1   FedTPG [23]     67.06    71.86   65.07   62.82
+                                                                                                                          MaPle+FedAvg    65.77    76.59   64.33   55.12
+   particularly significant improvements on tail classes
+                                                                                                                          Ours            73.36    75.92   72.61   70.96
+                80                                         80                                                             FedCLIP [19]    65.43    70.14   64.69   61.89
+                                                                                                                          PromptFL [6]    67.87    77.00   65.60   59.76
+Accuracy (%)
+
+
+
+
+                70                                         70
+                                                                                                                    0.5   FedTPG [23]     68.21    73.41   66.68   63.54
+                60       Overall                           60       Overall                                               MaPle+FedAvg    67.61    77.95   65.25   57.93
+                         Head                                       Head                                                  Ours            74.01    76.96   73.06   71.19
+                         Tail                                       Tail
+                50 0        20     40    60    80   100 50 0            20      40       60   80    100
+                                    Rounds                                      Rounds
+                             (a) PromptFL                                     (b) CAPT                        rior performance in overall accuracy and tail class effective-
+                                                                                                              ness. Fig. 3 further highlights these improvements, show-
+   Figure 4. Training dynamics comparison between PromptFL and
+   CAPT on ImageNet-LT dataset.
+                                                                                                              ing balanced accuracy gains for CAPT across head-to-tail
+                                                                                                              classes, while PromptFL suffers significant tail-class degra-
+   well as FedTPG [23], FedOTP [14], and FedPGP [4], which                                                    dation. More extensive experimental results across differ-
+   focus on personalization in federated prompt learning. We                                                  ent imbalance factors and heterogeneity levels can be found
+   also evaluate against conventional prompt-tuning methods                                                   in Appendix C, which further demonstrates CAPT’s consis-
+   (CoCoop [47], KgCoOp [40], MaPle [12], and CLIP-LoRA                                                       tently superior performance under various settings.
+   [42]) combined with FedAvg [22] for parameter aggrega-                                                        To investigate the efficacy of simply federating state-
+   tion. Additionally, we conduct experiments with ResNet-                                                    of-the-art centralized CLIP fine-tuning methods for feder-
+   50 backbone to compare with traditional federated learning                                                 ated long-tailed learning, we compare CAPT with feder-
+   methods trained from scratch, including CReFF [29], Fed-                                                   ated versions of CoCoOp [47], MaPLe [12], KgCoOp [40],
+   Grab [36], FedLoge [35], and RUCR [9].                                                                     and CLIP-LoRA [42] in Tab. 2. Our results indicate that
+                                                                                                              CAPT consistently outperforms these methods across dif-
+   Implementation Details. We implement CAPT using Py-
+                                                                                                              ferent datasets and varying heterogeneity levels, underscor-
+   Torch and evaluate it on ResNet-50 and ViT-B/16 back-
+                                                                                                              ing the significance of CAPT’s class-aware prompt design
+   bones. In our federated learning setup, we use 20 clients
+                                                                                                              and heterogeneity-aware client clustering in tackling the
+   with non-IID data distribution controlled by a Dirichlet pa-
+                                                                                                              unique challenges of federated long-tailed learning.
+   rameter α. We perform training for a total of 100 commu-
+   nication rounds using SGD, randomly selecting 40% of the                                                   Large-scale Dataset Comparison. For the large-scale
+   clients to participate in each round. The balancing param-                                                 ImageNet-LT dataset, we conduct comprehensive evalua-
+   eter λ in Eq. (4) is set to 1. For the heterogeneity-aware                                                 tions across different heterogeneity levels, with results pre-
+   clustering strategy, we configure the number of clusters K                                                 sented in Tab. 3. The experimental results consistently
+   to 3 based on empirical results in Appendix D, which show                                                  demonstrate that CAPT effectively learns from scarce and
+   robust performance across a range of cluster numbers. Fur-                                                 heterogeneous data, maintaining robustness to client het-
+   ther implementation details are provided in Appendix B.                                                    erogeneity. A further analysis of training dynamics, Fig. 4
+                                                                                                              reveals that CAPT preserves stable and balanced accuracy
+   4.2. Comparison with State-of-the-art Methods                                                              for both head and tail classes throughout training, while
+   Small-scale Datasets Comparison. For small-scale                                                           PromptFL experiences a widening performance gap due
+   datasets, we compare CAPT with three categories of meth-                                                   to declining tail-class accuracy. These findings validate
+   ods: CLIP-based federated learning approaches, federated                                                   CAPT’s ability to mitigate class imbalance and achieve sta-
+   versions of centralized CLIP fine-tuning methods, and                                                      ble optimization in federated long-tailed scenarios.
+   state-of-the-art federated learning methods specifically                                                      Furthermore, CAPT demonstrates superior performance
+   designed to address class imbalance.                                                                       compared to state-of-the-art federated long-tail learning
+      Tab. 1 compares CAPT with state-of-the-art CLIP-based                                                   methods using ResNet backbones, achieving consistent im-
+   federated learning methods across various data heterogene-                                                 provements in both overall accuracy and balanced perfor-
+   ity levels. Results consistently demonstrate CAPT’s supe-                                                  mance across all class categories. More detailed compara-
+
+
+                                                                                                          7
+Table 4. Ablation study of CAPT components, comparing differ-
+                                                                                                       General Prompt
+ent prompt types and cluster aggregation strategies.                                                   Class-Aware Prompt
+
+
+                                                      CIFAR-10-LT
+  Method
+                                            Overall    Head Mid          Tail
+  w/ Clu. w/o Clu.
+
+
+
+
+                     General Prompt          89.23     97.50    90.95    84.93
+                     Class-aware Prompt      90.27     98.75    91.53    86.12
+                     Gen+Cla                 90.42     99.30    91.27    86.36
+                     General Prompt          92.00     94.55    90.57    91.84
+                     Class-aware Prompt      92.69     96.85    90.00    92.64
+                     Gen+Cla                 94.04     97.80    93.17    93.06                (a) CIFAR-10                    (b) CIFAR-100
+
+Table 5. Ablation study on vision-language alignment and MAB                          Figure 5. t-SNE visualization of General Prompt ( ) and Class-
+scheduler components across different heterogeneity degrees (α).                      Aware Prompt ( ) embeddings. The shaded area illustrates the
+                                                                                      region where General Prompt features are clustered.
+                                 CIFAR-10-LT               CIFAR-100-LT
+ V-L                  MAB                                                             specific information. This dual representation contributes
+                              0.05    0.1       0.5     0.05      0.1      0.5
+                                                                                      to CAPT’s strong performance across head, mid, and tail
+   ✓                         92.29   93.46     93.22    69.93    70.83    71.70       classes in federated long-tailed scenarios.
+                       ✓     92.10   91.97     92.30    68.60    68.12    68.19
+   ✓                   ✓     93.78   93.98     94.04    72.91    73.89    73.77       Impact of Vision-Language Alignment and MAB Sched-
+                                                                                      uler. We conduct ablation studies on CIFAR-10-LT and
+                                                                                      CIFAR-100-LT to evaluate our key components. As shown
+tive experiments and analysis on ResNet-based models can
+                                                                                      in Tab. 5, the vision-language alignment mechanism con-
+be found in Appendix C. These results answer RQ 3 by
+                                                                                      sistently improves across all imbalance settings, with larger
+demonstrating that CAPT successfully improves tail class
+                                                                                      gains in more imbalanced scenarios. While the MAB sched-
+performance without sacrificing head class accuracy.
+                                                                                      uler alone shows moderate improvements through its adap-
+4.3. Ablation Studies                                                                 tive communication strategy, the combination of both com-
+                                                                                      ponents yields the best results.
+Impact of Prompt Design and Clustering Strategy. We
+                                                                                      Influence of Similarity Metrics and Clustering Parame-
+examine the effectiveness of our multi-modal prompt de-
+                                                                                      ters. We investigate the sensitivity of CAPT to different
+sign by comparing general prompt, class-aware prompt, and
+                                                                                      similarity metrics, clustering techniques, and numbers of
+their combination (Gen+Cla). As shown in Tab. 4, the class-
+                                                                                      clusters. Our results indicate that CAPT is robust across
+aware prompt outperforms the general prompt across all
+                                                                                      various clustering methods and similarity metrics, consis-
+class categories, demonstrating the importance of capturing
+                                                                                      tently achieving strong performance with minimal varia-
+class-specific features in long-tailed scenarios. Moreover,
+                                                                                      tion. Regarding the number of clusters, our analysis demon-
+the introduction of our heterogeneity-aware client clus-
+                                                                                      strates stable performance across a moderate range of clus-
+tering strategy (w/Clu.) significantly boosts performance
+                                                                                      ter numbers, underscoring the robustness and practicality of
+across all prompt configurations, with particularly notable
+                                                                                      our clustering strategy. More detailed experimental quanti-
+improvements in tail class performance. Interestingly, we
+                                                                                      tative results and analysis are presented in Appendix D.
+observe that when clustering is applied, the performance
+gap between different prompt configurations narrows, par-
+                                                                                      5. Conclusion
+ticularly for tail classes. This suggests that our clustering
+strategy effectively mitigates the challenges of data hetero-                         In this paper, we proposed CAPT, a novel framework for
+geneity, allowing even simpler prompt designs to achieve                              federated learning that effectively addresses long-tailed data
+competitive levels of performance.                                                    distributions and client heterogeneity. Our approach intro-
+    To provide insights into the learned representations, we                          duces a dual-prompt design with general and class-aware
+visualize the features extracted by CAPT’s general and                                prompts coupled with a heterogeneity-aware client cluster-
+class-aware prompts using t-SNE in Fig. 5, where differ-                              ing strategy. CAPT significantly improves performance on
+ent colors denote different classes in CIFAR-10 and coarse-                           tail classes while maintaining competitive accuracy on head
+grained categories in CIFAR-100. The visualization reveals                            classes. Notably, CAPT achieves substantial improvements
+that features learned by the general prompt are more con-                             in overall accuracy and tail class performance compared to
+centrated and generalized, clustering towards the center, in-                         state-of-the-art methods across various degrees of data het-
+dicating the capture of domain-invariant features. In con-                            erogeneity. These results highlight CAPT’s effectiveness
+trast, the class-aware prompt learns more distinctive fea-                            in tackling the challenges of federated long-tailed learn-
+tures, with data points spreading towards the edges, aligning                         ing, paving the way for more robust and equitable machine
+with our design intention of capturing fine-grained, class-                           learning models in decentralized settings.
+
+
+                                                                                  8
+References                                                                [14] Hongxia Li, Wei Huang, Jingya Wang, and Ye Shi. Global
+                                                                               and local prompts cooperation via optimal transport for fed-
+ [1] Adrian Bulat and Georgios Tzimiropoulos. Lasp: Text-to-                   erated learning. In Proceedings of the IEEE/CVF Conference
+     text optimization for language-aware soft prompting of vi-                on Computer Vision and Pattern Recognition, pages 12151–
+     sion & language models. In Proceedings of the IEEE/CVF                    12161, 2024. 3, 6, 7
+     Conference on Computer Vision and Pattern Recognition,
+                                                                          [15] Kan Li, Yang Li, Ji Zhang, Xin Liu, and Zhichao Ma. Feder-
+     pages 23232–23241, 2023. 3
+                                                                               ated deep long-tailed learning: A survey. Neurocomputing,
+ [2] Kaidi Cao, Colin Wei, Adrien Gaidon, Nikos Arechiga,                      595:127906, 2024. 1, 2, 3
+     and Tengyu Ma. Learning imbalanced datasets with label-
+                                                                          [16] Mengke Li, Yiu-ming Cheung, and Yang Lu. Long-tailed
+     distribution-aware margin loss. Advances in neural informa-
+                                                                               visual recognition via gaussian clouded logit adjustment. In
+     tion processing systems, 32, 2019. 6
+                                                                               Proceedings of the IEEE/CVF Conference on Computer Vi-
+ [3] Haokun Chen, Ahmed Frikha, Denis Krompass, Jindong                        sion and Pattern Recognition, pages 6929–6938, 2022. 1
+     Gu, and Volker Tresp. Fraug: Tackling federated learning
+                                                                          [17] Xiaoxiao Li, Meirui Jiang, Xiaofei Zhang, Michael Kamp,
+     with non-iid features via representation augmentation. In
+                                                                               and Qi Dou. Fedbn: Federated learning on non-iid fea-
+     Proceedings of the IEEE/CVF International Conference on
+                                                                               tures via local batch normalization. In 9th International
+     Computer Vision, pages 4849–4859, 2023. 1
+                                                                               Conference on Learning Representations, ICLR 2021, Vir-
+ [4] Tianyu Cui, Hongxia Li, Jingya Wang, and Ye Shi. Har-                     tual Event, Austria, May 3-7, 2021, 2021. 1
+     monizing generalization and personalization in federated             [18] Ziwei Liu, Zhongqi Miao, Xiaohang Zhan, Jiayun Wang,
+     prompt learning. In Proceedings of the 41st International                 Boqing Gong, and Stella X Yu. Large-scale long-tailed
+     Conference on Machine Learning, pages 9646–9661, 2024.                    recognition in an open world. In Proceedings of the
+     3, 6, 7                                                                   IEEE/CVF Conference on Computer Vision and Pattern
+ [5] Alexey Dosovitskiy. An image is worth 16x16 words:                        Recognition, pages 2537–2546, 2019. 6, 1
+     Transformers for image recognition at scale. arXiv preprint          [19] Wang Lu, Xixu Hu, Jindong Wang, and Xing Xie. Fedclip:
+     arXiv:2010.11929, 2020. 1                                                 Fast generalization and personalization for CLIP in feder-
+ [6] Tao Guo, Song Guo, Junxiao Wang, Xueyang Tang, and                        ated learning. IEEE Data Engineering Bulletin, 46(1):52–66,
+     Wenchao Xu. Promptfl: Let federated participants cooper-                  2023. 2, 6, 7
+     atively learn prompts instead of models – federated learning         [20] Yang Lu, Yiu-Ming Cheung, and Yuan Yan Tang. Bayes
+     in age of foundation model. IEEE Transactions on Mobile                   imbalance impact index: A measure of class imbalanced data
+     Computing, 23(5):5179–5194, 2024. 2, 3, 6, 7, 4, 5                        set for classification problem. IEEE Transactions on Neural
+ [7] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun.                    Networks and Learning Systems, 31(9):3525–3539, 2020. 1
+     Deep residual learning for image recognition. In Proceed-            [21] Yang Lu, Pinxin Qian, Gang Huang, and Hanzi Wang. Per-
+     ings of the IEEE Conference on Computer Vision and Pattern                sonalized federated learning on long-tailed data via adversar-
+     Recognition, pages 770–778, 2016. 1                                       ial feature augmentation. In IEEE International Conference
+ [8] Tony Huang, Jack Chu, and Fangyun Wei. Unsupervised                       on Acoustics, Speech and Signal Processing (ICASSP), pages
+     prompt learning for vision-language models. arXiv preprint                1–5. IEEE, 2023. 1
+     arXiv:2204.03649, 2022. 3                                            [22] Brendan McMahan, Eider Moore, Daniel Ramage, Seth
+ [9] Wenke Huang, Yuxia Liu, Mang Ye, Jun Chen, and Bo Du.                     Hampson, and Blaise Aguera y Arcas. Communication-
+     Federated learning with long-tailed data via representation               efficient learning of deep networks from decentralized data.
+     unification and classifier rectification. IEEE Transactions on            In Proceedings of the 20th International Conference on Ar-
+     Information Forensics and Security, 2024. 1, 5, 7, 3, 4                   tificial Intelligence and Statistics, pages 1273–1282. PMLR,
+[10] Yangsibo Huang, Samyak Gupta, Zhao Song, Kai Li, and                      2017. 1, 7, 3
+     Sanjeev Arora. Evaluating gradient inversion attacks and de-         [23] Chen Qiu, Xingyu Li, Chaithanya Kumar Mummadi,
+     fenses in federated learning. Advances in neural information              Madan Ravi Ganesh, Zhenzhen Li, Lu Peng, and Wan-Yi
+     processing systems, 34:7232–7241, 2021. 4                                 Lin. Federated text-driven prompt generation for vision-
+[11] Peter Kairouz, H Brendan McMahan, Brendan Avent,                          language models. In The Twelfth International Conference
+     Aurélien Bellet, Mehdi Bennis, Arjun Nitin Bhagoji, Kallista             on Learning Representations, 2024. 6, 7
+     Bonawitz, Zachary Charles, Graham Cormode, Rachel Cum-               [24] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya
+     mings, et al. Advances and open problems in federated learn-              Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry,
+     ing. Foundations and Trends® in Machine Learning, 14(1–                   Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learn-
+     2):1–210, 2021. 1                                                         ing transferable visual models from natural language super-
+[12] Muhammad Uzair Khattak, Hanoona Rasheed, Muhammad                         vision. In Proceedings of the 38th International Conference
+     Maaz, Salman Khan, and Fahad Shahbaz Khan. Maple:                         on Machine Learning, pages 8748–8763. PMLR, 2021. 2, 3
+     Multi-modal prompt learning.           In Proceedings of the         [25] Douglas A Reynolds et al. Gaussian mixture models. Ency-
+     IEEE/CVF Conference on Computer Vision and Pattern                        clopedia of biometrics, 741(659-663), 2009. 3
+     Recognition, pages 19113–19122, 2023. 2, 3, 5, 7                     [26] Yossi Rubner, Carlo Tomasi, and Leonidas J Guibas. The
+[13] Alex Krizhevsky, Geoffrey Hinton, et al. Learning multiple                earth mover’s distance as a metric for image retrieval. Inter-
+     layers of features from tiny images. 2009. 1                              national journal of computer vision, 40:99–121, 2000. 3
+
+
+                                                                      9
+[27] Dipankar Sarkar, Ankur Narang, and Sumit Rai. Fed-focal                    Fedgkd: Toward heterogeneous federated learning via global
+     loss for imbalanced data classification in federated learning.             knowledge distillation. IEEE Transactions on Computers, 73
+     arXiv preprint arXiv:2011.06283, 2020. 2                                   (1):3–17, 2024. 1
+[28] Xinyi Shang, Yang Lu, Yiu-ming Cheung, and Hanzi Wang.                [40] Hantao Yao, Rui Zhang, and Changsheng Xu. Visual-
+     Fedic: Federated learning on non-iid and long-tailed data via              language prompt tuning with knowledge-guided context op-
+     calibrated distillation. In 2022 IEEE International Confer-                timization. In Proceedings of the IEEE/CVF Conference
+     ence on Multimedia and Expo (ICME), pages 1–6. IEEE,                       on Computer Vision and Pattern Recognition, pages 6757–
+     2022. 2                                                                    6767, 2023. 3, 7
+[29] Xinyi Shang, Yang Lu, Gang Huang, and Hanzi Wang. Fed-                [41] Xin Yao, Tianchi Huang, Chenglei Wu, Ruixiao Zhang, and
+     erated learning on heterogeneous and long-tailed data via                  Lifeng Sun. Towards faster and better federated learning: A
+     classifier re-training with federated features. In Proceedings             feature fusion approach. In 2019 IEEE International Con-
+     of the Thirty-First International Joint Conference on Artifi-              ference on Image Processing (ICIP), pages 175–179. IEEE,
+     cial Intelligence, pages 2218–2224, 2022. 1, 2, 7, 3                       2019. 1
+[30] Jiangming Shi, Shanshan Zheng, Xiangbo Yin, Yang Lu,                  [42] Maxime Zanella and Ismail Ben Ayed. Low-rank few-shot
+     Yuan Xie, and Yanyun Qu. Clip-guided federated learn-                      adaptation of vision-language models. In Proceedings of
+     ing on heterogeneous and long-tailed data. arXiv preprint                  the IEEE/CVF Conference on Computer Vision and Pattern
+     arXiv:2312.08648, 2023. 3                                                  Recognition, pages 1593–1603, 2024. 7
+[31] Ximeng Sun, Ping Hu, and Kate Saenko. Dualcoop: Fast                  [43] Yaopei Zeng, Lei Liu, Li Liu, Li Shen, Shaoguo Liu, and
+     adaptation to multi-label recognition with limited annota-                 Baoyuan Wu. Global balanced experts for federated long-
+     tions. In Advances in Neural Information Processing Sys-                   tailed learning. In Proceedings of the IEEE/CVF Interna-
+     tems, 2022. 3                                                              tional Conference on Computer Vision, pages 4815–4825,
+[32] Grant Van Horn, Oisin Mac Aodha, Yang Song, Yin Cui,                       2023. 1, 2
+     Chen Sun, Alex Shepard, Hartwig Adam, Pietro Perona, and              [44] Renrui Zhang, Xiangfei Hu, Bohao Li, Siyuan Huang, Han-
+     Serge Belongie. The inaturalist species classification and                 qiu Deng, Yu Qiao, Peng Gao, and Hongsheng Li. Prompt,
+     detection dataset. In Proceedings of the IEEE Conference                   generate, then cache: Cascade of foundation models makes
+     on Computer Vision and Pattern Recognition, pages 8769–                    strong few-shot learners. In Proceedings of the IEEE/CVF
+     8778, 2018. 3                                                              Conference on Computer Vision and Pattern Recognition,
+[33] Lixu Wang, Shichao Xu, Xiao Wang, and Qi Zhu. Address-                     pages 15211–15222, 2023. 2
+     ing class imbalance in federated learning. In Proceedings of          [45] Yifan Zhang, Bingyi Kang, Bryan Hooi, Shuicheng Yan, and
+     the AAAI Conference on Artificial Intelligence, pages 10165–               Jiashi Feng. Deep long-tailed learning: A survey. IEEE
+     10173, 2021. 2                                                             Transactions on Pattern Analysis and Machine Intelligence,
+[34] Han Xiao, Kashif Rasul, and Roland Vollgraf. Fashion-                      45(9):10795–10816, 2023. 1
+     mnist: a novel image dataset for benchmarking machine                 [46] Yue Zhao, Meng Li, Liangzhen Lai, Naveen Suda, Damon
+     learning algorithms. arXiv preprint arXiv:1708.07747, 2017.                Civin, and Vikas Chandra. Federated learning with non-iid
+     1                                                                          data. arXiv preprint arXiv:1806.00582, 2018. 1
+[35] Zikai Xiao, Zihan Chen, Liyinglan Liu, Yang Feng,                     [47] Kaiyang Zhou, Jingkang Yang, Chen Change Loy, and Ziwei
+     Joey Tianyi Zhou, Jian Wu, Wanlu Liu, Howard Hao Yang,                     Liu. Conditional prompt learning for vision-language mod-
+     and Zuozhu Liu. Fedloge: Joint local and generic federated                 els. In Proceedings of the IEEE/CVF Conference on Com-
+     learning under long-tailed data. In The Twelfth International              puter Vision and Pattern Recognition, pages 16816–16825,
+     Conference on Learning Representations, 2024. 1, 3, 6, 7                   2022. 3, 7
+[36] Zikai Xiao, Zihan Chen, Songshang Liu, Hualiang Wang,                 [48] Kaiyang Zhou, Jingkang Yang, Chen Change Loy, and Ziwei
+     Yang Feng, Jin Hao, Joey Tianyi Zhou, Jian Wu, Howard                      Liu. Learning to prompt for vision-language models. In-
+     Yang, and Zuozhu Liu. Fed-grab: Federated long-tailed                      ternational Journal of Computer Vision, 130(9):2337–2348,
+     learning with self-adjusting gradient balancer. Advances in                2022. 2, 3
+     Neural Information Processing Systems, 36, 2024. 1, 2, 7, 3,          [49] Ligeng Zhu, Zhijian Liu, and Song Han. Deep leakage from
+     4                                                                          gradients. In Advances in Neural Information Processing
+[37] Qiang Yang, Yang Liu, Tianjian Chen, and Yongxin Tong.                     Systems, 2019. 4
+     Federated machine learning: Concept and applications. ACM
+     Transactions on Intelligent Systems and Technology (TIST),
+     10(2):1–19, 2019. 1
+[38] Wenkai Yang, Deli Chen, Hao Zhou, Fandong Meng, Jie
+     Zhou, and Xu Sun. Integrating local real data with global
+     gradient prototypes for classifier re-balancing in federated
+     long-tailed learning. arXiv preprint arXiv:2301.10394,
+     2023. 2
+[39] Dezhong Yao, Wanning Pan, Yutong Dai, Yao Wan, Xi-
+     aofeng Ding, Chen Yu, Hai Jin, Zheng Xu, and Lichao Sun.
+
+
+                                                                      10
+  CAPT: Class-Aware Prompt Tuning for Federated Long-Tailed Learning with
+                         Vision-Language Model
+                                             Supplementary Material
+A. Method Details                                                  rate. The MAB scheduler selects an arm using an ϵ-greedy
+                                                                   strategy with an exploration bonus term:
+Training Process. Algorithm 1 outlines the training                                                   s
+procedure for our Class-Aware Prompt Tuning (CAPT)
+                                                                                    "                       P         #
+                                                                                       Vk (a)            log a Nk (a)
+method. At each round, selected clients perform local train-         ak = arg max                +c·                    . (8)
+                                                                                a     Nk (a) + ϵ           Nk (a) + ϵ
+ing to update their prompts and coupling function. The
+server performs clustering-based aggregation on the class-
+aware and general prompts to enable knowledge sharing              B. Experimental Details
+across clients.
+                                                                   Datasets. We evaluate our method on four long-tailed
+ Algorithm 1: CAPT: Class-Aware Prompt Tuning                      datasets: CIFAR-10-LT, CIFAR-100-LT, Fashion-MNIST-
+ for Federated Long-tailed Learning                                LT, and ImageNet-LT. Following [29], we create long-tailed
+                                                                   versions of CIFAR-10, CIFAR-100 [13], and Fashion-
+   Input: Number of clients K, communication
+                                                                   MNIST [34] by sampling with an exponential decay con-
+            rounds T
+                                                                   trolled by the imbalance factor ρ = N max/N min, where
+   Output: General prompt Pg , class-aware prompts
+                                                                   N max and N min are the number of samples in the most
+              Pc , coupling function F
+                                                                   and least frequent classes, respectively. We use imbalance
+   Initialize Pg , Pc , F, MAB arms;
+                                                                   factors of 100, 50, and 10 for CIFAR-10-LT, CIFAR-100-
+   for t = 1 to T do
+                                                                   LT, and Fashion-MNIST-LT. For ImageNet-LT, we use the
+        Randomly select a set of active clients St ;
+                                                                   version described in [18], with class sizes ranging from 5 to
+        for k ∈ St do
+                                                                   1,280 samples. All datasets maintain their original test sets.
+            Update Pgk , Pck , F k via local training;
+                                                                   Following [35], we categorize classes into Head, Mid, and
+        end                                                        Tail groups by first sorting all classes based on their sample
+        Cs ← Similarity-based clustering;                          count, then setting two thresholds (75% and 95%) to segre-
+        Aggregate and distribute {Pck |k ∈ c} for each             gate them. We report accuracy across these three groups to
+          c ∈ Cs ;                                                 provide a comprehensive evaluation of our method’s perfor-
+        Ch ← Heterogeneity-based clustering;                       mance on varying levels of data scarcity.
+        Aggregate and distribute {Pgk |k ∈ c} for each
+                                                                   Implementation Details. We implemented our proposed
+          c ∈ Ch ;                                                 method, CAPT, as well as all baselines using PyTorch. We
+        if MABSelect() then                                        report the performance on two representative and influential
+            Aggregate and distribute Pg , Pc , F;                  backbone architectures, ResNet50 [7] and ViT-B16 [5].
+            UpdateMAB();                                           • In the federated learning setting, we simulate a system
+        end                                                          with 20 clients, where the local datasets are partitioned
+   end                                                               using a symmetric Dirichlet distribution with a concentra-
+   return Pg , Pc , F;                                               tion parameter α ∈ {0.05, 0.1, 0.5} to control the degree
+                                                                     of non-IID data. Smaller values of α indicate higher data
+                                                                     heterogeneity across clients.
+Communication-Efficient Learning. To optimize com-                 • For local training, we use the SGD optimizer with a con-
+munication efficiency while maintaining model perfor-                stant learning rate of 1e-3. The batch size is set to 32
+mance, we employ a Multi-Armed Bandit (MAB) approach                 for CIFAR-10-LT, CIFAR-100-LT, and Fashion-MNIST-
+to adaptively adjust intra-cluster iterations and global ag-         LT, and 256 for ImageNet-LT. We perform 100 rounds
+gregation frequency. The MAB scheduler is formulated as              of communication training, with 1 local epoch per round
+follows:                                                             for CLIP-based methods and 5 local epochs per round in
+                                                                     other cases. In each round, 40% of the clients are ran-
+          Vk+1 (a) = Vk (a) + ηk · (rk − Vk (a)),        (7)         domly selected to participate in the training.
+                                                                   For the prompt-tuning baselines (CoCoop, KgCoOp,
+where Vk (a) is the estimated value of arm a at round k,           MaPle, and CLIP-LoRA), we use the same hyperparame-
+rk is the observed reward, and ηk is a decaying learning           ters reported in the original papers. The prompt length is
+
+
+                                                               1
+Table 6. Performance comparison between CAPT and baseline methods on different datasets with varying degrees of data heterogeneity
+and imbalance factors.
+
+                                                             α = 0.05                                α = 0.1                                α = 0.5
+ IF             Dataset        Method
+                                                Overall   Head      Mid       Tail      Overall   Head      Mid       Tail     Overall   Head     Mid       Tail
+                               PromptFL[6]      88.67     95.30    86.50     84.93      89.32     94.07    88.83     85.23     90.59     96.63    87.43    88.77
+                               FedCLIP[19]      84.81     98.10    90.20     76.26      85.55     98.45    90.67     77.32     86.26     97.25    89.50    79.92
+              CIFAR-10-LT      MaPle + FedAvg   90.39     99.35    89.23     87.50      91.25     98.90    88.40     89.90     92.05     99.20    94.07    87.98
+                               Ours             93.78     97.50    90.47     94.28      93.98     98.60    89.70     94.70     94.04     97.80    93.17    93.06
+                                                ↑ 5.11    ↑ 2.20   ↑ 3.97    ↑ 9.35     ↑ 4.66    ↑ 4.53   ↑ 0.87    ↑ 9.47    ↑ 3.45    ↑ 1.17   ↑ 5.74   ↑ 4.29
+                               PromptFL[6]      63.21     74.00    68.10      51.60     65.09     76.34    67.16      55.33    65.79     76.03    63.35     60.25
+ IF = 100
+
+
+
+
+                               FedCLIP[19]      61.52     74.83    64.19      49.69     61.46     74.00    63.00      50.83    62.10     74.93    64.16     50.09
+             CIFAR-100-LT      MaPle + FedAvg   70.12     82.17    72.45      59.58     70.50     82.55    74.23      58.88    70.94     85.55    74.45     57.62
+                               Ours             72.91     78.59    72.52      69.10     73.89     78.52    73.97      70.47    73.77     79.00    72.52     70.95
+                                                ↑ 9.70    ↑ 4.59   ↑ 4.42    ↑ 17.50    ↑ 8.80    ↑ 2.18   ↑ 6.81    ↑ 15.14   ↑ 7.98    ↑ 2.97   ↑ 9.17   ↑ 10.70
+                               PromptFL[6]      74.21     98.85    88.37      55.86     76.47     98.60    90.50      59.20    77.65     98.80    90.97     61.20
+                               FedCLIP[19]      73.56      98.7    91.37      52.82     73.66      98.4    91.43       53.1    74.21     97.95    90.37     55.02
+            Fashion-MNIST-LT   MaPle + FedAvg   80.56     99.30    93.57      65.26     84.00     99.15    93.37      72.32    84.91     99.20    94.30     73.56
+                               Ours             83.41     97.15    92.90      72.22     84.63     97.75    93.87      73.84    85.74     98.25    94.47     75.50
+                                                ↑ 9.20    ↓ 1.70   ↑ 4.53    ↑ 16.36    ↑ 8.16    ↓ 0.85   ↑ 3.37    ↑ 14.64   ↑ 8.09    ↓ 0.55   ↑ 3.50   ↑ 14.30
+                               PromptFL[6]      88.33     96.70    83.53      85.65     88.98     95.07    85.93      86.70    90.82     93.47    91.20     88.55
+                               FedCLIP[19]      89.01     96.13    87.05      84.50     89.39     94.93    86.52      87.67    89.71     94.63    87.17     88.17
+              CIFAR-10-LT      MaPle + FedAvg   91.82     94.93    90.53      90.45     92.52     96.33    89.67      91.80    93.11     96.77    91.97     91.22
+                               Ours             94.69     96.37    91.37      95.92     94.62     95.30    92.00      96.08    94.34     96.60    91.40     94.85
+                                                ↑ 6.36    ↓ 0.33   ↑ 7.84    ↑ 10.27    ↑ 5.64    ↑ 0.23   ↑ 6.07     ↑ 9.38   ↑ 3.52    ↑ 3.13   ↑ 0.20    ↑ 6.30
+                               PromptFL [6]     65.76     75.61    67.53      54.09     66.44     77.12    68.94      53.18    68.08     80.18    69.21     54.82
+                               FedCLIP [19]     63.96     73.12    58.78      55.95     64.03     73.10    59.11      55.67    64.16     72.90    59.64     56.05
+ IF = 50
+
+
+
+
+             CIFAR-100-LT      MaPle + FedAvg   71.65     79.85    72.09      63.00     72.36     79.82    74.03      63.18    73.40     83.45    73.00     63.76
+                               Ours             73.89     79.12    73.41      69.15     74.13     77.61    73.91      70.88    74.93     79.03    74.00     71.79
+                                                ↑ 8.13    ↑ 3.51   ↑ 5.8     ↑ 15.06    ↑ 7.69    ↑ 0.49   ↑ 4.97    ↑ 17.70   ↑ 6.85    ↓ 1.15   ↑ 4.79   ↑ 16.97
+                               PromptFL [6]     78.71     96.87    88.03      58.10     77.52     97.30    88.10      54.75    79.39     97.03    88.37     59.42
+                               FedCLIP [19]     76.77     96.87    83.95      47.10     76.47     97.37    82.72      47.23    77.71     94.80    87.53     47.53
+            Fashion-MNIST-LT   MaPle + FedAvg   82.33     95.17    93.93      64.00     81.95     98.10    88.50      64.92    85.52     96.83    92.43     71.85
+                               Ours             83.08     97.40    86.50      69.78     84.40     94.73    92.23      70.78    86.32     97.67    92.30     73.32
+                                                ↑ 4.37    ↑ 0.53   ↓ 1.53    ↑ 11.68    ↑ 6.88    ↓ 2.57   ↑ 4.13    ↑ 16.03   ↑ 6.93    ↑ 0.64   ↑ 3.93   ↑ 13.90
+                               PromptFL [6]     90.84     91.62     88.78     93.40     89.70     88.12     89.70     92.85    92.30     91.08    92.87     93.60
+                               FedCLIP [19]     90.59      92.8     87.72     91.90     90.12     93.20     89.03     86.15    90.19     93.08    88.73     87.35
+              CIFAR-10-LT      MaPle + FedAvg   93.60     96.42     90.62     93.90     93.50     93.50     93.87     92.75    94.53     95.82    93.10     94.80
+                               Ours             94.12     92.35     93.65     98.60     93.73     93.40     92.65     96.55    94.66     93.88    94.30     96.95
+                                                ↑ 3.28    ↑ 0.73    ↑ 4.87    ↑ 5.20    ↑ 4.03    ↑ 5.28    ↑ 2.95    ↑ 3.70   ↑ 2.36    ↑ 2.80   ↑ 1.43    ↑ 3.35
+                               PromptFL[6]      68.93     75.02     65.49     58.82     69.98     76.92     63.74     63.24    72.06     75.54    70.26     65.94
+                               FedCLIP[19]      65.07     69.96     62.75     55.64     64.87     70.71     61.26     55.82    65.09     70.79    62.03     55.29
+ IF = 10
+
+
+
+
+             CIFAR-100-LT      MaPle + FedAvg   72.90     77.79     71.17     62.65     74.08     79.79     71.03     64.24    76.17     81.67    72.97     67.24
+                               Ours             76.30     77.06     76.14     74.47     77.05     78.04     76.14     76.12    77.68     77.54    77.11     79.24
+                                                ↑ 7.37    ↑ 2.04   ↑ 10.65   ↑ 15.65    ↑ 7.07    ↑ 1.12   ↑ 12.40   ↑ 12.88   ↑ 5.62    ↑ 2.00   ↑ 6.85   ↑ 13.30
+                               PromptFL[6]      79.39     92.45     83.15     45.75     80.10     94.55     76.65     58.10    81.51     94.90    82.62     52.50
+                               FedCLIP[19]      76.33      92.7     83.13     30.00     78.02     93.53     81.65     39.75     78.8     95.08    79.55     44.75
+            Fashion-MNIST-LT   MaPle + FedAvg   82.55     95.97     85.72     49.35     85.52     95.60     89.05     58.30    87.23     96.73    88.00     66.70
+                               Ours             84.36     95.62     83.25     64.05     86.06     95.23     86.45     66.95    87.48     96.50    88.67     67.05
+                                                ↑ 4.97    ↑ 3.17    ↑ 0.10   ↑ 18.30    ↑ 5.96    ↑ 0.68    ↑ 9.80    ↑ 8.85   ↑ 5.97    ↑ 1.60   ↑ 6.05   ↑ 14.55
+
+
+
+set to 4, and the learning rate for prompt optimization is 1e-                         as shown in Tab. 6. The results demonstrate several key
+3, based on the original papers’ recommendations and our                               findings about our method’s robustness and effectiveness.
+empirical findings. For FedCLIP, we use an attention-based                                 CAPT consistently outperforms baseline methods across
+adapter with a hidden dimension of 128.                                                all settings, with particularly significant improvements in
+                                                                                       tail class performance. This advantage is most pronounced
+C. Additional Experiments Results                                                      in scenarios with high imbalance factors (IF = 100) and high
+                                                                                       data heterogeneity (α = 0.05), where CAPT achieves sub-
+To comprehensively evaluate CAPT’s effectiveness in han-                               stantial improvements in tail class accuracy while maintain-
+dling varying degrees of data imbalance and client hetero-                             ing competitive performance on head classes.
+geneity, we conduct extensive experiments across differ-                                   Notably, we observe that the performance gains of CAPT
+ent imbalance factors (IF = 10, 50, 100) and heterogene-                               become more pronounced as client heterogeneity increases.
+ity levels (α = 0.05, 0.1, 0.5) on three benchmark datasets                            For instance, when α = 0.05, the improvements in tail class
+(CIFAR-10-LT, CIFAR-100-LT, and Fashion-MNIST-LT),                                     accuracy are consistently larger compared to scenarios with
+
+
+                                                                                2
+Table 7. Performance comparison of federated long-tail learning
+                                                                      Table 8. Impact of Different Similarity Metrics on CAPT Perfor-
+methods with all approaches using ResNet backbone.
+                                                                      mance
+  Methods         CIFAR-10-LT   CIFAR-100-LT   ImageNet-LT
+  Training from Scratch:                                                                      CIFAR-10-LT        CIFAR-100-LT
+  FedAvg [22]          58.22        30.47          23.85                 Similarity Metric
+  CReFF [29]           70.31        32.90          25.98                                      Overall    Tail    Overall    Tail
+  Fed-Grab [36]        70.51        36.53          32.94
+  FedLoge [35]         70.54        42.72          35.62                 JS Divergence         93.64     94.68    73.77    70.95
+  RUCR [9]             71.40        35.58          24.02                 KL Divergence         93.29     93.42    74.11    70.72
+  Finetuning-based:                                                      Wasserstein           93.95     93.56    73.58    69.97
+  PromptFL [6]        62.68         45.77          58.69
+                                                                         Total Variation       93.48     94.44    73.96    70.80
+  Ours                81.28         53.83          64.19
+                                                                         Cosine                93.55     94.34    73.93    70.20
+
+
+α = 0.5, demonstrating that our method is particularly ef-            Table 9. Impact of Different Clustering Techniques on CAPT Per-
+fective in handling challenging scenarios with high client            formance
+heterogeneity.
+    As the imbalance factor decreases from 100 to 10, we                                       CIFAR-10-LT       CIFAR-100-LT
+                                                                         Clustering Method
+observe that while the performance gap between head and                                        Overall    Tail   Overall    Tail
+tail classes naturally narrows for all methods, CAPT main-
+tains its advantage in both overall and tail class perfor-               DBSCAN                 93.34    92.10    73.40    68.70
+mance. This trend is consistent across different datasets and            GMM                    93.45    92.86    73.34    69.00
+heterogeneity levels, demonstrating the robustness of our                Hierarchical           93.35    91.90    73.34    68.28
+class-aware prompt design and heterogeneity-aware clus-                  K-means                93.49    92.92    73.59    68.88
+tering strategy. Notably, CAPT’s performance remains sta-                Spectral               93.22    91.96    73.58    68.10
+ble even under high data heterogeneity, suggesting that our
+method effectively addresses both class imbalance and non-
+IID challenges simultaneously.                                        divergence excels in tail class performance. For CIFAR-
+    The improvements are particularly pronounced in more              100-LT, KL divergence leads in overall accuracy is 74.11%,
+complex datasets like CIFAR-100-LT, where the challenge               with JS divergence again showing strong tail class perfor-
+of learning discriminative features for tail classes is com-          mance. Notably, the performance variation across different
+pounded by the larger number of classes. In these scenar-             metrics is minimal, suggesting that CAPT’s effectiveness
+ios, CAPT’s dual-prompt mechanism proves especially ef-               is not heavily dependent on the choice of similarity mea-
+fective at capturing both shared and class-specific features,         sure. This stability can be attributed to our dual-prompt
+leading to more balanced performance across all class cate-           mechanism’s ability to capture both domain-invariant and
+gories.                                                               class-specific features effectively, regardless of the underly-
+    Tab. 7 presents a comprehensive comparison of CAPT                ing similarity metric.
+with state-of-the-art federated learning methods tailored to          Analysis of Clustering Techniques. To further validate
+handle class imbalance using a ResNet backbone. Despite               CAPT’s robustness, we examine the impact of different
+these methods being highly specialized for addressing long-           clustering algorithms on model performance. As presented
+tailed data distributions, CAPT significantly outperforms all         in Tab. 9, experimental results reveal consistent perfor-
+baselines. These results highlight CAPT’s ability to effec-           mance across various clustering methods, with k-means
+tively learn from imbalanced data distributions in federated          achieving the highest overall accuracy on both datasets
+settings, surpassing even the most advanced methods de-               (93.49% on CIFAR-10-LT, 73.59% on CIFAR-100-LT).
+signed specifically for this challenge.                               The GMM approach [25] demonstrates particular strength
+                                                                      in handling tail classes, achieving 92.86% and 69.00%
+D. Additional Ablation Studies                                        tail accuracy on CIFAR-10-LT and CIFAR-100-LT, re-
+Impact of Similarity Metrics. We investigate the influ-               spectively. This comprehensive evaluation demonstrates
+ence of different similarity metrics on CAPT’s performance            that CAPT’s heterogeneity-aware strategy maintains its ef-
+across both CIFAR-10-LT and CIFAR-100-LT datasets, as                 fectiveness across different clustering paradigms, with k-
+shown in Tab. 8. The results demonstrate that CAPT main-              means offering the best balance between computational ef-
+tains robust performance across various similarity mea-               ficiency and performance.
+sures. On CIFAR-10-LT, the Wasserstein distance [26]                  Impact of Cluster Numbers. To investigate the op-
+achieves the highest overall accuracy of 93.95%, while JS             timal number of clusters for both similarity-based and
+
+
+                                                                  3
+                                                                                                                                                                                                                                                                          1.0
+
+                                                                                                                                                                         10                                                 1
+                         92.65   93.12     93.33    93.47      93.39   93.36                            71.57    71.47     71.50    71.20      71.35   71.51
+              6
+
+
+
+
+                                                                                             6
+                                                                                                                                                                         11                                                 2                                             0.8
+
+
+
+                         92.91   92.99     93.22    93.59      93.79   93.42                            72.07    71.95     72.00    72.39      71.81   71.77                 7                                             10
+              5
+
+
+
+
+                                                                                             5
+Heterogeneity Clusters
+
+
+
+
+                                                                               Heterogeneity Clusters
+
+
+
+
+                                                                                                                                                                   Clients
+                                                                                                                                                                                                                                                                          0.6
+                                                                                                                                                                         16                                                 7
+
+                         93.08   92.91     93.78    93.07      93.39   93.48                            72.57    72.68     73.01    72.97      72.19   72.50                 9                                             18
+              4
+
+
+
+
+                                                                                             4
+                                                                                                                                                                                                                                                                          0.4
+
+                                                                                                                                                                             2                                             11
+                         92.96   93.10     93.56    93.03      93.34   92.92                            72.53    72.13     72.91    72.68      72.16   72.21
+              3
+
+
+
+
+                                                                                             3
+                                                                                                                                                                         18                                                16                                             0.2
+
+
+
+                                                                                                                                                                             1                                              9
+                         93.05   92.97     93.40    93.34      93.28   93.42                            72.26    71.58     71.72    71.53      71.70   71.69                                                                                                              0.0
+              2
+
+
+
+
+                                                                                             2
+                                                                                                                                                                                 0   1   2   3    4   5    6   7   8   9        0   1   2   3    4   5    6   7   8   9
+                                                                                                                                                                                                 Classes                                        Classes
+                         92.90   93.26     93.43    93.10      93.29   92.83                            72.09    72.03     72.32    71.82      72.00   71.24
+              1
+
+
+
+
+                                                                                             1
+                                                                                                                                                                                 (a) Similarity cluster result                  (b) heterogeneity cluster result
+                          1       2          3        4         5       6                                1        2          3        4         5       6
+                                         Similarity Clusters                                                             Similarity Clusters
+
+                                 (a) CIFAR-10-LT                                                                (b) CIFAR-100-LT                                    Figure 7. Visualization of client clustering results on CIFAR-10
+                                                                                                                                                                    with non-IID setting (α = 0.05). The heatmaps show class dis-
+     Figure 6. Overall accuracy (%) comparison with different numbers                                                                                               tribution patterns where darker colors indicate higher proportions.
+     of similarity clusters and dissimilarity clusters on (a) CIFAR-10-                                                                                             Dashed lines separate different clusters.
+     LT and (b) CIFAR-100-LT. Darker blue indicates higher accuracy.
+     The results demonstrate that moderate cluster numbers (3-4) gen-                                                                                               data [9, 36]. These distributions are aggregated in an anony-
+     erally provide optimal performance across both datasets.                                                                                                       mous and irreversible manner, ensuring that the data dis-
+                                                                                                                                                                    tribution of individual clients remains unexposed. More-
+     heterogeneity-based clustering strategies, we conduct a
+                                                                                                                                                                    over, like all federated learning algorithms, CAPT is sus-
+     comprehensive grid search across different combinations
+                                                                                                                                                                    ceptible to general privacy risks, such as gradient inver-
+     of cluster numbers on CIFAR-10-LT and CIFAR-100-LT
+                                                                                                                                                                    sion attacks [49]. However, these risks are not unique to
+     datasets. Figure 6 presents the overall accuracy for vary-
+                                                                                                                                                                    CAPT’s design but are inherent to the federated learning
+     ing numbers of heterogeneity clusters (y-axis) and similar-
+                                                                                                                                                                    framework [10]. The approach proposed by PromptFL [6]
+     ity clusters (x-axis). On CIFAR-10-LT, we observe that the
+                                                                                                                                                                    demonstrates that sharing gradients of prompts, rather than
+     optimal performance of 93.78% is achieved with 3 simi-
+                                                                                                                                                                    full model parameters, can mitigate privacy leakage risks.
+     larity clusters and 4 heterogeneity clusters, while CIFAR-
+                                                                                                                                                                    Specifically, gradient inversion attacks on prompt-based
+     100-LT achieves the best accuracy of 73.01% with the same
+                                                                                                                                                                    methods fail to reconstruct meaningful data, whereas tra-
+     configuration. Our analysis reveals that overly small cluster
+                                                                                                                                                                    ditional model-based federated learning is more vulnerable
+     numbers (1-2) fail to effectively capture the heterogeneity
+                                                                                                                                                                    to such attacks. Given that the primary focus of this study is
+     patterns across clients, resulting in suboptimal performance.
+                                                                                                                                                                    to address the challenges of federated long-tailed learning,
+     Conversely, excessive clustering (5-6) leads to fragmenta-
+                                                                                                                                                                    an in-depth exploration of privacy mechanisms is beyond
+     tion of limited tail class data without performance benefits.
+                                                                                                                                                                    the scope of this work, we briefly include the discussion in
+     The moderate cluster numbers (3-4) provide the optimal
+                                                                                                                                                                    this subsection.
+     balance between capturing client diversity and maintaining
+     effective knowledge sharing.
+                                                                                                                                                                    F. Theoretical Analysis
+     D.1. Visualization of Client Clustering
+     To validate the effectiveness of our proposed clustering                                                                                                       In this section, we present a rigorous theoretical analysis
+     strategies, we visualize the class distribution patterns across                                                                                                to demonstrate why traditional prompt tuning methods face
+     different clients using heatmaps, as shown in Fig. 7.                                                                                                          challenges in FL with non-IID and long-tailed data. Specifi-
+     The similarity-based clustering (Fig. 7a) effectively groups                                                                                                   cally, we show that such data exacerbates gradient variance,
+     clients with similar class distributions, enabling focused                                                                                                     leading to decreased accuracy and hindered convergence.
+     learning within each cluster. In contrast, the heterogeneity-
+     based clustering (Fig. 7b) successfully forms complemen-                                                                                                       F.1. Problem Formulation
+     tary client groups with diverse class coverage, facilitating                                                                                                   We consider a federated learning system with K clients and
+     balanced knowledge sharing across the entire class distribu-                                                                                                   a central server. Each client k ∈ {1, 2, . . . , K} possesses a
+     tion.                                                                                                                                                          local dataset Dk = {(xki , yik )}ni=1
+                                                                                                                                                                                                        k
+                                                                                                                                                                                                           drawn from a local data
+                                                                                                                                                                                                  k     d
+                                                                                                                                                                    distribution Dk , where xi ∈ R is an input sample, yik ∈
+     E. Discussion of privacy                                                                                                                                       {1, 2, . . . , C} is the corresponding label, and nk = |Dk | is
+     Our heterogeneity-aware client clustering strategy utilizes                                                                                                          SK of samples on client k. The global dataset is
+                                                                                                                                                                    the number
+     the local label proportions from each client. Although shar-                                                                                                   D = k=1 Dk .
+     ing class distributions may potentially disclose aggregated
+     information about clients’ data, this practice is not uncom-                                                                                                   Definition 1 (Imbalance Ratio). The imbalance ratio ρ is
+     mon in federated learning methods designed for long-tailed                                                                                                     defined as the ratio between the maximum and minimum
+
+
+                                                                                                                                                               4
+class sample sizes across all clients:                                Proof. By the law of total variance, for any random variable
+                                                                      X:
+                               maxc {nc }
+                        ρ=                ,                 (9)
+                               minc {nc }                                     Var(X) = E [Var(X|Y )] + Var (E[X|Y ]) .
+
+where nc =
+              PK       k                                              Applying this to the stochastic gradient ∇ℓ(x, y; Ps ), we
+                 k=1 nc is the total number of samples for
+              k
+class c, and nc is the number of samples of class c on client         have:
+k.
+                                                                         h                              i
+                                                                                                      2
+                                                                        E ∥∇ℓ(x, y; Ps ) − ∇F (Ps )∥
+Definition 2 (Long-Tailed Distribution). A dataset exhibits                     K
+                                                                            1 X          h
+                                                                                                                    2
+                                                                                                                      i
+a long-tailed distribution if the class sample sizes {nc }C
+                                                          c=1           =       E(x,y)∼Dk ∥∇ℓ(x, y; Ps ) − ∇F (Ps )∥
+                                                                            K
+follow an exponential decay:                                                   k=1
+                                                                                K
+                                                                            1 X             h
+                                                                                                                        2
+                                                                                                                          i
+                        nc = nmax e−αc ,                  (10)          =          E(x,y)∼Dk ∥∇ℓ(x, y; Ps ) − ∇Fk (Ps )∥
+                                                                            K
+                                                                               k=1
+where nmax is the maximum class sample size, α > 0 is the
+                                                                                                      
+                                                                                                    2
+                                                                            + ∥∇Fk (Ps ) − ∇F (Ps )∥
+decay rate, and classes are ordered such that n1 ≥ n2 ≥
+· · · ≥ nC .                                                                    K
+                                                                            1 X 2                           
+                                                                                                           2
+                                                                        =       σk + ∥∇Fk (Ps ) − ∇F (Ps )∥ .
+   Following PromptFL[6], we make the standard assump-                      K
+                                                                               k=1
+tions:
+                                                                      In the second equality, we used the fact that:
+Assumption 1 (Smoothness). The loss function ℓ(x, y; Ps )
+                                                                                E(x,y)∼Dk [∇ℓ(x, y; Ps )] = ∇Fk (Ps ).
+is L-smooth with respect to Ps :
+                                                                      Moreover, the cross term vanishes because:
+     ∥∇ℓ(x, y; Ps ) − ∇ℓ(x, y; P′s )∥ ≤ L∥Ps − P′s ∥.
+                                                                              E(x,y)∼Dk [∇ℓ(x, y; Ps ) − ∇Fk (Ps )] = 0.
+Assumption 2 (Bounded Local Variance). The variance of
+stochastic gradients on each client is bounded:
+
+     E(x,y)∼Dk ∥∇ℓ(x, y; Ps ) − ∇Fk (Ps )∥2 ≤ σk2 ,                   Lemma 2 (Impact of Class Imbalance on Gradient Discrep-
+                                              
+                                                                      ancy). In federated learning with non-IID long-tailed data
+where ∇Fk (Ps ) = E(x,y)∼Dk [∇ℓ(x, y; Ps )] is the local              and imbalance ratio ρ, the squared norm of the gradient dis-
+gradient on client k.                                                 crepancy between client k and the global model is bounded
+                                                                      by:
+Assumption 3 (Gradient Diversity). The gradient dissimi-
+                                                                                                               C
+larity among clients is quantified by:                                                               2
+                                                                                                               X                2
+                                                                            ∥∇Fk (Ps ) − ∇F (Ps )∥ ≤ G2              πck − πc        ,
+                      K                                                                                        c=1
+                  1   X                            2
+          δs2 =             ∥∇Fk (Ps ) − ∇F (Ps )∥ ,
+                  K                                                   where πck and πc are the class proportions on client k and
+                      k=1
+                                                                      globally, respectively, and G is an upper bound on the norm
+                 1
+where ∇F (Ps ) = K
+                         PK                                           of class-specific gradients.
+                             k=1 ∇Fk (Ps ) is the global gradi-
+ent.                                                                  Proof. We express the local and global gradients in terms
+                                                                      of class proportions:
+F.2. Lemmas and Proofs
+                                                                                                   C
+Lemma 1 (Gradient Variance Decomposition). The vari-                                               X
+                                                                                     ∇Fk (Ps ) =         πck ∇Fc (Ps ),
+ance of the global gradient estimator can be decomposed
+                                                                                                   c=1
+into the sum of the within-client variance and the between-
+                                                                                                  C
+client variance:                                                                                  X
+                                                                                     ∇F (Ps ) =          πc ∇Fc (Ps ),
+         h                              i
+                                      2                                                           c=1
+       E |∇ℓ(x, y; Ps ) − ∇F (Ps)|
+              K                                                       where: k
+         1 X 2                                                               n
+                                                                      • πck = nck is the proportion of class c on client k.
+                                          
+                                        2
+       =     σk + ∥∇Fk (Ps ) − ∇F (Ps )∥ .                                    nc
+         K                                                            • πc = n is the global proportion of class c.
+             k=1
+
+
+                                                                  5
+• ∇Fc (Ps ) = E(x,y)∼Dc [∇ℓ(x, y; Ps )] is the gradient                                         Proof. From Lemma 1, the variance of the global gradient
+  with respect to class c.                                                                      estimator is:
+Then, the gradient discrepancy taking the squared norm:
+                                                                                                        h                            i
+                                                                                                                                   2
+                                                                                                      E ∥∇ℓ(x, y; Ps ) − ∇F (Ps )∥
+                                          C                                        2                            K
+                              2
+                                          X                                                                  1 X 2                         2
+                                                                                                                                              
+                                                 πck − πc
+                                                            
+∥∇Fk (Ps ) − ∇F (Ps )∥ =                                        ∇Fc (Ps )                              =         σk + ∥∇Fk (Ps ) − ∇F (Ps )∥ .
+                                                                                                             K
+                                          c=1                                                                  k=1
+                                           C
+                                                                                       !2                           PK
+                                                                                                                 1                                  2
+                                           X                                                    The term δs2  = K     k=1 ∥∇Fk (Ps ) − ∇F (Ps )∥ repre-
+                                  ≤              πck − πc       ∥∇Fc (Ps )∥                 .   sents the between-client variance, which is affected by data
+                                           c=1
+                                                                                                heterogeneity. Using Lemma 2, we have:
+Assuming that the class-specific gradients are bounded, i.e.,                                                    K
+                                                                                                             1 X                       2
+∥∇Fc (Ps )∥ ≤ G, we have:                                                                            δs2 =       ∥∇Fk (Ps ) − ∇F (Ps )∥ ≤ G2 ∆2π .
+                                                                                                             K
+                                                                                                                k=1
+                                                     C
+                                                                          !2
+                                   2
+                                                     X
+   ∥∇Fk (Ps ) − ∇F (Ps )∥ ≤ G2                             πck − πc            .
+                                                     c=1                                        Lemma 3 (Distribution Discrepancy Under Long-Tailed
+                                                                                                Setting). In a non-IID long-tailed setting, the distribution
+                      Pn       2   Pn
+Using the inequality ( i=1 ai ) ≤ n i=1 a2i , we get:                                           discrepancy measure ∆2π can be expressed in terms of the
+                                                                                                class-wise variances:
+             C
+                              !2             C
+                                                                 2                                                   K C                         C
+                                                                                                                    1 XX
+             X                               X
+                   πck − πc           ≤C              πck − πc        .
+                                                                                                                                                 X
+                                                                                                     Ek [∆2π ] =            Ek [(πck − πc )2 ] =     σc2 ,
+             c=1                             c=1                                                                    K   c=1                      c=1
+                                                                                                                       k=1
+
+Therefore,                                                                                      where σc2 is the variance of the deviation in class propor-
+                                                                                                tions across clients.
+                                                     C
+                                      2
+                                                     X                    2
+    ∥∇Fk (Ps ) − ∇F (Ps )∥ ≤ G2 C                           πck − πc           .                Proof. For each class c, we model the client-specific pro-
+                                                     c=1                                        portion as:
+                                                                                                                     πck = πc + ϵkc ,
+Alternatively, by ignoring cross terms (assuming gradients
+                                                                                                where ϵkc represents the deviation from the global propor-
+are uncorrelated), we can directly write:
+                                                                                                tion with:
+
+                                       2
+                                                     C
+                                                     X             2                                                         Ek [ϵkc ] = 0,
+                                                 2
+     ∥∇Fk (Ps ) − ∇F (Ps )∥ ≤ G                            πck − πc .
+                                                     c=1
+                                                                                                                           Vark (ϵkc ) = σc2 .
+                                                                                                   The distribution discrepancy can then be written as:
+                                                                                                                                 K       C
+                                                                                                                           1 XX
+Theorem 1 (Convergence Difficulty in Traditional Prompt                                                      Ek [∆2π ] =          Ek [(πck − πc )2 ]
+                                                                                                                           K  c=1
+                                                                                                                              k=1
+Tuning). In federated learning with non-IID long-tailed
+                                                                                                                                 K       C
+data exhibiting an imbalance ratio ρ, the gradient variance                                                                1 XX
+in traditional prompt tuning methods increases with ρ, lead-                                                           =          Ek [(ϵkc )2 ]
+                                                                                                                           K  c=1
+                                                                                                                              k=1
+ing to slower convergence rates and decreased accuracy.
+                                                                                                                           C
+Specifically, the convergence rate is adversely affected by                                                                X
+                                                                                                                       =         σc2 .
+the term:
+                                                                                                                           c=1
+                   K
+             1 X                       2
+     δs2 =       ∥∇Fk (Ps ) − ∇F (Ps )∥ ≤ G2 ∆2π ,
+             K                                                                                  Lemma 4 (Variance-Proportion Relationship). The class-
+               k=1
+                                                                                                wise variance σc2 is proportional to πc (1 − πc ), and in-
+where                                                                                           creases for rare classes as the imbalance ratio ρ grows:
+                              K        C
+                        1 XX k        2
+               ∆2π =           πc − πc ,                                                                             σc2 = βπc (1 − πc ) · g(ρ),
+                        K  c=1k=1
+                                                                                                where g(ρ) is an increasing function of ρ and β > 0 is a
+which increases with the imbalance ratio ρ.                                                     constant.
+
+
+                                                                                            6
+Proof. In the long-tailed setting, the class proportions fol-             The presence of the term ηG2 h(ρ) indicates that the con-
+low an exponential decay:                                             vergence rate deteriorates as the imbalance ratio increases,
+                                                                      with the degradation being amplified by both the learning
+                      e−αc                                            rate η and the gradient bound G2 .
+               πc =        = e−α(c−1) (1 − e−α ),
+                       S                                                  Remarks: The theorem indicates that as the imbal-
+                                                                      ance ratio ρ increases, the class proportion differences
+where S is the normalizing constant and α = ln(ρ)   C−1 . The           πck − πc become larger due to the non-IID and long-tailed
+variance σc2 captures the heterogeneity of class distributions        nature of the data. This exacerbates the gradient variance
+across clients. For rare classes with large c, πc becomes             across clients, leading to hindered convergence in tradi-
+exponentially smaller as ρ increases, leading to larger rela-         tional prompt tuning methods.
+tive fluctuations in πck . This relationship is naturally mod-            This theoretical analysis directly answers RQ1 by re-
+eled by the binomial variance term πc (1 − πc ) scaled by a           vealing the underlying mechanism of why prompt tuning
+heterogeneity factor g(ρ) that increases with the imbalance           disproportionately affects tail classes in federated long-
+ratio.                                                                tailed scenarios. Specifically, we have shown that: (1) The
+                                                                      gradient variance is amplified by the combined effect of
+Theorem 2 (Impact of Imbalance Ratio on Distribution Dis-
+                                                                      non-IID data distribution and long-tailed class imbalance,
+crepancy). The distribution discrepancy measure ∆2π satis-
+                                                                      as evidenced by the term δs2 which increases with the im-
+fies:
+                                                                      balance ratio ρ; (2) This increased variance particularly im-
+                     ∆2π = Θ(h(ρ)),
+                                                                      pacts tail classes due to their limited samples being further
+where h(ρ) is a monotonically increasing function with                fragmented across heterogeneous clients; and (3) The tra-
+h(ρ) = Ω(log ρ).                                                      ditional prompt tuning methods lack mechanisms to com-
+                                                                      pensate for this amplified variance, resulting in degraded
+Proof. From Lemma 3 and Lemma 4, we have:                             performance on tail classes.
+        C
+        X                   C
+                            X
+∆2π =         σc2 = βg(ρ)         πc (1 − πc )
+        c=1                 c=1
+                C
+                X
+    = βg(ρ)           e−α(c−1) (1 − e−α )(1 − e−α(c−1) (1 − e−α )).
+                c=1
+
+
+   Since α = ln(ρ)
+               C−1 , both the exponential decay of πc and
+the heterogeneity factor g(ρ) contribute to the growth of
+∆2π . The sum can be bounded below by Ω(log ρ), while
+g(ρ) captures additional heterogeneity effects, yielding the
+stated asymptotic behavior.
+Corollary 1 (Impact on Convergence Rate). The conver-
+gence rate of stochastic optimization in non-IID long-tailed
+settings satisfies:
+    T
+1X                       2(F (P0s ) − F ∗ )
+      E[∥∇F (Pts )∥2 ] ≤                    +η(σ 2 +G2 h(ρ)),
+T t=1                          ηT
+
+with h(ρ) = Ω(log ρ), indicating that the convergence rate
+degrades at least logarithmically with the imbalance ratio.
+Proof. Combining Theorem 1 and Theorem 2, we have
+δs2 ≤ G2 ∆2π = G2 Θ(h(ρ)). Substituting into the conver-
+gence bound yields:
+    T
+1X                       2(F (P0s ) − F ∗ )
+      E[∥∇F (Pts )∥2 ] ≤                    +η(σ 2 +G2 h(ρ)).
+T t=1                          ηT
+
+
+
+
+                                                                 7
+
