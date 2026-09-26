@@ -15,6 +15,12 @@ sys.path.insert(0, str(REPO))
 from scripts.run_cliplora_a_refresh import build_command
 
 
+def shared_tradeoff_enabled(args):
+    return (args.b_transfer and getattr(args, 'transfer_mode', 'local') == 'shared' and
+            (getattr(args, 'transfer_non_tail_sampling', 'sample') != 'sample' or
+             getattr(args, 'transfer_tail_weight', .5) != .5))
+
+
 def run_directory(args):
     setting = f'lambda{args.retention_weight:g}_protocol{args.protocol_seed}'
     if args.method.endswith('-cp'):
@@ -27,6 +33,8 @@ def run_directory(args):
         if getattr(args, 'transfer_mode', 'local') == 'shared':
             setting += '_bshared'
         setting += f'_b_lr{args.transfer_lr:g}_probe{args.probe_step:g}_reg{args.transfer_reg:g}'
+        if shared_tradeoff_enabled(args):
+            setting += f'_nt{args.transfer_non_tail_sampling}_tw{args.transfer_tail_weight:g}'
     if getattr(args, 'b_aggregation', 'sample') == 'uniform-transfer-rounds':
         setting += '_bagg_uniform8'
     if getattr(args, 'fast_execution_v2', False):
@@ -63,7 +71,8 @@ def prepare_protocol(args, run):
     return run/'protocol/full_schedule.json', str(manifest)
 
 
-def main(default_b_transfer=False, default_transfer_mode='local'):
+def main(default_b_transfer=False, default_transfer_mode='local',
+         default_non_tail_sampling='sample', default_tail_weight=.5):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--stage', choices=['train', 'summary', 'pack'], default='train')
     parser.add_argument('--method', choices=['s', 'current', 'full', 'flat', 'full-cp', 'flat-cp', 'current-cp'],
@@ -77,6 +86,11 @@ def main(default_b_transfer=False, default_transfer_mode='local'):
                         help='Adam learning rate for donor matrices C')
     parser.add_argument('--probe-step', type=float, default=.1, help='Temporary injection epsilon, not final transfer strength')
     parser.add_argument('--transfer-reg', type=float, default=.001, help='Mean squared-matrix penalty coefficient')
+    parser.add_argument('--transfer-non-tail-sampling', choices=['sample', 'class-cyclic'],
+                        default=default_non_tail_sampling,
+                        help='Shared C only: image-uniform original batches or class-cyclic non-tail coverage')
+    parser.add_argument('--transfer-tail-weight', type=float, default=default_tail_weight,
+                        help='Shared C tail LA loss fraction; non-tail uses 1-weight, tail-only clients use 1')
     parser.add_argument('--retention-weight', type=float, default=10., help='Retention lambda; keep 10 for the full-cp pilot')
     parser.add_argument('--classification-weight', type=float, default=1., help='Classification preservation mu; all -cp variants')
     parser.add_argument('--partition', choices=['client-longtail', 'noniid-labeldir-fine'], default='client-longtail')
@@ -85,7 +99,7 @@ def main(default_b_transfer=False, default_transfer_mode='local'):
     parser.add_argument('--protocol-seed', type=int, default=42)
     parser.add_argument('--data-root', type=Path, default=Path('DATA'))
     parser.add_argument('--output-root', type=Path,
-                        help='Default under output/cifar100_LT: sfra_b_shared_transfer for shared C; otherwise sfra_b_aggregation / sfra_b_transfer / sfra_cp / sfra_v1')
+                        help='Default under output/cifar100_LT: sfra_b_shared_tradeoff for new C calibration; sfra_b_shared_transfer for original shared C; otherwise the corresponding baseline root')
     parser.add_argument('--bridge-root', type=Path, default=Path('output/cifar100_LT/a_refresh_topology_bridge'))
     parser.add_argument('--reference-run', type=Path,
                         help='Replay the partition/order/schedule of an existing complete Full-10 or S run; not its trained weights')
@@ -107,7 +121,8 @@ def main(default_b_transfer=False, default_transfer_mode='local'):
     args = parser.parse_args()
     os.chdir(REPO)
     if args.output_root is None:
-        name = ('sfra_b_shared_transfer' if args.b_transfer and args.transfer_mode == 'shared' else
+        name = ('sfra_b_shared_tradeoff' if shared_tradeoff_enabled(args) else
+                'sfra_b_shared_transfer' if args.b_transfer and args.transfer_mode == 'shared' else
                 'sfra_b_aggregation' if args.b_aggregation == 'uniform-transfer-rounds' else
                 ('sfra_b_transfer' if args.b_transfer else ('sfra_cp' if args.method.endswith('-cp') else 'sfra_v1')))
         args.output_root = Path('output/cifar100_LT') / name
@@ -141,6 +156,11 @@ def main(default_b_transfer=False, default_transfer_mode='local'):
             parser.error('--transfer-reg must be finite and nonnegative')
     if args.transfer_mode == 'shared' and (not args.b_transfer or args.b_aggregation != 'sample'):
         parser.error('Shared C requires B transfer and the unchanged sample-weighted B aggregation.')
+    if not math.isfinite(args.transfer_tail_weight) or not 0 < args.transfer_tail_weight < 1:
+        parser.error('--transfer-tail-weight must be strictly between 0 and 1')
+    if (args.transfer_non_tail_sampling != 'sample' or args.transfer_tail_weight != .5) and not (
+            args.b_transfer and args.transfer_mode == 'shared'):
+        parser.error('The new calibration options require shared C transfer.')
     run = run_directory(args)
     if args.resume:
         checkpoint = run/'checkpoints/sfra_last.pt'
@@ -184,6 +204,10 @@ def main(default_b_transfer=False, default_transfer_mode='local'):
             if args.transfer_mode == 'shared':
                 index = command.index('DATALOADER.NUM_WORKERS')
                 command[index:index] = ['--b_transfer_mode', 'shared']
+                if shared_tradeoff_enabled(args):
+                    index = command.index('DATALOADER.NUM_WORKERS')
+                    command[index:index] = ['--b_transfer_non_tail_sampling', args.transfer_non_tail_sampling,
+                                           '--b_transfer_tail_weight', str(args.transfer_tail_weight)]
     if args.stop_after_round is not None:
         flag = '--sfra_stop_after_round'
         if flag in command:

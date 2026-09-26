@@ -8,12 +8,14 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import torch
+import numpy as np
 from torch.nn import functional as F
 
 from scripts import run_cliplora_sfra as launcher
 from tools.sfra.summary import METRICS, pack, read_csv, summarize, write_csv
 from utils.cliplora_b_transfer import calibration_batches, transfer_config
-from utils.cliplora_b_shared_transfer import SharedDonorBTransfer, shared_transfer_config
+from utils.cliplora_b_shared_transfer import (SharedDonorBTransfer, shared_transfer_config,
+                                            shared_calibration_batches)
 from utils.cliplora_sfra import SFRARuntime
 
 
@@ -69,6 +71,197 @@ def tiny_transfer(root, regularization=.001):
 
 
 class TestSharedC(unittest.TestCase):
+    def test_class_cyclic_preserves_tail_batches_budget_and_rng(self):
+        groups = {80: list(range(7)), 81: list(range(7, 12))}
+        groups.update({c: list(range(100+100*c, 100+100*c+(60 if c == 0 else 3))) for c in range(40)})
+        original = copy.deepcopy(groups)
+        legacy = calibration_batches(groups, {80, 81}, 42, 30, 5)
+        np.random.seed(73)
+        state = np.random.get_state()
+        new = shared_calibration_batches(groups, {80, 81}, 42, 30, 5, 'class-cyclic')
+        after = np.random.get_state()
+        self.assertEqual(state[0], after[0])
+        np.testing.assert_array_equal(state[1], after[1])
+        self.assertEqual(state[2:], after[2:])
+        self.assertEqual(new, shared_calibration_batches(groups, {80, 81}, 42, 30, 5, 'class-cyclic'))
+        self.assertEqual(legacy, shared_calibration_batches(groups, {80, 81}, 42, 30, 5))
+        self.assertEqual(groups, original)
+        labels = {p: c for c, positions in groups.items() for p in positions}
+        seen = set()
+        for old, updated in zip(legacy, new):
+            self.assertEqual(updated['tail_positions'], old['tail_positions'])
+            self.assertEqual(len(updated['non_tail_positions']), len(old['non_tail_positions']))
+            self.assertEqual(len(set(updated['non_tail_positions'])), 16)
+            self.assertTrue(all(labels[p] not in {80, 81} for p in updated['non_tail_positions']))
+            seen.update(labels[p] for p in updated['non_tail_positions'])
+        self.assertEqual(len(seen), 32)  # Cursor continues across the two steps.
+
+    def test_class_cyclic_sparse_and_tail_only_clients(self):
+        for groups in ({80: [0, 1]}, {80: [0], 0: [1], 1: [2]},
+                       {80: [0], 0: list(range(1, 45)), 1: [45]}):
+            with self.subTest(groups=groups):
+                old = calibration_batches(groups, {80}, 42, 30, 1)
+                new = shared_calibration_batches(groups, {80}, 42, 30, 1, 'class-cyclic')
+                valid = {p for c, positions in groups.items() if c != 80 for p in positions}
+                for a, b in zip(old, new):
+                    self.assertEqual(a['tail_positions'], b['tail_positions'])
+                    self.assertEqual(len(a['non_tail_positions']), len(b['non_tail_positions']))
+                    self.assertEqual(len(set(b['non_tail_positions'])), len(b['non_tail_positions']))
+                    self.assertTrue(set(b['non_tail_positions']) <= valid)
+
+    def test_weighted_shared_c_matches_combined_loss_with_rank_four(self):
+        for weight in (.5, .35, .2):
+            with self.subTest(weight=weight), tempfile.TemporaryDirectory() as temp:
+                transfer = tiny_transfer(temp, regularization=.2)
+                layer = transfer.model.layer
+                layer.w_lora_A = torch.nn.Parameter(torch.tensor([[1., .3], [-.2, .8], [.5, -.4], [.1, .6]]), requires_grad=False)
+                layer.w_lora_B = torch.nn.Parameter(torch.tensor([[.2, -.1, .1, .3], [.4, .3, -.2, .1]]))
+                transfer.parameters = dict(transfer.model.named_parameters())
+                transfer.ranks = {B_KEY: 4}
+                transfer.original_deltas = {
+                    k: {B_KEY: torch.cat([v[B_KEY], v[B_KEY]*.5], dim=1)}
+                    for k, v in transfer.original_deltas.items()}
+                transfer.config = shared_transfer_config(SimpleNamespace(
+                    b_transfer_probe_step=.1, b_transfer_lr=.03, b_transfer_reg=.2,
+                    b_transfer_non_tail_sampling='class-cyclic', b_transfer_tail_weight=weight))
+                start = copy.deepcopy(transfer.model.state_dict())
+                originals = copy.deepcopy(transfer.original_deltas)
+                donors = [0, 2]
+                manifests = {k: dict(batches=shared_calibration_batches(
+                    transfer.groups[k], {0}, 42, 30, k, 'class-cyclic')) for k in transfer.recipients}
+                transfer.pending = dict(round=30, folder=Path(temp), steps=[], feedback=[], summary=dict(
+                    algorithm_forward_images=0, algorithm_backward_images=0, client_backward_batches=0,
+                    diagnostic_forward_images=0,
+                    optimizer_steps=0, feedback_synchronizations=0, extra_downlink_bytes=0, extra_upload_bytes=0))
+                donor_tensors = torch.stack([originals[k][B_KEY] for k in donors])
+                expected = torch.nn.Parameter(torch.zeros(2, 4, 4))
+                optimizer = torch.optim.Adam([expected], lr=.03, betas=(.9, .999), eps=1e-8)
+                for step in range(2):
+                    optimizer.zero_grad(set_to_none=True)
+                    b = start[B_KEY]+torch.bmm(donor_tensors, expected).mean(0)
+                    objectives = []
+                    for k in transfer.recipients:
+                        batch = manifests[k]['batches'][step]
+                        x, y = transfer.batch(k, batch['tail_positions']+batch['non_tail_positions'])
+                        losses = (.5*F.linear(F.linear(x, start[A_KEY]), b)-F.one_hot(y, 2)).square().mean(1)
+                        n = len(batch['tail_positions'])
+                        objective = losses[:n].mean()
+                        if n < len(y):
+                            objective = weight*objective+(1-weight)*losses[n:].mean()
+                        objectives.append(objective)
+                    loss = torch.stack(objectives).mean()+.2*expected.square().sum()/2
+                    loss.backward()
+                    optimizer.step()
+                with transfer.session(), patch('builtins.print'):
+                    learned = transfer.calibrate_shared(donors, manifests, start)[B_KEY]
+                self.assertEqual(tuple(learned.shape), (2, 4, 4))
+                torch.testing.assert_close(learned, expected.detach(), atol=1e-7, rtol=1e-6)
+                self.assertGreater(float(learned.abs().sum()), 0.)
+                for key, value in transfer.model.state_dict().items():
+                    self.assertTrue(torch.equal(value, start[key]))
+                    self.assertIsNone(transfer.parameters[key].grad)
+                for k in originals:
+                    self.assertTrue(torch.equal(originals[k][B_KEY], transfer.original_deltas[k][B_KEY]))
+                self.assertEqual(transfer.pending['summary']['optimizer_steps'], 2)
+                self.assertEqual(transfer.pending['summary']['client_backward_batches'], 4)
+                self.assertEqual(transfer.pending['summary']['algorithm_backward_images'], 10)
+                self.assertEqual(transfer.pending['summary']['algorithm_forward_images'], 10)
+                self.assertEqual(transfer.pending['summary']['diagnostic_forward_images'], 30)
+                trace = transfer.pending['loss_trace']
+                self.assertEqual([r['c_step'] for r in trace], [0, 1, 2])
+                self.assertEqual(len(read_csv(Path(temp)/'c_loss_trace.csv')), 3)
+                for row in trace:
+                    self.assertAlmostEqual(row['fixed_pool_la'], (row['batch1_la']+row['batch2_la'])/2)
+                    self.assertAlmostEqual(row['fixed_pool_objective'], row['fixed_pool_la']+row['regularization_penalty'])
+                    self.assertIsNone(row['transfer_to_ordinary_ratio'])  # Toy ordinary B == start B.
+                for step, row in enumerate(transfer.pending['steps'], 1):
+                    self.assertAlmostEqual(row['la_before'], trace[step-1][f'batch{step}_la'], places=6)
+                    self.assertEqual(row['same_batch_la_after'], trace[step][f'batch{step}_la'])
+                    self.assertEqual(row['fixed_pool_objective_after'], trace[step]['fixed_pool_objective'])
+                for row in transfer.pending['feedback']:
+                    self.assertEqual(row['tail_loss_weight'], weight if row['client_id'] == 1 else 1.)
+
+    def test_tradeoff_launcher_three_weights_resume_and_default_collection_root(self):
+        with tempfile.TemporaryDirectory() as temp:
+            def prepare(args, run):
+                (run/'protocol').mkdir(parents=True)
+                return run/'protocol/full_schedule.json', ''
+
+            directories = []
+            for weight in (.5, .35, .2):
+                argv = ['entry.py', '--output-root', temp, '--transfer-tail-weight', str(weight), '--fast-execution-v2']
+                with patch('sys.argv', argv), patch.object(launcher, 'prepare_protocol', prepare), \
+                        patch.object(launcher.subprocess, 'run') as execute, patch('builtins.print'):
+                    launcher.main(True, 'shared', 'class-cyclic', .35)
+                command = execute.call_args.args[0]
+                self.assertEqual(command[command.index('--b_transfer_tail_weight')+1], str(weight))
+                self.assertEqual(command[command.index('--b_transfer_non_tail_sampling')+1], 'class-cyclic')
+                self.assertEqual(command[command.index('--cliplora_rank')+1], '4')
+                self.assertEqual(command[command.index('--sfra_retention_weight')+1], '10.0')
+                self.assertEqual(command[command.index('--sfra_classification_weight')+1], '1.0')
+                run = Path(command[command.index('--output-dir')+1])
+                self.assertIn(f'_ntclass-cyclic_tw{weight:g}_fast_v2', run.name)
+                directories.append(run)
+                (run/'checkpoints').mkdir()
+                (run/'checkpoints/sfra_last.pt').touch()
+                with patch('sys.argv', argv+['--resume']), patch.object(launcher.subprocess, 'run') as execute, patch('builtins.print'):
+                    launcher.main(True, 'shared', 'class-cyclic', .35)
+                resumed = execute.call_args.args[0]
+                expected = list(command)
+                expected[expected.index('--sfra_resume')+1] = str(run/'checkpoints/sfra_last.pt')
+                self.assertEqual(resumed, expected)
+            self.assertEqual(len(set(directories)), 3)
+            with patch('sys.argv', ['entry.py', '--stage', 'pack']), \
+                    patch('tools.sfra.summary.summarize') as summarize_mock, \
+                    patch('tools.sfra.summary.pack') as pack_mock:
+                launcher.main(True, 'shared', 'class-cyclic', .35)
+            expected_root = Path('output/cifar100_LT/sfra_b_shared_tradeoff')
+            self.assertEqual(summarize_mock.call_args.args[0], expected_root)
+            self.assertEqual(pack_mock.call_args.args[0], expected_root)
+
+    def test_tradeoff_config_and_summary_do_not_mix_with_legacy(self):
+        import tarfile
+        base = dict(b_transfer_probe_step=.1, b_transfer_lr=.3, b_transfer_reg=.001)
+        legacy = shared_transfer_config(SimpleNamespace(**base))
+        explicit = shared_transfer_config(SimpleNamespace(**base, b_transfer_non_tail_sampling='sample', b_transfer_tail_weight=.5))
+        self.assertEqual(legacy, explicit)
+        self.assertNotIn('tail_weight', legacy)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)/'tradeoff'
+            for weight in (.5, .35, .2):
+                run = root/f'seed42/client-longtail/full-cp/tw{weight:g}'
+                run.mkdir(parents=True)
+                cfg = shared_transfer_config(SimpleNamespace(**base,
+                    b_transfer_non_tail_sampling='class-cyclic', b_transfer_tail_weight=weight))
+                self.assertEqual(cfg['steps'], 2)
+                self.assertEqual(cfg['rounds'], legacy['rounds'])
+                for field in ('donor_rule', 'donor_pool', 'c_scope', 'aggregation', 'regularization'):
+                    self.assertEqual(cfg[field], legacy[field])
+                (run/'sfra_config.json').write_text(json.dumps(dict(variant='full-cp', seed=42,
+                    partition='client-longtail', retention_weight=10, classification_weight=1, b_transfer=cfg)))
+                (run/'completion.json').write_text('{}')
+                write_csv(run/'round_metrics.csv', [dict(round=r, **{k:float(r) for k in METRICS}) for r in range(101)])
+                for name in ('sfra_rounds', 'sfra_costs'):
+                    write_csv(run/f'{name}.csv', [])
+                write_csv(run/'b_transfer_rounds.csv', [dict(round=30, optimizer_steps=2, client_backward_batches=44)])
+                folder = run/'b_transfer_rounds/r030'
+                folder.mkdir(parents=True)
+                for name in ('receiver_summary', 'optimization_steps', 'probe_metrics'):
+                    write_csv(folder/f'{name}.csv', [])
+                write_csv(folder/'c_loss_trace.csv', [dict(round=30, c_step=s, fixed_pool_la=1.-.1*s)
+                                                       for s in range(3)])
+            with patch('builtins.print'):
+                summarize(root)
+                pack(root)
+            rows = read_csv(root/'analysis/performance.csv')
+            self.assertEqual(len(rows), 3)
+            self.assertEqual({float(r['transfer_tail_weight']) for r in rows}, {.5, .35, .2})
+            self.assertTrue(all(r['method'] == 'full-cp+B-shared-tradeoff' for r in rows))
+            self.assertTrue(all(r['transfer_non_tail_sampling'] == 'class-cyclic' for r in rows))
+            self.assertEqual(len(read_csv(root/'analysis/b_transfer_loss_trace.csv')), 9)
+            with tarfile.open(Path(temp)/'tradeoff_analysis.tar.gz') as archive:
+                self.assertIn('tradeoff/analysis/performance.csv', archive.getnames())
+
     def test_joint_adam_matches_single_combined_objective_and_freezes_base(self):
         with tempfile.TemporaryDirectory() as temp:
             transfer = tiny_transfer(temp, regularization=.2)
@@ -76,8 +269,9 @@ class TestSharedC(unittest.TestCase):
             donors = [0, 2]
             manifests = {k: dict(batches=calibration_batches(transfer.groups[k], {0}, 42, 30, k))
                          for k in transfer.recipients}
-            transfer.pending = dict(round=30, steps=[], feedback=[], summary=dict(
+            transfer.pending = dict(round=30, folder=Path(temp), steps=[], feedback=[], summary=dict(
                 algorithm_forward_images=0, algorithm_backward_images=0, client_backward_batches=0,
+                diagnostic_forward_images=0,
                 optimizer_steps=0, feedback_synchronizations=0, extra_downlink_bytes=0, extra_upload_bytes=0))
             tensors = torch.stack([transfer.original_deltas[j][B_KEY] for j in donors])
             expected = torch.nn.Parameter(torch.zeros(2, 2, 2))

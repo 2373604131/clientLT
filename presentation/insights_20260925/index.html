@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>三个 Insight · 图片与源文件</title>
+<style>
+body{margin:0;background:#f4f6f8;color:#203448;font:16px/1.7 'Segoe UI','Microsoft YaHei',sans-serif}
+main{max-width:1120px;margin:auto;padding:36px 24px}h1{font-size:28px;margin:0}h2{font-size:20px;margin:0 0 8px}
+p{margin:8px 0 18px}.muted{color:#627181}nav{display:flex;gap:10px;margin:18px 0 28px}
+button{font:inherit;padding:6px 18px;border:1px solid #c5d0da;border-radius:5px;background:white;cursor:pointer}
+button[aria-pressed=true]{background:#203448;color:white}section{background:white;padding:22px;margin:22px 0;border:1px solid #e2e7ec;border-radius:8px}
+img{display:block;width:100%;height:auto}a{color:#0072b2}.files{display:flex;gap:20px;margin-top:12px}
+</style>
+<main>
+<h1>三个 Insight：从数据分布到学习与保持</h1>
+<p class="muted">真实实验数据 · 中文汇报版 / 英文论文版 · PNG、PDF、可编辑文字 SVG</p>
+<p><a href="README.md">设计与数据说明</a> · <a href="captions.md">中英文图注</a> · <a href="data/performance_retention.csv">指标数据</a></p>
+<nav><button id="zh" aria-pressed="true" onclick="language('zh')">中文</button><button id="en" aria-pressed="false" onclick="language('en')">English</button></nav>
+<div id="figures"></div>
+<p class="muted">单种子 seed42；准确率为末20轮均值，回落为峰值减第100轮。S使用更多优化步数。来源集中度与遗忘之间的机制联系仍需验证。</p>
+</main>
+<script>
+const figures=[
+['00_three_insights','三联总览 · Figure 1 候选','同一批数据 → 不同保持轨迹 → 更新策略的作用'],
+['01_client_distribution','Insight 1 · 数据分给谁，也会影响结果','共同类别直方图、两种真实分配热图与同一S策略的尾类结果。'],
+['02_tail_forgetting','Insight 2 · 已经具备的能力，也可能在后面丢失','原始S/J训练曲线；区分峰值、最终值和第91–100轮的B-only阶段。'],
+['03_adaptation_and_retention','Insight 3 · 关键是如何更新，才能学好并保住','E3相对E2同时提高非尾类和尾类准确率；峰后回落另行展示。'],
+['04_per_class_drop_supplement','补充图 · 每个尾类分别回落多少','每个点是一个类别；箱体体现类别间差异，不代表跨种子置信区间。']];
+function language(lang){
+for(const id of ['zh','en'])document.getElementById(id).setAttribute('aria-pressed',id===lang);
+document.getElementById('figures').innerHTML=figures.map(([file,title,description])=>`<section><h2>${title}</h2><p class="muted">${description}</p><img src="${lang}/${file}.png" alt="${title}" loading="lazy"><div class="files">${['png','pdf','svg'].map(ext=>`<a href="${lang}/${file}.${ext}">${ext.toUpperCase()}</a>`).join('')}</div></section>`).join('');
+}language('zh');
+</script>
+</html>

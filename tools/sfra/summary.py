@@ -29,6 +29,7 @@ def summarize(root, reference=None):
         paths.append(Path(reference))
     performance, costs, curves, mechanisms, corrections, status = [], [], [], [], [], []
     transfer_rounds, transfer_receivers, transfer_steps, transfer_probes = [], [], [], []
+    transfer_loss_traces = []
     aggregation_rows = []
     for run in paths:
         config_file = run/'sfra_config.json'
@@ -57,6 +58,11 @@ def summarize(root, reference=None):
             info.update(method=info['method']+('+B-shared' if mode == 'shared' else '+B-transfer'),
                         transfer_mode=mode, transfer_lr=transfer['learning_rate'],
                         transfer_probe_step=transfer['probe_step'], transfer_reg=transfer['regularization'])
+            if mode == 'shared':
+                info.update(transfer_non_tail_sampling=transfer.get('non_tail_sampling', 'sample'),
+                            transfer_tail_weight=transfer.get('tail_weight', .5))
+                if transfer.get('calibration_profile') == 'coverage_tradeoff':
+                    info['method'] += '-tradeoff'
         row = dict(info)
         for metric in METRICS:
             row['last20_'+metric] = sum(float(r[metric]) for r in final20)/20
@@ -93,6 +99,9 @@ def summarize(root, reference=None):
                                                ('optimization_steps', transfer_steps),
                                                ('probe_metrics', transfer_probes)]:
                         destination.extend({**info, **r} for r in read_csv(folder/f'{name}.csv'))
+                    trace_path = folder/'c_loss_trace.csv'
+                    if trace_path.is_file():
+                        transfer_loss_traces.extend({**info, **r} for r in read_csv(trace_path))
     for name, rows in [('performance',performance),('functional_costs',costs),('curves',curves),
                        ('mechanisms',mechanisms),('correction_steps',corrections),('status',status)]:
         write_csv(out/f'{name}.csv', rows)
@@ -102,12 +111,16 @@ def summarize(root, reference=None):
         for name, rows in [('b_transfer_rounds', transfer_rounds), ('b_transfer_receivers', transfer_receivers),
                            ('b_transfer_steps', transfer_steps), ('b_transfer_probes', transfer_probes)]:
             write_csv(out/f'{name}.csv', rows)
+    if transfer_loss_traces:
+        write_csv(out/'b_transfer_loss_trace.csv', transfer_loss_traces)
     lines = ['# SFRA results', '', 'Primary endpoint: committed rounds 81–100, no best-checkpoint selection.', '',
-             '| Run | Lambda | Mu | Overall | Head20 | Middle60 | Tail20 | Tail peak-to-final |',
-             '|---|---:|---:|---:|---:|---:|---:|---:|']
+             '| Run | Lambda | Mu | B non-tail sampling | B tail weight | Overall | Head20 | Middle60 | Tail20 | Tail peak-to-final |',
+             '|---|---:|---:|---|---:|---:|---:|---:|---:|---:|']
     for r in performance:
         values = ' | '.join(f'{r["last20_"+key]:.3f}' for key in METRICS[:4])
-        lines.append(f'| {r["run"]} | {r["retention_weight"]} | {r["classification_weight"]} | {values} | {r["tail_peak_to_final"]:.3f} |')
+        lines.append(f'| {r["run"]} | {r["retention_weight"]} | {r["classification_weight"]} | '
+                     f'{r.get("transfer_non_tail_sampling", "")} | {r.get("transfer_tail_weight", "")} | '
+                     f'{values} | {r["tail_peak_to_final"]:.3f} |')
     lines += ['', f'Completed: {len(performance)} / discovered: {len(status)}.',
               'Compare Full vs S, Full vs Current, and Full vs Flat at the SAME lambda.',
               'For full-cp, compare against the existing Full-10 first: retention lambda stays 10; mu is the new search parameter.',
@@ -137,13 +150,32 @@ def summarize(root, reference=None):
                   'Transfer group scores average present classes within each receiver, then average receivers; they are not official global class-macro accuracy.']
     if any(r.get('transfer_mode') == 'shared' for r in performance):
         lines += ['', '## Shared-model B transfer', '',
-                  'B-shared uses the original tail-present recipients and exactly the original two calibration batches.',
-                  'Each global C step averages the original local group-balanced LA losses, with one C regularizer; all clients see the same C.',
+                  'B-shared uses the original tail-present recipients, two calibration batches and unchanged tail sample positions.',
+                  'The original profile keeps image-uniform non-tail sampling and 50:50 group LA; the tradeoff profile is labeled separately.',
+                  'Each global C step averages recipient losses, with one C regularizer; all clients see the same C.',
                   'Two global optimizer steps are NOT two image batches: compare algorithm_backward_images and client_backward_batches.',
                   'Ordinary B FedAvg and all A rules are unchanged. The residual is added once AFTER ordinary B aggregation.',
                   'Normal-B event dumps remain raw ordinary FedAvg; their state_role and shared_transfer_state_path link the separate commit.pt.',
                   'No local_tail_la_gain is reported for shared C; shared_receiver_tail_la_gain_mean uses the shared model.',
                   'The old local donor screen and new shared donor screen can accept different donors; this is not a pure placement-only change.']
+        if transfer_loss_traces:
+            lines += ['', '### C learning-rate diagnostics', '',
+                      'b_transfer_loss_trace.csv evaluates the SAME TWO calibration batches at C=0, after step 1 and after step 2.',
+                      'Use fixed_pool_objective (weighted LA + C penalty) for cross-step comparisons. Original la_before values use different step batches.',
+                      'b_transfer_steps.csv also records same_batch_la_after and objective_after_same_batch for paired before/after checks.',
+                      'Tail/non-tail accuracy is raw-logit, group sample-mean per client/batch, then averaged; it is neither the official test metric nor independent validation.',
+                      'These extra no-gradient forward passes are diagnostic_forward_images, not training steps. They do not change lr, pick a step, or revert any update.',
+                      'Earlier completed rounds have no trace if they ran before diagnostic logging was added; resume only records subsequent rounds.']
+    if any(r.get('method', '').endswith('+B-shared-tradeoff') for r in performance):
+        lines += ['', '## Shared-C coverage / tradeoff pilot', '',
+                  'Only non-tail calibration sampling and the tail/non-tail LA loss fraction change.',
+                  'Class-cyclic sampling keeps each original tail batch and the exact non-tail image count; a separate RNG preserves training randomness.',
+                  'transfer_tail_weight is a LOCAL LOSS fraction, NOT an aggregation weight, donor multiplier or A retention parameter.',
+                  'Tail-only recipients still use their full tail mean. Shared C and the single regularizer are unchanged.',
+                  'Donors, rank-by-rank C, two synchronous Adam steps, transfer rounds, A and ordinary B FedAvg remain unchanged.',
+                  'calibration_manifest.json stores the actual positions; client_feedback_steps.csv records the actual group loss weights.',
+                  'Compare the 0.5 coverage-only configuration against the existing shared-C run, then compare the 0.35 / 0.2 tradeoff settings.',
+                  'Report the whole predeclared sweep; no test-based update gate or checkpoint rollback is introduced.']
     (out/'report.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
     print(f'Summary written: {out/"report.md"}', flush=True)
 

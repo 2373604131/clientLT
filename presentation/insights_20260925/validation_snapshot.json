@@ -1,0 +1,154 @@
+{
+  "dataset": "CIFAR100-LT",
+  "seed": 42,
+  "rounds": [
+    0,
+    100
+  ],
+  "tail_classes": [
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    99
+  ],
+  "runs": [],
+  "figures": [
+    {
+      "figure": "01_client_distribution",
+      "language": "en",
+      "size_inches": [
+        7.2,
+        4.8
+      ],
+      "minimum_font_pt": 8.5,
+      "minimum_font_pt_at_17_5_cm": 8.133748906386701,
+      "out_of_canvas_text": []
+    },
+    {
+      "figure": "02_tail_forgetting",
+      "language": "en",
+      "size_inches": [
+        7.2,
+        3.8
+      ],
+      "minimum_font_pt": 8.5,
+      "minimum_font_pt_at_17_5_cm": 8.133748906386701,
+      "out_of_canvas_text": []
+    },
+    {
+      "figure": "03_adaptation_and_retention",
+      "language": "en",
+      "size_inches": [
+        7.2,
+        4.25
+      ],
+      "minimum_font_pt": 8.5,
+      "minimum_font_pt_at_17_5_cm": 8.133748906386701,
+      "out_of_canvas_text": []
+    },
+    {
+      "figure": "00_three_insights",
+      "language": "en",
+      "size_inches": [
+        7.2,
+        4.25
+      ],
+      "minimum_font_pt": 8.5,
+      "minimum_font_pt_at_17_5_cm": 8.133748906386701,
+      "out_of_canvas_text": []
+    },
+    {
+      "figure": "04_per_class_drop_supplement",
+      "language": "en",
+      "size_inches": [
+        7.2,
+        3.6
+      ],
+      "minimum_font_pt": 8.5,
+      "minimum_font_pt_at_17_5_cm": 8.133748906386701,
+      "out_of_canvas_text": []
+    },
+    {
+      "figure": "01_client_distribution",
+      "language": "zh",
+      "size_inches": [
+        7.2,
+        4.8
+      ],
+      "minimum_font_pt": 8.5,
+      "minimum_font_pt_at_17_5_cm": 8.133748906386701,
+      "out_of_canvas_text": []
+    },
+    {
+      "figure": "02_tail_forgetting",
+      "language": "zh",
+      "size_inches": [
+        7.2,
+        3.8
+      ],
+      "minimum_font_pt": 8.5,
+      "minimum_font_pt_at_17_5_cm": 8.133748906386701,
+      "out_of_canvas_text": []
+    },
+    {
+      "figure": "03_adaptation_and_retention",
+      "language": "zh",
+      "size_inches": [
+        7.2,
+        4.25
+      ],
+      "minimum_font_pt": 8.5,
+      "minimum_font_pt_at_17_5_cm": 8.133748906386701,
+      "out_of_canvas_text": []
+    },
+    {
+      "figure": "00_three_insights",
+      "language": "zh",
+      "size_inches": [
+        7.2,
+        4.25
+      ],
+      "minimum_font_pt": 8.5,
+      "minimum_font_pt_at_17_5_cm": 8.133748906386701,
+      "out_of_canvas_text": []
+    },
+    {
+      "figure": "04_per_class_drop_supplement",
+      "language": "zh",
+      "size_inches": [
+        7.2,
+        3.6
+      ],
+      "minimum_font_pt": 8.5,
+      "minimum_font_pt_at_17_5_cm": 8.133748906386701,
+      "out_of_canvas_text": []
+    }
+  ],
+  "source_mode": "Bundled derived CSV snapshots; raw-run audit is in validation.json.",
+  "design_checks": {
+    "no_smoothing": true,
+    "no_synthetic_error_bars": true,
+    "source_hypothesis_not_claimed_as_result": true,
+    "ours_excluded_from_motivation": true,
+    "e3_included": true,
+    "all_curves_include_initialization": true,
+    "statistical_significance_not_claimed": true,
+    "vector_pdf_and_svg": true
+  }
+}

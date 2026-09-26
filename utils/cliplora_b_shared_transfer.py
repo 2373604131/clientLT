@@ -1,6 +1,7 @@
 """Joint donor C calibration on the actual post-FedAvg B, with fixed A.
 
-The original recipient list, calibration batches and local LA loss are reused.
+The legacy profile keeps original batches and LA weights. The opt-in tradeoff
+profile changes only non-tail coverage and the tail/non-tail loss fraction.
 All recipients see the SAME C at each step; Adam steps only after every backward.
 """
 import math
@@ -12,6 +13,7 @@ import torch
 from utils.cliplora_b_transfer import (DonorBTransfer, calibration_batches,
                                       differentiable_b_residual, reconstruct_residual,
                                       transfer_config)
+from utils.cliplora_a_refresh import isolated_rng
 from utils.cliplora_bridge_audit import write_csv, write_json
 
 
@@ -31,7 +33,61 @@ def shared_transfer_config(args):
         diagnostic_anchor='ordinary_shared_B versus transferred_shared_B; not local before/after',
         communication='modeled dense FP32 donor/C/gradient messages; two feedback synchronizations',
         commit_rule='fixed_second_C_step; no evaluation-based selection')
+    sampling = getattr(args, 'b_transfer_non_tail_sampling', 'sample')
+    tail_weight = getattr(args, 'b_transfer_tail_weight', .5)
+    if not math.isfinite(tail_weight) or not 0 < tail_weight < 1:
+        raise ValueError('Shared C tail loss weight must be strictly between 0 and 1.')
+    # Keep the original configuration dictionary unchanged for saved resumes
+    # when neither new option is used.
+    if sampling != 'sample' or tail_weight != .5:
+        config.update(schema_version='donor_b_shared_tradeoff_v1',
+            calibration_profile='coverage_tradeoff', non_tail_sampling=sampling,
+            tail_weight=tail_weight,
+            calibration_sampling='original tail batches; independent class-cyclic non-tail batches'
+                                 if sampling == 'class-cyclic' else config['calibration_sampling'],
+            non_tail_sampling_seed_domain=271829,
+            calibration_objective='equal recipient mean of weighted tail/non-tail LA, plus one C penalty',
+            missing_non_tail_rule='tail-only mean, unchanged from original shared C')
     return config
+
+
+def shared_calibration_batches(groups, tail_ids, seed, round_id, client, sampling='sample'):
+    """Replace only non-tail positions; preserve BOTH original tail batches.
+
+    A private RNG and a class cursor spanning both steps improve class coverage
+    without adding images, revising donors or changing any training RNG stream.
+    """
+    batches = calibration_batches(groups, tail_ids, seed, round_id, client)
+    if sampling == 'sample':
+        return batches
+    non_tail = {c: groups[c] for c in sorted(groups) if c not in tail_ids}
+    if not non_tail:
+        return batches
+    rng = np.random.default_rng(np.random.SeedSequence([seed, round_id, client, 271829]))
+    order = list(map(int, rng.permutation(sorted(non_tail))))
+    cursor = 0
+    for batch in batches:
+        cap = len(batch['non_tail_positions'])
+        bags = {c: list(map(int, rng.permutation(positions))) for c, positions in non_tail.items()}
+        chosen = []
+        while len(chosen) < cap:
+            c = order[cursor % len(order)]
+            cursor += 1
+            if bags[c]:
+                chosen.append(bags[c].pop())
+        batch['non_tail_positions'] = chosen
+    return batches
+
+
+def shared_calibration_loss(losses, count_tail, tail_weight):
+    parts = [losses[:count_tail].mean()]
+    if count_tail < len(losses):
+        parts.append(losses[count_tail:].mean())
+    if len(parts) == 1 or tail_weight == .5:
+        local_loss = torch.stack(parts).mean()  # Preserve original numerics.
+    else:
+        local_loss = tail_weight*parts[0] + (1-tail_weight)*parts[1]
+    return local_loss, parts
 
 
 class SharedDonorBTransfer(DonorBTransfer):
@@ -47,8 +103,60 @@ class SharedDonorBTransfer(DonorBTransfer):
             self.pending['summary'][phase+'_'+key] = float(np.mean(values)) if values else None
         return rows
 
+    @torch.no_grad()
+    def trace_c_loss(self, donor_tensors, matrices, manifests, start, c_step, ordinary_norm):
+        """Read-only, same two batches at C=0, C1 and C2; never gates training.
+
+        Report a fixed-pool mean as well as each batch's mean so a training step
+        can be compared before/after on exactly its own data. This is a training
+        diagnostic, not an independent validation estimate.
+        """
+        clients, steps = len(self.recipients), self.config['steps']
+        tail_weight = self.config.get('tail_weight', .5)
+        residual = {key: torch.bmm(donor_tensors[key], matrices[key]).mean(0) for key in self.keys}
+        batch_la = [0.] * steps
+        tail_losses, non_tail_losses, tail_acc, non_tail_acc = [], [], [], []
+        images_used = 0
+        with isolated_rng(), differentiable_b_residual(self.modules, residual):
+            for client in self.recipients:
+                for batch_index, sampled in enumerate(manifests[client]['batches']):
+                    images, labels = self.batch(client, sampled['tail_positions']+sampled['non_tail_positions'])
+                    count_tail = len(sampled['tail_positions'])
+                    losses, logits, _ = self.forward(images, labels, diagnostic=True)
+                    local_loss, parts = shared_calibration_loss(losses, count_tail, tail_weight)
+                    batch_la[batch_index] += float(local_loss)/clients
+                    tail_losses.append(float(parts[0]))
+                    correct = (logits.argmax(1) == labels).float()
+                    tail_acc.append(100*float(correct[:count_tail].mean()))
+                    if len(parts) == 2:
+                        non_tail_losses.append(float(parts[1]))
+                        non_tail_acc.append(100*float(correct[count_tail:].mean()))
+                    images_used += len(labels)
+        raw_regularizer = sum(float(c.square().sum()) for c in matrices.values()) / (
+            len(next(iter(matrices.values())))*len(self.keys))
+        penalty = self.config['regularization']*raw_regularizer
+        fixed_la = sum(batch_la)/steps
+        effective_norm = self.effective_norm(residual, start)
+        row = dict(round=self.pending['round'], c_step=c_step, learning_rate=self.config['learning_rate'],
+            scope='same_two_calibration_batches', tail_weight=tail_weight,
+            fixed_pool_la=fixed_la, fixed_pool_objective=fixed_la+penalty,
+            tail_la=float(np.mean(tail_losses)), non_tail_la=float(np.mean(non_tail_losses)) if non_tail_losses else None,
+            tail_accuracy=float(np.mean(tail_acc)), non_tail_accuracy=float(np.mean(non_tail_acc)) if non_tail_acc else None,
+            regularizer=raw_regularizer, regularization_penalty=penalty,
+            c_norm=math.sqrt(sum(float(c.square().sum()) for c in matrices.values())),
+            effective_transfer_norm=effective_norm, ordinary_B_effective_update_norm=ordinary_norm,
+            transfer_to_ordinary_ratio=effective_norm/ordinary_norm if ordinary_norm > 0 else None,
+            diagnostic_forward_images=images_used,
+            **{f'batch{i+1}_la': loss for i, loss in enumerate(batch_la)})
+        self.pending['loss_trace'].append(row)
+        # Persist each completed diagnostic immediately, including when this
+        # transfer round is interrupted before its normal output flush.
+        write_csv(self.pending['folder']/'c_loss_trace.csv', self.pending['loss_trace'])
+        return row
+
     def calibrate_shared(self, donor_ids, manifests, start):
         m, layers, clients = len(donor_ids), len(self.keys), len(self.recipients)
+        tail_weight = self.config.get('tail_weight', .5)
         donor_tensors = {
             key: torch.stack([self.original_deltas[j][key] for j in donor_ids]).detach().to(self.device)
             for key in self.keys}
@@ -60,6 +168,13 @@ class SharedDonorBTransfer(DonorBTransfer):
         summary = self.pending['summary']
         parameter_bytes = sum(c.numel()*c.element_size() for c in matrices.values())
         summary['learned_c_parameters'] = sum(c.numel() for c in matrices.values())
+        self.pending['loss_trace'] = []
+        ordinary_norm = self.effective_norm(
+            {key: self.parameters[key].detach().cpu()-start[key].detach().cpu() for key in self.keys}, start)
+        trace = self.trace_c_loss(donor_tensors, matrices, manifests, start, 0, ordinary_norm)
+        print(f'B-shared r{self.pending["round"]:03d} C=0 lr={self.config["learning_rate"]:g} '
+              f'fixed_LA={trace["fixed_pool_la"]:.6f} '
+              f'objective={trace["fixed_pool_objective"]:.6f}', flush=True)
         for step in range(1, self.config['steps']+1):
             optimizer.zero_grad(set_to_none=True)
             mean_loss, tail_samples, non_tail_samples = 0., 0, 0
@@ -72,10 +187,7 @@ class SharedDonorBTransfer(DonorBTransfer):
                 residual = {key: torch.bmm(donor_tensors[key], matrices[key]).mean(0) for key in self.keys}
                 with differentiable_b_residual(self.modules, residual):
                     losses, _, _ = self.forward(images, labels)
-                    parts = [losses[:count_tail].mean()]
-                    if count_tail < len(labels):
-                        parts.append(losses[count_tail:].mean())
-                    local_loss = torch.stack(parts).mean()
+                    local_loss, parts = shared_calibration_loss(losses, count_tail, tail_weight)
                     (local_loss/clients).backward()
                 mean_loss += float(local_loss.detach())/clients
                 tail_samples += count_tail
@@ -89,10 +201,15 @@ class SharedDonorBTransfer(DonorBTransfer):
                     local_la=float(local_loss.detach()),
                     tail_la=float(parts[0].detach()),
                     non_tail_la=float(parts[1].detach()) if len(parts) == 2 else None))
+                if 'calibration_profile' in self.config:
+                    self.pending['feedback'][-1].update(
+                        tail_loss_weight=tail_weight if len(parts) == 2 else 1.,
+                        non_tail_loss_weight=1-tail_weight if len(parts) == 2 else 0.)
             # One regularizer for the shared C, not one full regularizer per client.
             regularizer = sum(c.square().sum() for c in matrices.values())/(m*layers)
             (self.config['regularization']*regularizer).backward()
             grad_norm = math.sqrt(sum(float(c.grad.square().sum()) for c in matrices.values()))
+            previous_c = {key: c.detach().clone() for key, c in matrices.items()}
             optimizer.step()
             summary['optimizer_steps'] += 1
             summary['feedback_synchronizations'] += 1
@@ -109,8 +226,26 @@ class SharedDonorBTransfer(DonorBTransfer):
                 c_gradient_norm=grad_norm,
                 c_norm_after=math.sqrt(sum(float(c.detach().square().sum()) for c in matrices.values())),
                 effective_transfer_norm_after=norm))
+            updated_trace = self.trace_c_loss(donor_tensors, matrices, manifests, start, step, ordinary_norm)
+            same_batch_after = updated_trace[f'batch{step}_la']
+            penalty_before = self.config['regularization']*float(regularizer.detach())
+            self.pending['steps'][-1].update(
+                learning_rate=self.config['learning_rate'],
+                same_batch_la_after=same_batch_after, same_batch_la_change=same_batch_after-mean_loss,
+                objective_after_same_batch=same_batch_after+updated_trace['regularization_penalty'],
+                objective_change_same_batch=same_batch_after+updated_trace['regularization_penalty']-mean_loss-penalty_before,
+                fixed_pool_la_before=trace['fixed_pool_la'], fixed_pool_la_after=updated_trace['fixed_pool_la'],
+                fixed_pool_objective_before=trace['fixed_pool_objective'],
+                fixed_pool_objective_after=updated_trace['fixed_pool_objective'],
+                c_update_norm=math.sqrt(sum(float((c.detach()-previous_c[key]).square().sum())
+                                            for key, c in matrices.items())),
+                transfer_to_ordinary_ratio=updated_trace['transfer_to_ordinary_ratio'])
             print(f'B-shared r{self.pending["round"]:03d} step={step}/2 '
-                  f'clients={clients} donors={m} LA={mean_loss:.6f} |sRA|={norm:.6g}', flush=True)
+                  f'C_lr={self.config["learning_rate"]:g} clients={clients} donors={m} '
+                  f'same_batch_LA={mean_loss:.6f}->{same_batch_after:.6f} '
+                  f'fixed_objective={trace["fixed_pool_objective"]:.6f}->{updated_trace["fixed_pool_objective"]:.6f} '
+                  f'|sRA|={norm:.6g}', flush=True)
+            trace = updated_trace
         return {key: c.detach().cpu().clone() for key, c in matrices.items()}
 
     def apply_shared(self, start, ordinary, rnd):
@@ -123,8 +258,12 @@ class SharedDonorBTransfer(DonorBTransfer):
             optimizer_steps=0, client_backward_batches=0, feedback_synchronizations=0,
             learned_c_parameters=0, algorithm_forward_images=0, algorithm_backward_images=0,
             diagnostic_forward_images=0, extra_downlink_bytes=0, extra_upload_bytes=0, seconds=0.)
+        if 'calibration_profile' in self.config:
+            summary.update(calibration_profile=self.config['calibration_profile'],
+                           non_tail_sampling=self.config['non_tail_sampling'],
+                           tail_weight=self.config['tail_weight'])
         self.pending = dict(round=rnd, folder=folder, summary=summary, metrics=[],
-                            steps=[], receivers=[], feedback=[])
+                            steps=[], receivers=[], feedback=[], loss_trace=[])
         donor_rows, manifests, candidate_sets, pool = [], {}, {}, set()
         ordinary_b = {key: ordinary[key] for key in self.keys}
         delta_bytes = sum(ordinary[key].numel()*ordinary[key].element_size() for key in self.keys)
@@ -158,8 +297,9 @@ class SharedDonorBTransfer(DonorBTransfer):
                         donors.append(donor)
                 donors.sort()
                 pool.update(donors)
-                manifests[client] = dict(donor_ids=donors, batches=calibration_batches(
-                    self.groups[client], self.tail, self.runtime.args.seed, rnd, client))
+                manifests[client] = dict(donor_ids=donors, batches=shared_calibration_batches(
+                    self.groups[client], self.tail, self.runtime.args.seed, rnd, client,
+                    self.config.get('non_tail_sampling', 'sample')))
                 summary['candidate_pairs'] += len(candidates)
                 summary['receivers_with_donors'] += bool(donors)
                 summary['donor_links'] += len(donors)

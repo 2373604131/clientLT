@@ -6501,6 +6501,8 @@ if __name__ == "__main__":
     parser.add_argument('--b_transfer_lr', type=float, default=.1)
     parser.add_argument('--b_transfer_probe_step', type=float, default=.1)
     parser.add_argument('--b_transfer_reg', type=float, default=.001)
+    parser.add_argument('--b_transfer_non_tail_sampling', choices=['sample', 'class-cyclic'], default='sample')
+    parser.add_argument('--b_transfer_tail_weight', type=float, default=.5)
     parser.add_argument('--capt_matched_v2', type=str2bool, default=False, help='reset CAPT local optimizer for the V2 budget-matched run')
     parser.add_argument('--selective_sync_enable', type=str2bool, default=False, help='enable persistent private-B functional selective synchronization')
     parser.add_argument('--selective_sync_receive_ratio', type=float, default=1.0, help='gamma applied to the global-private B difference')
