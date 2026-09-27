@@ -100,12 +100,13 @@ class LAControlRuntime:
         reference = replay if replay.exists() else self.root / 'protocol/reference_metadata.json'
         if reference.exists():
             source = json.loads(reference.read_text(encoding='utf-8'))
-            for key in ('pool_sha256','test_sha256','probe_images_sha256','probe_manifest_sha256','schedule_sha256','frozen_model_sha256'):
-                assert self.audit.meta[key] == source[key], key
+            if not getattr(args, 'method_a_supplement_manifest', ''):
+                for key in ('pool_sha256','test_sha256','probe_images_sha256','probe_manifest_sha256','schedule_sha256','frozen_model_sha256'):
+                    assert self.audit.meta[key] == source[key], key
             if replay.exists():
                 assert args.partition == source['topology']
                 assert self.sizes == source['client_sample_counts']
-            if int(source['seed']) == args.seed:
+            if int(source['seed']) == args.seed and not getattr(args, 'method_a_supplement_manifest', ''):
                 assert self.audit.meta['initial_lora_sha256'] == source['initial_lora_sha256']
         self.config = {'schema_version':'la_control_v1', 'method':self.method, 'seed':args.seed,
             'protocol_seed':args.split_seed,

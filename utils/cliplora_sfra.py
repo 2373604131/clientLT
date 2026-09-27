@@ -75,6 +75,7 @@ class SFRARuntime(LAControlRuntime):
                 self.method += '_tail_directed'
         elif getattr(args, 'b_problem2_variant', 'off') != 'off' or getattr(args, 'b_directed_enable', False):
             raise ValueError('Problem 2 / directed B require shared B transfer')
+        self.configure_experiment()
         self.resume_payload = None
         if args.sfra_resume:
             self.resume_payload = torch.load(args.sfra_resume, map_location='cpu', weights_only=False)
@@ -160,6 +161,9 @@ class SFRARuntime(LAControlRuntime):
                       f'device prefix cache limit={args.sfra_feedback_cache_gib:g} GiB; '
                       'source gradients remain independent.', flush=True)
 
+    def configure_experiment(self):
+        """Optional isolated experiment metadata, set before resume validation."""
+
     def load_training_state(self, state):
         loader = getattr(self, '_execution_loader', None)
         if loader is None:
@@ -225,20 +229,10 @@ class SFRARuntime(LAControlRuntime):
                              committed_effective_norm=(self.scaling**2*product_norm_squared(b,da))**.5))
         return rows
 
-    def refresh(self, middle, rnd, folder, prepared=None):
-        classification = self.variant.endswith('-cp')
-        if prepared is None:
-            ordinary, deltas = self.train_phase(middle, rnd, 'A', True, return_deltas=True)
-            self.events[-1]['state_role'] = 'ordinary_A_proposal_before_functional_correction'
-        else:
-            # Diagnostic candidates share one ordinary proposal, without repeating local training.
-            ordinary, deltas = prepared
-        device = self.trainer.device
-        client_ids = sorted(deltas)
-        matrix = torch.stack([flatten(deltas[k], self.a_keys) for k in client_ids], 1).to(device)
+    def measure_refresh_source(self, middle, rnd, matrix, client_ids):
+        """Reference source calculation; isolated controls may replace only this stage."""
         qr_started = time.perf_counter()
         basis, coordinates, radius = proposal_coordinates(matrix)
-        radius_cpu = radius.cpu()
         self.costs.append(dict(round=rnd, phase='proposal_QR', seconds=time.perf_counter()-qr_started,
             forward_images=0, backward_images=0,
             downlink_bytes=len(client_ids)*basis.numel()*basis.element_size(), upload_bytes=0))
@@ -254,9 +248,27 @@ class SFRARuntime(LAControlRuntime):
             forward_images=0, backward_images=0,
             downlink_bytes=responses.numel()*4+len(client_ids)*4, upload_bytes=0))
         self.history.source_cache = source['cache'].clone()
+        return radius, source_measurement, source, responses
+
+    def build_refresh_targets(self, scores, source, history, valid, rnd):
+        return make_targets(scores, source, history, valid, self.variant)
+
+    def refresh(self, middle, rnd, folder, prepared=None):
+        classification = self.variant.endswith('-cp')
+        if prepared is None:
+            ordinary, deltas = self.train_phase(middle, rnd, 'A', True, return_deltas=True)
+            self.events[-1]['state_role'] = 'ordinary_A_proposal_before_functional_correction'
+        else:
+            # Diagnostic candidates share one ordinary proposal, without repeating local training.
+            ordinary, deltas = prepared
+        device = self.trainer.device
+        client_ids = sorted(deltas)
+        matrix = torch.stack([flatten(deltas[k], self.a_keys) for k in client_ids], 1).to(device)
+        radius, source_measurement, source, responses = self.measure_refresh_source(middle, rnd, matrix, client_ids)
+        radius_cpu = radius.cpu()
         history_before = self.history.level.clone()
         valid_before = self.history.valid.clone()
-        targets = make_targets(source_measurement['scores'], source, history_before, valid_before, self.variant)
+        targets = self.build_refresh_targets(source_measurement['scores'], source, history_before, valid_before, rnd)
         targets['sigma'] = (radius_cpu*source_measurement['gradient_norms']).clamp_min(.001)
         require_finite(target=targets['target'], sigma=targets['sigma'], weights=targets['weights'])
         self.costs.append(dict(round=rnd, phase='global_weight_normalization', seconds=0.,
