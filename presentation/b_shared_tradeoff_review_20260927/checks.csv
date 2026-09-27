@@ -1,0 +1,6 @@
+﻿run,max_accuracy_diff_before_first_transfer,transfer_manifest_equal
+w0.2,0.0,True
+w0.35,0.0,True
+w0.5,0.0,True
+old_shared,0.0,True
+A_only,0.0,

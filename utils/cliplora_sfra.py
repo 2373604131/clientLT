@@ -65,11 +65,16 @@ class SFRARuntime(LAControlRuntime):
                 from utils.b_problem2_math import problem2_config
                 self.sfra_config['b_transfer'] = problem2_config(
                     self.sfra_config['b_transfer'], problem2, getattr(args, 'b_problem2_harm_beta', 1.))
+            if getattr(args, 'b_directed_enable', False):
+                from utils.b_directed_math import directed_config
+                self.sfra_config['b_transfer'] = directed_config(self.sfra_config['b_transfer'], args)
             self.method += '_b_shared_transfer' if getattr(args, 'b_transfer_mode', 'local') == 'shared' else '_b_transfer'
             if problem2 != 'off':
                 self.method += '_problem2_' + problem2
-        elif getattr(args, 'b_problem2_variant', 'off') != 'off':
-            raise ValueError('Problem 2 requires shared B transfer')
+            if getattr(args, 'b_directed_enable', False):
+                self.method += '_tail_directed'
+        elif getattr(args, 'b_problem2_variant', 'off') != 'off' or getattr(args, 'b_directed_enable', False):
+            raise ValueError('Problem 2 / directed B require shared B transfer')
         self.resume_payload = None
         if args.sfra_resume:
             self.resume_payload = torch.load(args.sfra_resume, map_location='cpu', weights_only=False)
@@ -122,7 +127,10 @@ class SFRARuntime(LAControlRuntime):
             write_json(self.root/'private_witness_manifest.json', self.bank.tokens)
         self.b_transfer = None
         if 'b_transfer' in self.sfra_config:
-            if self.sfra_config['b_transfer'].get('calibration_profile') == 'problem2':
+            if self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_directed':
+                from utils.cliplora_b_directed import DirectedDonorBTransfer
+                self.b_transfer = DirectedDonorBTransfer(self)
+            elif self.sfra_config['b_transfer'].get('calibration_profile') == 'problem2':
                 from utils.cliplora_b_problem2 import Problem2DonorBTransfer
                 self.b_transfer = Problem2DonorBTransfer(self)
             elif self.sfra_config['b_transfer'].get('mode') == 'shared':
@@ -135,7 +143,10 @@ class SFRARuntime(LAControlRuntime):
         print(f'SFRA: {self.variant}, retention lambda={self.strength:g}{label}, A rounds=1..90', flush=True)
         if self.b_transfer is not None:
             print(f'B-transfer enabled: C lr={args.b_transfer_lr:g}, rounds=30,40,...,100', flush=True)
-            if self.sfra_config['b_transfer'].get('mode') == 'shared':
+            if self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_directed':
+                print('Directed B: protocol tail clients, tail-only class-macro feedback; '
+                      'fixed label-absent donor mixtures and class C; one shared residual.', flush=True)
+            elif self.sfra_config['b_transfer'].get('mode') == 'shared':
                 print('Shared B transfer: original recipients/batches; two joint C steps; '
                       'one post-FedAvg residual, no second client weighting.', flush=True)
         if 'b_aggregation' in self.sfra_config:

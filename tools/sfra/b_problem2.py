@@ -63,8 +63,8 @@ def preflight(source, rounds=ROUNDS):
         transfer = cfg.get('b_transfer', {})
         if cfg.get('variant') != 'full-cp' or transfer.get('mode') != 'shared':
             errors.append('Source must be full-cp with shared B transfer')
-        if transfer.get('calibration_profile') == 'problem2':
-            errors.append('Use the original shared/tradeoff reference, not a problem2 descendant')
+        if transfer.get('calibration_profile') not in (None, 'coverage_tradeoff'):
+            errors.append('Use the original shared/tradeoff reference, not a different calibration profile')
         if cfg.get('b_aggregation', {}).get('mode', 'sample') != 'sample':
             errors.append('Source must use ordinary sample-weighted B')
         if transfer.get('steps') != 2:

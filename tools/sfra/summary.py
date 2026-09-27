@@ -30,6 +30,7 @@ def summarize(root, reference=None):
     performance, costs, curves, mechanisms, corrections, status = [], [], [], [], [], []
     transfer_rounds, transfer_receivers, transfer_steps, transfer_probes = [], [], [], []
     transfer_loss_traces = []
+    directed_sources, directed_probes = [], []
     problem2_tables = {name: [] for name in ('class_weights', 'class_loss_trace', 'class_changes', 'class_change_summary')}
     aggregation_rows = []
     for run in paths:
@@ -67,10 +68,15 @@ def summarize(root, reference=None):
                 if transfer.get('calibration_profile') == 'problem2':
                     info.update(problem2_variant=transfer['problem2_variant'], harm_beta=transfer['harm_beta'])
                     info['method'] += '-problem2-' + transfer['problem2_variant']
+                if transfer.get('calibration_profile') == 'tail_directed':
+                    info.update(directed_topk=transfer['donors_per_class'],
+                                directed_min_gain=transfer['min_gain'],
+                                directed_target_clients=json.dumps(transfer['target_clients']))
+                    info['method'] += '-tail-directed'
         row = dict(info)
         for metric in METRICS:
             row['last20_'+metric] = sum(float(r[metric]) for r in final20)/20
-        if transfer and transfer.get('calibration_profile') == 'problem2':
+        if transfer and transfer.get('calibration_profile') in ('problem2', 'tail_directed'):
             from tools.sfra.b_problem2 import frequency_metrics
             row.update(frequency_metrics(run))
         trained = [r for r in rows if int(r['round']) > 0]
@@ -112,6 +118,9 @@ def summarize(root, reference=None):
                     for name, destination in problem2_tables.items():
                         if (folder/f'{name}.csv').is_file():
                             destination.extend({**info, **r} for r in read_csv(folder/f'{name}.csv'))
+                    if transfer.get('calibration_profile') == 'tail_directed':
+                        for name, destination in [('source_weights', directed_sources), ('donor_scores', directed_probes)]:
+                            destination.extend({**info, **r} for r in read_csv(folder/f'{name}.csv'))
     for name, rows in [('performance',performance),('functional_costs',costs),('curves',curves),
                        ('mechanisms',mechanisms),('correction_steps',corrections),('status',status)]:
         write_csv(out/f'{name}.csv', rows)
@@ -123,6 +132,9 @@ def summarize(root, reference=None):
             write_csv(out/f'{name}.csv', rows)
     if transfer_loss_traces:
         write_csv(out/'b_transfer_loss_trace.csv', transfer_loss_traces)
+    if any('directed_topk' in r for r in performance):
+        write_csv(out/'b_directed_sources.csv', directed_sources)
+        write_csv(out/'b_directed_probes.csv', directed_probes)
     for name, rows in problem2_tables.items():
         if rows:
             write_csv(out/f'b_problem2_{name}.csv', rows)
@@ -161,7 +173,7 @@ def summarize(root, reference=None):
                   'committed_global includes the subsequent A update (none in round 100); it is not a no-transfer counterfactual.',
                   'Local non-tail monitoring is a fixed at-most-16-image subset, not the full non-tail test set.',
                   'Transfer group scores average present classes within each receiver, then average receivers; they are not official global class-macro accuracy.']
-    if any(r.get('transfer_mode') == 'shared' for r in performance):
+    if any(r.get('transfer_mode') == 'shared' and 'directed_topk' not in r for r in performance):
         lines += ['', '## Shared-model B transfer', '',
                   'B-shared uses the original tail-present recipients, two calibration batches and unchanged tail sample positions.',
                   'The original profile keeps image-uniform non-tail sampling and 50:50 group LA; the tradeoff profile is labeled separately.',
@@ -197,6 +209,19 @@ def summarize(root, reference=None):
                   'Class changes use common macro metrics and record calibration overlap; they are not held-out test estimates.',
                   'performance.csv includes problem2_variant, harm_beta and available last20 many/medium/few accuracy from epochs 80..99.',
                   'If frequency_metrics_available is false, recover the class prior and all per-class files before interpreting those groups.']
+    if any('directed_topk' in r for r in performance):
+        from utils.b_directed_math import PURPOSE
+        lines += ['', '## Tail-directed B', '', PURPOSE, '',
+                  'Only protocol tail-client tail training images drive B. No non-tail objective or Overall-based gate.',
+                  'Each donor must be external to the target group and lack the specific target class label.',
+                  'Per-class positive-gain Top-K weights form FIXED source mixtures. C indexes supported classes, not the donor union.',
+                  'All target classes have equal loss weight; clients contribute sample sums/counts within each class.',
+                  'Unsupported classes have zero own transfer basis; the residual denominator still includes all target classes.',
+                  'b_directed_sources.csv records the actual reconstruction weights; b_directed_probes.csv records rejected as well as selected eligible pairs.',
+                  'One residual is committed after ordinary B FedAvg. Ordinary FedAvg still includes all selected clients.',
+                  'Directed phase tail_la/tail_accuracy are class macro metrics across the complete target training pool, overriding the legacy recipient mean.',
+                  'Tail-only training-side feedback is not held-out validation or proof of test improvement. Interpret official Tail20 separately.',
+                  'Original/tradeoff/problem2 runs remain different methods and cannot be resumed as tail-directed runs.']
     (out/'report.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
     print(f'Summary written: {out/"report.md"}', flush=True)
 
