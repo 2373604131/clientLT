@@ -9,7 +9,8 @@ import zipfile
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
-from tools.sfra.supplement import (SCHEMA, METHODS, RULES, read_json, write_json, validate_source, summarize)
+from tools.sfra.supplement import (SCHEMA, METHODS, RULES, read_json, write_json, validate_source,
+                                    locate_sources, summarize)
 
 DEFAULT_SOURCE = REPO/'output/cifar100_LT/sfra_cp/seed42/client-longtail/full-cp/lambda10_mu1_protocol42'
 DEFAULT_OUTPUT = REPO/'output/method_a_supplement_seed42'
@@ -65,8 +66,43 @@ def build_command(source, run, data_root, method, resume, execution_override=Non
     return command
 
 
+def resolve_source(args):
+    if args.source_run is not None:
+        source = args.source_run.resolve()
+        validate_source(source)  # Never replace an explicitly selected reference silently.
+        return source
+    registered = {read_json(p)['source_run'] for method in METHODS
+                  for p in [args.output_root/method/'supplement_job.json'] if p.is_file()}
+    if len(registered) > 1:
+        raise ValueError('This suite contains different registered Full-CP references')
+    if registered:
+        source = Path(next(iter(registered))).resolve()
+        validate_source(source)  # Resume and sibling controls keep the same reference.
+        return source
+    if (DEFAULT_SOURCE/'sfra_config.json').is_file():
+        try:
+            validate_source(DEFAULT_SOURCE)
+            return DEFAULT_SOURCE.resolve()
+        except (OSError, ValueError, KeyError, TypeError):
+            pass  # The conventional location may contain only a lightweight archive.
+    inventory = locate_sources(args.source_search_root or [REPO/'output'])
+    ready = [Path(r['source_run']) for r in inventory['candidates'] if r['ready']]
+    if len(ready) == 1:
+        return ready[0]
+    if len(ready) > 1:
+        raise ValueError('Multiple complete Full-CP references found. Select one with --source-run:\n'+
+                         '\n'.join(str(p) for p in ready))
+    details = '\n'.join(f"{r['source_run']}\n{r.get('reason', '')}" for r in inventory['candidates'])
+    raise FileNotFoundError('No complete seed42 Full-CP lambda10/mu1 reference found under: '+
+        ', '.join(inventory['search_roots'])+'\n'+(details or 'No matching sfra_config.json found.')+
+        '\nUse --source-run PATH or --source-search-root PATH if results are elsewhere. '
+        'If this is a new server, copy the old Full-CP results and saved .pt files; a code update cannot recreate them.')
+
+
 def train(args):
-    source, root, data = args.source_run.resolve(), args.output_root.resolve(), args.data_root.resolve()
+    root, data = args.output_root.resolve(), args.data_root.resolve()
+    source = resolve_source(args)
+    print(f'Full-CP reference: {source}', flush=True)
     if root == source or root in source.parents or source in root.parents:
         raise ValueError('Output root must be separate from the original Full-CP run')
     if not data.is_dir():
@@ -164,10 +200,13 @@ def pack(root, baselines, short_roots):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--stage', choices=('train', 'summary', 'pack'), default='train')
+    parser.add_argument('--stage', choices=('train', 'summary', 'pack', 'locate-source'), default='train')
     parser.add_argument('--method', choices=('all', *METHODS), default='all')
     parser.add_argument('--seed', type=int, choices=(42,), default=42)
-    parser.add_argument('--source-run', type=Path, default=DEFAULT_SOURCE)
+    parser.add_argument('--source-run', type=Path,
+                        help='Complete Full-CP run; otherwise reuse the registered/default run or locate one unique complete run')
+    parser.add_argument('--source-search-root', type=Path, action='append', default=[],
+                        help='Directory to search for Full-CP results; repeatable; default is this project/output')
     parser.add_argument('--output-root', type=Path,
                         help='Defaults to a separate fast_v2_f<BATCH>_c<GiB> directory when v2 is enabled')
     parser.add_argument('--data-root', type=Path, default=REPO/'DATA')
@@ -188,7 +227,10 @@ def main():
         suffix = f'_fast_v2_f{args.feedback_batch_size}_c{args.feedback_cache_gib:g}' if args.fast_execution_v2 else ''
         args.output_root = DEFAULT_OUTPUT.with_name(DEFAULT_OUTPUT.name + suffix)
     baselines = baseline_arguments(args.baseline)
-    if args.stage=='train':
+    if args.stage=='locate-source':
+        roots = ([args.source_run] if args.source_run is not None else args.source_search_root or [REPO/'output'])
+        result = locate_sources(roots)
+    elif args.stage=='train':
         result = train(args)
     elif args.stage=='summary':
         result = summarize(args.output_root.resolve(), baselines, args.short_root)

@@ -2,6 +2,7 @@
 import csv
 import json
 import math
+import os
 from pathlib import Path
 
 import numpy as np
@@ -53,7 +54,12 @@ def reference_state_path(source, rnd):
 def validate_source(source):
     """Read configuration and file inventory. No hashes and no forward/training trial."""
     source = Path(source)
+    if not (source/'sfra_config.json').is_file():
+        raise FileNotFoundError(f'Full-CP configuration not found: {source / "sfra_config.json"}. '
+                               'Use --source-run with the existing FULL training directory, not a code directory.')
     cfg = read_json(source/'sfra_config.json')
+    if not isinstance(cfg, dict):
+        raise ValueError(f'Full-CP configuration must be a JSON object: {source}')
     expected = dict(variant='full-cp', seed=42, protocol_seed=42, partition='client-longtail',
                     retention_weight=10., classification_weight=1., correction_steps=3,
                     correction_step_size=.1, witness_per_local_class=8, witness_views=2,
@@ -66,17 +72,20 @@ def validate_source(source):
             raise ValueError(f'Full-CP reference {key} must be {value!r}, found {cfg.get(key)!r}')
     if cfg.get('b_transfer') or cfg.get('b_aggregation'):
         raise ValueError('Reference must be A-only with ordinary sample-weighted B aggregation')
+    required = [source/name for name in ('completion.json', 'command.json', 'partition_manifest.csv',
+                'bridge_metadata.json', 'private_witness_manifest.json', 'class_prior.json',
+                'protocol/full_schedule.json', 'protocol/eri_protocol.json', 'protocol/probe_manifest.csv',
+                'round_metrics.csv', 'budget.csv')]
+    required += [reference_state_path(source, r) for r in REFERENCE_ROUNDS]
+    required += [source/'sfra_rounds'/f'r{r:03d}'/'summary.json' for r in range(1,91)]
+    required += [source/f'per_class_accuracy_epoch_{r-1}.csv' for r in range(101)]
+    missing = [str(p.relative_to(source)) for p in required if not p.is_file()]
+    if missing:
+        raise FileNotFoundError(f'Incomplete Full-CP reference: {source}\nMissing: '+', '.join(missing)+
+            '\nCopy the original saved training results, including .pt models. '
+            'A lightweight analysis archive is not sufficient; do not substitute a new random initialization.')
     if int(read_json(source/'completion.json')['completed_round']) != 100:
         raise ValueError('Full-CP reference must have completed 100 rounds')
-    for name in ('command.json', 'partition_manifest.csv', 'bridge_metadata.json', 'private_witness_manifest.json',
-                 'class_prior.json', 'protocol/full_schedule.json', 'protocol/eri_protocol.json',
-                 'protocol/probe_manifest.csv'):
-        if not (source/name).is_file():
-            raise FileNotFoundError(source/name)
-    missing = [str(reference_state_path(source, r)) for r in REFERENCE_ROUNDS
-               if not reference_state_path(source, r).is_file()]
-    if missing:
-        raise FileNotFoundError('Saved reference models needed for prediction-only origin analysis: '+', '.join(missing))
     norms = {}
     for rnd in range(1,91):
         row = read_json(source/'sfra_rounds'/f'r{rnd:03d}'/'summary.json')
@@ -85,6 +94,49 @@ def validate_source(source):
             raise ValueError(f'Invalid reference norm at round {rnd}')
         norms[str(rnd)] = value
     return cfg, norms
+
+
+def locate_sources(search_roots):
+    """Inspect existing files only; never load models or select by test performance."""
+    candidates, seen = [], set()
+    excluded = {'events', 'bridge_dumps', 'sfra_rounds', 'checkpoints', 'formal_lora',
+                'predictions', '.git', '__pycache__', 'node_modules'}
+    unavailable = []
+    for search_root in search_roots:
+        search_root = Path(search_root).resolve()
+        if not search_root.is_dir():
+            unavailable.append(str(search_root))
+            continue
+        for directory, children, files in os.walk(search_root):
+            children[:] = [c for c in children if c not in excluded]
+            if 'sfra_config.json' not in files:
+                continue
+            source = Path(directory).resolve()
+            if source in seen:
+                continue
+            seen.add(source)
+            try:
+                cfg = read_json(source/'sfra_config.json')
+            except (OSError, ValueError):
+                continue
+            if not isinstance(cfg, dict) or any(cfg.get(k) != v for k,v in dict(
+                    variant='full-cp', retention_weight=10., classification_weight=1., seed=42,
+                    protocol_seed=42, partition='client-longtail').items()):
+                continue
+            if cfg.get('b_transfer') or cfg.get('b_aggregation') or cfg.get('supplement'):
+                continue
+            row = dict(source_run=str(source), ready=False,
+                       has_initial_model=(source/'checkpoints/base_model.pt').is_file())
+            try:
+                validate_source(source)
+                row['ready'] = True
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                row['reason'] = str(error)
+            candidates.append(row)
+    return dict(search_roots=[str(Path(p).resolve()) for p in search_roots],
+                unavailable_search_roots=unavailable,
+                candidates=sorted(candidates, key=lambda r:r['source_run']),
+                note='Read-only file/config inventory; no hashes, model loading, smoke runs or training')
 
 
 def class_groups(counts, tail=None):
