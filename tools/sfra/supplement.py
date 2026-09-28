@@ -323,6 +323,17 @@ def summarize(root, baselines=None, short_roots=()):
     groups = class_groups(prior['counts'], prior['tail_ids'])
     missing = [m for m in METHODS if not (root/m/'completion.json').is_file()]
     runs = {'full-cp': source, **{m:root/m for m in METHODS if m not in missing}}
+    supplement_compatibility = []
+    for method in METHODS:
+        if method in missing:
+            continue
+        run = root/method
+        issues = baseline_compatibility(source, run)
+        supplement_compatibility.append(dict(method=method, run=str(run),
+            strictly_comparable=not issues, issues=issues,
+            reference_execution=jobs[method]['reference_execution'],
+            actual_execution=(read_json(run/'execution_config.json')
+                              if (run/'execution_config.json').is_file() else None)))
     compatibility = []
     for name, path in (baselines or {}).items():
         if name not in ('s', 'flat-cp'):
@@ -379,7 +390,8 @@ def summarize(root, baselines=None, short_roots=()):
         full = next(r for r in results if r['method']=='full-cp' and r['group']==group)
         for r in results:
             if r['method'] != 'full-cp' and r['group']==group:
-                eligible = next((x['strictly_comparable'] for x in compatibility if x['method']==r['method']), True)
+                eligible = next((x['strictly_comparable'] for x in compatibility + supplement_compatibility
+                                 if x['method']==r['method']), True)
                 differences.append(dict(comparison='full-cp minus '+r['method'], group=group,
                     strictly_comparable=eligible, **{k:full[k]-r[k] for k in ('mean81_100', 'final100', 'change90_100')}))
     reference_dir = root/'norm-matched'/'reference_eval'
@@ -407,6 +419,7 @@ def summarize(root, baselines=None, short_roots=()):
                   reference_origin_predictions_ready=reference_ready,
                   common_short_origin_complete=bool(short_rows) and not short_missing,
                   common_short_missing=short_missing, baseline_compatibility=compatibility,
+                  supplement_compatibility=supplement_compatibility,
                   resolved_baselines={k:str(v) for k,v in baselines.items()},
                   resolved_short_roots=[str(v) for v in short_roots],
                   missing_optional_baselines=[m for m in ('s', 'flat-cp') if m not in runs],
@@ -420,11 +433,18 @@ def summarize(root, baselines=None, short_roots=()):
         if r['group'] in ('Overall', 'Medium35', 'Tail20'):
             historical = any(x['method']==r['method'] and not x['strictly_comparable'] for x in compatibility)
             label = r['method'] + ('（历史参考）' if historical else '')
+            if any(x['method']==r['method'] and not x['strictly_comparable'] for x in supplement_compatibility):
+                label += '（与Full配置有差异，见核对记录）'
             report.append(f"| {label} | {r['group']} | {r['mean81_100']:.3f} | {r['final100']:.3f} | {r['change90_100']:+.3f} |")
     if compatibility:
         report += ['', '旧基线配置核对：', '']
         for item in compatibility:
             report.append('- '+item['method']+'：'+('; '.join(item['issues']) if item['issues'] else '已核对的配置字段一致。'))
+    if supplement_compatibility:
+        report += ['', '四组与Full的执行及训练配置核对：', '']
+        for item in supplement_compatibility:
+            report.append('- '+item['method']+'：'+('; '.join(item['issues']) if item['issues'] else '已核对的配置字段一致。'))
+        report.append('若启用v2而旧Full使用其他执行设置，算法控制定义保留，但本报告不声称已验证数值等价。')
     report += ['', '比较口径：', '',
         '- Full对Shuffle：只解释同类不同客户端之间正确权重对应的作用；先看实际改变比例。',
         '- Full对Current：历史目标的条件作用；记录影子历史不等于用它训练。',

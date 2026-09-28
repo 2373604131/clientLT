@@ -39,8 +39,11 @@ class MethodASupplementRuntime(SFRARuntime):
             raise ValueError('Local training schedule/optimizer/LA settings differ from Full-CP')
         reference_execution = (read_json(self.source/'execution_config.json')
                                if (self.source/'execution_config.json').is_file() else None)
-        if self.execution_config != reference_execution:
-            raise ValueError('Execution implementation/settings differ from Full-CP')
+        if self.job['reference_execution'] != reference_execution:
+            raise ValueError('Full-CP execution settings changed since job registration')
+        expected_execution = self.job.get('execution_override', reference_execution)
+        if self.execution_config != expected_execution:
+            raise ValueError('Execution implementation/settings differ from the registered supplement job')
         source_partition = read_csv(self.source/'partition_manifest.csv')
         if source_partition != read_csv(self.root/'partition_manifest.csv'):
             raise ValueError('Actual client partition or sample order differs from Full-CP')
@@ -59,6 +62,8 @@ class MethodASupplementRuntime(SFRARuntime):
         self.norm_targets = self.job['full_effective_norms']
         write_json(self.root/'experiment_definition.json', dict(
             **self.job, actual_execution_config=self.execution_config,
+            execution_matches_reference=self.execution_config == reference_execution,
+            numerical_equivalence='not established by static review; FP32 operation order can differ',
             evaluation='fixed sequential test set; raw logits; training RNG restored',
             initial_b_is_zero=all(torch.count_nonzero(initial[k]).item() == 0 for k in self.b_keys),
             inference_note='Round 0 is task initialization; not automatically a zero-shot CLIP claim'))

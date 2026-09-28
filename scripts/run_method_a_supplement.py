@@ -1,5 +1,6 @@
 """Run the four frozen seed42 100-round A controls; no smoke runs or hash gates."""
 import argparse
+import math
 from pathlib import Path
 import shutil
 import subprocess
@@ -12,6 +13,12 @@ from tools.sfra.supplement import (SCHEMA, METHODS, RULES, read_json, write_json
 
 DEFAULT_SOURCE = REPO/'output/cifar100_LT/sfra_cp/seed42/client-longtail/full-cp/lambda10_mu1_protocol42'
 DEFAULT_OUTPUT = REPO/'output/method_a_supplement_seed42'
+IMPLEMENTATION_FILES = (
+    'federated_main.py', 'utils/cliplora_sfra.py', 'utils/cliplora_la_control.py',
+    'utils/method_a_supplement.py', 'tools/sfra/supplement.py', 'scripts/run_method_a_supplement.py',
+    'utils/sfra_execution.py', 'utils/sfra_fast_feedback.py', 'utils/sfra_resident_feedback.py',
+    'utils/sfra_feedback.py', 'trainers/cliplora.py', 'utils/loralib/layers.py',
+)
 
 
 def set_argument(command, flag, value):
@@ -22,7 +29,7 @@ def set_argument(command, flag, value):
         command[at:at] = [flag, str(value)]
 
 
-def build_command(source, run, data_root, method, resume):
+def build_command(source, run, data_root, method, resume, execution_override=None):
     command = list(read_json(source/'command.json'))
     command[0] = sys.executable
     index = next((i for i, x in enumerate(command) if Path(x).name == 'federated_main.py'), None)
@@ -37,7 +44,7 @@ def build_command(source, run, data_root, method, resume):
         '--sfra_stop_after_round':0, '--method_a_supplement_manifest':run/'supplement_job.json'}
     for flag, value in overrides.items():
         set_argument(command, flag, value)
-    # Execution version, worker count and feedback batch size are inherited, not retuned.
+    # Training and worker settings stay inherited; execution can be explicitly overridden below.
     if '--b_transfer_enable' in command:
         raise ValueError('B transfer must be disabled in the reference command')
     for flag, value in {'--seed':'42', '--split_seed':'42', '--round':'100',
@@ -50,6 +57,11 @@ def build_command(source, run, data_root, method, resume):
     execution = read_json(source/'execution_config.json') if (source/'execution_config.json').is_file() else None
     if bool(execution) != any(f in command for f in ('--sfra_fast_execution', '--sfra_fast_execution_v2')):
         raise ValueError('Reference command and execution_config disagree')
+    if execution_override is not None:
+        command = [x for x in command if x not in ('--sfra_fast_execution', '--sfra_fast_execution_v2')]
+        command.insert(command.index('DATALOADER.NUM_WORKERS'), '--sfra_fast_execution_v2')
+        set_argument(command, '--sfra_feedback_batch_size', execution_override['feedback_forward_batch_size'])
+        set_argument(command, '--sfra_feedback_cache_gib', execution_override['device_cache_gib'])
     return command
 
 
@@ -60,6 +72,10 @@ def train(args):
     if not data.is_dir():
         raise FileNotFoundError('Training data directory: '+str(data))
     _, norms = validate_source(source)
+    execution_override = None
+    if args.fast_execution_v2:
+        from utils.sfra_resident_feedback import execution_config_v2
+        execution_override = execution_config_v2(args.feedback_batch_size, args.feedback_cache_gib)
     methods = METHODS if args.method=='all' else (args.method,)
     results = {}
     for method in methods:
@@ -72,6 +88,9 @@ def train(args):
                                  if (source/'execution_config.json').is_file() else None),
             execution='inherit reference command exactly', hyperparameters='lambda10_mu1',
             test_selection='none; fixed final third correction and fixed 100-round horizon')
+        if execution_override is not None:
+            job.update(execution_override=execution_override,
+                       execution='explicit fast execution v2; training schedule inherited')
         job_path = run/'supplement_job.json'
         if job_path.is_file():
             if read_json(job_path) != job:
@@ -91,9 +110,12 @@ def train(args):
         resume = (run/'checkpoints/sfra_last.pt').is_file()
         if not resume and (run/'round_metrics.csv').is_file():
             raise ValueError('Output has evaluations but no committed checkpoint; preserve it and use a new output root')
-        command = build_command(source, run, data, method, resume)
+        command = build_command(source, run, data, method, resume, execution_override)
         write_json(run/'command.json', command)
-        print(f'{method}: {"resume" if resume else "start"} seed42, 100 rounds, reference execution retained', flush=True)
+        print(f'{method}: {"resume" if resume else "start"} seed42, 100 rounds, {job["execution"]}', flush=True)
+        if execution_override is not None:
+            print(f'Feedback batch={args.feedback_batch_size}, fixed feature device cache <= '
+                  f'{args.feedback_cache_gib:g} GiB; output={run}', flush=True)
         subprocess.run(command, cwd=REPO, check=True)
         if not (run/'completion.json').is_file() or int(read_json(run/'completion.json')['completed_round']) != 100:
             raise RuntimeError('Training exited without a 100-round completion: '+str(run))
@@ -135,8 +157,7 @@ def pack(root, baselines, short_roots):
                 if path.is_file() and (path.name in ('diagnostic_completion.json', 'diagnostic_job.json')
                                      or path.suffix == '.csv' and path.parent.name == 'predictions'):
                     archive.write(path, root.name+'/short_inputs/'+short.name+'/'+path.relative_to(short).as_posix())
-        for name in ('federated_main.py', 'utils/cliplora_sfra.py', 'utils/cliplora_la_control.py',
-                     'utils/method_a_supplement.py', 'tools/sfra/supplement.py', 'scripts/run_method_a_supplement.py'):
+        for name in IMPLEMENTATION_FILES:
             archive.write(REPO/name, root.name+'/implementation/'+name)
     return dict(archive=str(destination), **status)
 
@@ -147,11 +168,25 @@ def main():
     parser.add_argument('--method', choices=('all', *METHODS), default='all')
     parser.add_argument('--seed', type=int, choices=(42,), default=42)
     parser.add_argument('--source-run', type=Path, default=DEFAULT_SOURCE)
-    parser.add_argument('--output-root', type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument('--output-root', type=Path,
+                        help='Defaults to a separate fast_v2_f<BATCH>_c<GiB> directory when v2 is enabled')
     parser.add_argument('--data-root', type=Path, default=REPO/'DATA')
+    parser.add_argument('--fast-execution-v2', action='store_true',
+                        help='Opt in to cached FP32 execution while preserving the training protocol')
+    parser.add_argument('--feedback-batch-size', type=int, default=128)
+    parser.add_argument('--feedback-cache-gib', type=float, default=4.)
     parser.add_argument('--baseline', action='append', default=[], metavar='NAME=PATH')
     parser.add_argument('--short-root', type=Path, action='append', default=[])
     args = parser.parse_args()
+    if args.feedback_batch_size < 8:
+        parser.error('--feedback-batch-size must be at least 8')
+    if not math.isfinite(args.feedback_cache_gib) or not 0 <= args.feedback_cache_gib <= 4:
+        parser.error('--feedback-cache-gib must be finite and between 0 and 4')
+    if not args.fast_execution_v2 and (args.feedback_batch_size != 128 or args.feedback_cache_gib != 4):
+        parser.error('Feedback overrides require --fast-execution-v2')
+    if args.output_root is None:
+        suffix = f'_fast_v2_f{args.feedback_batch_size}_c{args.feedback_cache_gib:g}' if args.fast_execution_v2 else ''
+        args.output_root = DEFAULT_OUTPUT.with_name(DEFAULT_OUTPUT.name + suffix)
     baselines = baseline_arguments(args.baseline)
     if args.stage=='train':
         result = train(args)
