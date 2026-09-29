@@ -41,6 +41,8 @@ def run_directory(args):
         if getattr(args, 'directed_b', False):
             target = args.tail_client_ids.replace(',', '-') if args.tail_client_ids else 'protocol'
             setting += f'_directed_k{args.donors_per_class}_g{args.donor_min_gain:g}_targets{target}'
+        if getattr(args, 'response_b', False):
+            setting += f'_responseC_{args.response_variant}_rw{args.response_weight:g}'
     if getattr(args, 'b_aggregation', 'sample') == 'uniform-transfer-rounds':
         setting += '_bagg_uniform8'
     if getattr(args, 'fast_execution_v2', False):
@@ -78,7 +80,8 @@ def prepare_protocol(args, run):
 
 
 def main(default_b_transfer=False, default_transfer_mode='local',
-         default_non_tail_sampling='sample', default_tail_weight=.5, default_problem2='off', default_directed=False):
+         default_non_tail_sampling='sample', default_tail_weight=.5, default_problem2='off', default_directed=False,
+         default_response=False):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--stage', choices=['train', 'summary', 'pack'], default='train')
     parser.add_argument('--method', choices=['s', 'current', 'full', 'flat', 'full-cp', 'flat-cp', 'current-cp'],
@@ -105,6 +108,11 @@ def main(default_b_transfer=False, default_transfer_mode='local',
     parser.add_argument('--donors-per-class', type=int, default=3)
     parser.add_argument('--donor-min-gain', type=float, default=1e-6)
     parser.add_argument('--tail-client-ids', default='', help='Comma-separated protocol target IDs; default derives Client-LT tail group')
+    parser.add_argument('--response-b', action='store_true', default=default_response,
+                        help='Independent donor C trained with class-conditioned positive response targets')
+    parser.add_argument('--response-variant', choices=['positive', 'zero'], default='positive',
+                        help='zero: matched C control with measured positive teacher increments set to zero')
+    parser.add_argument('--response-weight', type=float, default=1., help='Response loss coefficient; response B only')
     parser.add_argument('--classification-weight', type=float, default=1., help='Classification preservation mu; all -cp variants')
     parser.add_argument('--partition', choices=['client-longtail', 'noniid-labeldir-fine'], default='client-longtail')
     parser.add_argument('--dirichlet-beta', type=float, default=.5)
@@ -134,7 +142,8 @@ def main(default_b_transfer=False, default_transfer_mode='local',
     args = parser.parse_args()
     os.chdir(REPO)
     if args.output_root is None:
-        name = ('sfra_b_directed' if args.directed_b else
+        name = ('sfra_b_response' if args.response_b else
+                'sfra_b_directed' if args.directed_b else
                 'sfra_b_problem2' if args.problem2_variant != 'off' else
                 'sfra_b_shared_tradeoff' if shared_tradeoff_enabled(args) else
                 'sfra_b_shared_transfer' if args.b_transfer and args.transfer_mode == 'shared' else
@@ -147,6 +156,13 @@ def main(default_b_transfer=False, default_transfer_mode='local',
         if args.stage == 'pack':
             pack(args.output_root)
         return
+    if args.response_b:
+        if not args.directed_b:
+            parser.error('Response B requires --directed-b target/source rules')
+        if not math.isfinite(args.response_weight) or args.response_weight <= 0:
+            parser.error('--response-weight must be finite and positive')
+    elif args.response_variant != 'positive' or args.response_weight != 1.:
+        parser.error('Response options require --response-b')
     if args.directed_b:
         if not (args.b_transfer and args.transfer_mode == 'shared' and args.b_aggregation == 'sample'):
             parser.error('Directed B requires shared transfer with ordinary sample-weighted B')
@@ -225,6 +241,15 @@ def main(default_b_transfer=False, default_transfer_mode='local',
                                 ('--b_directed_tail_clients', args.tail_client_ids)]:
                 if flag not in command or command[command.index(flag)+1] != value:
                     parser.error('Directed-B resume differs from the saved configuration')
+        if args.response_b:
+            if '--b_response_enable' not in command:
+                parser.error('Cannot resume a previous B method as response C')
+            for flag, value in [('--b_response_variant', args.response_variant),
+                                ('--b_response_weight', str(args.response_weight))]:
+                if flag not in command or command[command.index(flag)+1] != value:
+                    parser.error('Response-C resume differs from the saved configuration')
+        elif '--b_response_enable' in command:
+            parser.error('A response-C checkpoint must use its original response entrypoint')
         print('Resuming the ORIGINAL saved configuration; only an explicit stop-after-round may change.', flush=True)
     else:
         if run.exists() and any(run.iterdir()):
@@ -272,6 +297,10 @@ def main(default_b_transfer=False, default_transfer_mode='local',
                 index = command.index('DATALOADER.NUM_WORKERS')
                 command[index:index] = ['--b_directed_enable', '--b_directed_topk', str(args.donors_per_class),
                     '--b_directed_min_gain', str(args.donor_min_gain), '--b_directed_tail_clients', args.tail_client_ids]
+            if args.response_b:
+                index = command.index('DATALOADER.NUM_WORKERS')
+                command[index:index] = ['--b_response_enable', '--b_response_variant', args.response_variant,
+                                       '--b_response_weight', str(args.response_weight)]
     if args.stop_after_round is not None:
         flag = '--sfra_stop_after_round'
         if flag in command:

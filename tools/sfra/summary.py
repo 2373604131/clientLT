@@ -31,6 +31,7 @@ def summarize(root, reference=None):
     transfer_rounds, transfer_receivers, transfer_steps, transfer_probes = [], [], [], []
     transfer_loss_traces = []
     directed_sources, directed_probes = [], []
+    response_tables = {name: [] for name in ('source_weights', 'donor_scores', 'response_metrics')}
     problem2_tables = {name: [] for name in ('class_weights', 'class_loss_trace', 'class_changes', 'class_change_summary')}
     aggregation_rows = []
     for run in paths:
@@ -73,10 +74,15 @@ def summarize(root, reference=None):
                                 directed_min_gain=transfer['min_gain'],
                                 directed_target_clients=json.dumps(transfer['target_clients']))
                     info['method'] += '-tail-directed'
+                if transfer.get('calibration_profile') == 'tail_response':
+                    info.update(response_variant=transfer['response_variant'], response_weight=transfer['response_weight'],
+                                response_topk=transfer['donors_per_class'], response_min_gain=transfer['min_gain'],
+                                response_target_clients=json.dumps(transfer['target_clients']))
+                    info['method'] += '-tail-response-' + transfer['response_variant']
         row = dict(info)
         for metric in METRICS:
             row['last20_'+metric] = sum(float(r[metric]) for r in final20)/20
-        if transfer and transfer.get('calibration_profile') in ('problem2', 'tail_directed'):
+        if transfer and transfer.get('calibration_profile') in ('problem2', 'tail_directed', 'tail_response'):
             from tools.sfra.b_problem2 import frequency_metrics
             row.update(frequency_metrics(run))
         trained = [r for r in rows if int(r['round']) > 0]
@@ -121,6 +127,9 @@ def summarize(root, reference=None):
                     if transfer.get('calibration_profile') == 'tail_directed':
                         for name, destination in [('source_weights', directed_sources), ('donor_scores', directed_probes)]:
                             destination.extend({**info, **r} for r in read_csv(folder/f'{name}.csv'))
+                    if transfer.get('calibration_profile') == 'tail_response':
+                        for name, destination in response_tables.items():
+                            destination.extend({**info, **r} for r in read_csv(folder/f'{name}.csv'))
     for name, rows in [('performance',performance),('functional_costs',costs),('curves',curves),
                        ('mechanisms',mechanisms),('correction_steps',corrections),('status',status)]:
         write_csv(out/f'{name}.csv', rows)
@@ -135,6 +144,9 @@ def summarize(root, reference=None):
     if any('directed_topk' in r for r in performance):
         write_csv(out/'b_directed_sources.csv', directed_sources)
         write_csv(out/'b_directed_probes.csv', directed_probes)
+    if any('response_variant' in r for r in performance):
+        for name, values in response_tables.items():
+            write_csv(out/f'b_response_{name}.csv', values)
     for name, rows in problem2_tables.items():
         if rows:
             write_csv(out/f'b_problem2_{name}.csv', rows)
@@ -173,7 +185,7 @@ def summarize(root, reference=None):
                   'committed_global includes the subsequent A update (none in round 100); it is not a no-transfer counterfactual.',
                   'Local non-tail monitoring is a fixed at-most-16-image subset, not the full non-tail test set.',
                   'Transfer group scores average present classes within each receiver, then average receivers; they are not official global class-macro accuracy.']
-    if any(r.get('transfer_mode') == 'shared' and 'directed_topk' not in r for r in performance):
+    if any(r.get('transfer_mode') == 'shared' and 'directed_topk' not in r and 'response_variant' not in r for r in performance):
         lines += ['', '## Shared-model B transfer', '',
                   'B-shared uses the original tail-present recipients, two calibration batches and unchanged tail sample positions.',
                   'The original profile keeps image-uniform non-tail sampling and 50:50 group LA; the tradeoff profile is labeled separately.',
@@ -222,6 +234,22 @@ def summarize(root, reference=None):
                   'Directed phase tail_la/tail_accuracy are class macro metrics across the complete target training pool, overriding the legacy recipient mean.',
                   'Tail-only training-side feedback is not held-out validation or proof of test improvement. Interpret official Tail20 separately.',
                   'Original/tradeoff/problem2 runs remain different methods and cannot be resumed as tail-directed runs.']
+    if any('response_variant' in r for r in performance):
+        from utils.b_directed_math import PURPOSE
+        lines += ['', '## Tail-response donor C', '', PURPOSE, '',
+                  'Independent C per donor/module; only protocol target-client tail training images supervise it.',
+                  'Source eligibility: outside target group and missing the specific target class.',
+                  'Top-K uses min-view class-mean raw decision-margin improvement at a common post-FedAvg baseline.',
+                  'Frozen class edges define teacher increments even when donor unions match; no class-mixture C.',
+                  'Mix donor margin increments first, then retain the positive minimum across two deterministic views.',
+                  'C minimizes class-macro tail LA plus one-sided response deficits and one matrix penalty.',
+                  'The zero arm retains screening, independent donor C and baseline targets, zeroing only the teacher increment.',
+                  'Both arms skip events only when the measured pre-ablation increment is absent; they can later follow different trajectories.',
+                  'This compares response supervision; zero still uses donor updates and is not a no-donor baseline.',
+                  'response_targets.npz stores labels, local positions, teacher/student logits and targets, not raw images.',
+                  'C loss traces use the same full tail pool and both views, not the legacy two sampled batches.',
+                  'Training-side response attainment is separate from official Tail20 test accuracy; there is no test-based gate.',
+                  'Old A-only/shared/tradeoff/directed results are reference methods, not a matched ablation of each new design choice.']
     (out/'report.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
     print(f'Summary written: {out/"report.md"}', flush=True)
 

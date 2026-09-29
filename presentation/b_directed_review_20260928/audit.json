@@ -1,0 +1,3193 @@
+{
+  "runs": [
+    {
+      "run": "A_only",
+      "path": "output\\sfra_cp_analysis\\sfra_cp\\seed42\\client-longtail\\full-cp\\lambda10_mu1_protocol42",
+      "hashes": {
+        "initial_lora_sha256": "b5473d9ee219cda6683eae5cf3d5bd6715e37187ed82741a0774614638072ff4",
+        "frozen_model_sha256": "afbfe7df45cfb8e08456b8969d5f377f5bf7566650cee1f388a13cb00d98dc76",
+        "schedule_sha256": "781448d818c69ce6bffc451c5d3c76a05a10891aeb4bb73298fbd647c840d0b9",
+        "pool_sha256": "ade06e329d71eee3f96e3ae1a8d56df5ead0979230bb61aa91e641b278fdc769",
+        "test_sha256": "e69cc87c480dc1049c777b76c360dc1644b48023f15667c44b178648ade75770",
+        "probe_images_sha256": "d14b5b233ca551a2709eb8fefcba25d0655f3e88af74f5475672a6fe34ac316f",
+        "probe_manifest_sha256": "8a43f25c87036442c611f69fb3dedc592ad96bbbf64b16fe2883b63a2ce1fc43"
+      },
+      "partition_sha256": "cb41d01f365c4cd96b52ea1a45c068f639d61de207e38b1a1b023b909812265c",
+      "witness_sha256": "e83753509fc5cefda4ecca017e45044f95a2d964c32252f5c3c3e6a907b5de2b",
+      "execution": null
+    },
+    {
+      "run": "old_shared",
+      "path": "output\\sfra_b_shared_transfer_analysis\\sfra_b_shared_transfer\\seed42\\client-longtail\\full-cp\\lambda10_mu1_protocol42_bshared_b_lr0.3_probe0.1_reg0.001_fast_v2_f64_c4",
+      "hashes": {
+        "initial_lora_sha256": "b5473d9ee219cda6683eae5cf3d5bd6715e37187ed82741a0774614638072ff4",
+        "frozen_model_sha256": "afbfe7df45cfb8e08456b8969d5f377f5bf7566650cee1f388a13cb00d98dc76",
+        "schedule_sha256": "781448d818c69ce6bffc451c5d3c76a05a10891aeb4bb73298fbd647c840d0b9",
+        "pool_sha256": "ade06e329d71eee3f96e3ae1a8d56df5ead0979230bb61aa91e641b278fdc769",
+        "test_sha256": "e69cc87c480dc1049c777b76c360dc1644b48023f15667c44b178648ade75770",
+        "probe_images_sha256": "d14b5b233ca551a2709eb8fefcba25d0655f3e88af74f5475672a6fe34ac316f",
+        "probe_manifest_sha256": "8a43f25c87036442c611f69fb3dedc592ad96bbbf64b16fe2883b63a2ce1fc43"
+      },
+      "partition_sha256": "cb41d01f365c4cd96b52ea1a45c068f639d61de207e38b1a1b023b909812265c",
+      "witness_sha256": "e83753509fc5cefda4ecca017e45044f95a2d964c32252f5c3c3e6a907b5de2b",
+      "execution": {
+        "version": 2,
+        "text_cache": true,
+        "witness_image_cache": true,
+        "frozen_visual_prefix_cache": "bounded_cuda_with_cpu_fallback_original_dtype",
+        "lora_only_restore": true,
+        "low_rank_forward": true,
+        "feedback_forward_batch_size": 64,
+        "feedback_batching": "within_client; individual source gradients retained",
+        "zero_gradient_skip": "disabled_to_avoid_host_synchronization",
+        "device_cache_gib": 4.0,
+        "device_cache_reserve_gib": 4.0,
+        "token_reduction": "batched_matrix_sum_then_divide",
+        "source_finite_checks": "at_evaluation_boundary_before_return"
+      }
+    },
+    {
+      "run": "w0.2",
+      "path": "output\\sfra_b_shared_tradeoff_analysis\\sfra_b_shared_tradeoff\\seed42\\client-longtail\\full-cp\\lambda10_mu1_protocol42_bshared_b_lr0.3_probe0.1_reg0.001_ntclass-cyclic_tw0.2_fast_v2_f128_c4",
+      "hashes": {
+        "initial_lora_sha256": "b5473d9ee219cda6683eae5cf3d5bd6715e37187ed82741a0774614638072ff4",
+        "frozen_model_sha256": "afbfe7df45cfb8e08456b8969d5f377f5bf7566650cee1f388a13cb00d98dc76",
+        "schedule_sha256": "781448d818c69ce6bffc451c5d3c76a05a10891aeb4bb73298fbd647c840d0b9",
+        "pool_sha256": "ade06e329d71eee3f96e3ae1a8d56df5ead0979230bb61aa91e641b278fdc769",
+        "test_sha256": "e69cc87c480dc1049c777b76c360dc1644b48023f15667c44b178648ade75770",
+        "probe_images_sha256": "d14b5b233ca551a2709eb8fefcba25d0655f3e88af74f5475672a6fe34ac316f",
+        "probe_manifest_sha256": "8a43f25c87036442c611f69fb3dedc592ad96bbbf64b16fe2883b63a2ce1fc43"
+      },
+      "partition_sha256": "cb41d01f365c4cd96b52ea1a45c068f639d61de207e38b1a1b023b909812265c",
+      "witness_sha256": "e83753509fc5cefda4ecca017e45044f95a2d964c32252f5c3c3e6a907b5de2b",
+      "execution": {
+        "version": 2,
+        "text_cache": true,
+        "witness_image_cache": true,
+        "frozen_visual_prefix_cache": "bounded_cuda_with_cpu_fallback_original_dtype",
+        "lora_only_restore": true,
+        "low_rank_forward": true,
+        "feedback_forward_batch_size": 128,
+        "feedback_batching": "within_client; individual source gradients retained",
+        "zero_gradient_skip": "disabled_to_avoid_host_synchronization",
+        "device_cache_gib": 4.0,
+        "device_cache_reserve_gib": 4.0,
+        "token_reduction": "batched_matrix_sum_then_divide",
+        "source_finite_checks": "at_evaluation_boundary_before_return"
+      }
+    },
+    {
+      "run": "w0.35",
+      "path": "output\\sfra_b_shared_tradeoff_analysis\\sfra_b_shared_tradeoff\\seed42\\client-longtail\\full-cp\\lambda10_mu1_protocol42_bshared_b_lr0.3_probe0.1_reg0.001_ntclass-cyclic_tw0.35_fast_v2_f128_c4",
+      "hashes": {
+        "initial_lora_sha256": "b5473d9ee219cda6683eae5cf3d5bd6715e37187ed82741a0774614638072ff4",
+        "frozen_model_sha256": "afbfe7df45cfb8e08456b8969d5f377f5bf7566650cee1f388a13cb00d98dc76",
+        "schedule_sha256": "781448d818c69ce6bffc451c5d3c76a05a10891aeb4bb73298fbd647c840d0b9",
+        "pool_sha256": "ade06e329d71eee3f96e3ae1a8d56df5ead0979230bb61aa91e641b278fdc769",
+        "test_sha256": "e69cc87c480dc1049c777b76c360dc1644b48023f15667c44b178648ade75770",
+        "probe_images_sha256": "d14b5b233ca551a2709eb8fefcba25d0655f3e88af74f5475672a6fe34ac316f",
+        "probe_manifest_sha256": "8a43f25c87036442c611f69fb3dedc592ad96bbbf64b16fe2883b63a2ce1fc43"
+      },
+      "partition_sha256": "cb41d01f365c4cd96b52ea1a45c068f639d61de207e38b1a1b023b909812265c",
+      "witness_sha256": "e83753509fc5cefda4ecca017e45044f95a2d964c32252f5c3c3e6a907b5de2b",
+      "execution": {
+        "version": 2,
+        "text_cache": true,
+        "witness_image_cache": true,
+        "frozen_visual_prefix_cache": "bounded_cuda_with_cpu_fallback_original_dtype",
+        "lora_only_restore": true,
+        "low_rank_forward": true,
+        "feedback_forward_batch_size": 128,
+        "feedback_batching": "within_client; individual source gradients retained",
+        "zero_gradient_skip": "disabled_to_avoid_host_synchronization",
+        "device_cache_gib": 4.0,
+        "device_cache_reserve_gib": 4.0,
+        "token_reduction": "batched_matrix_sum_then_divide",
+        "source_finite_checks": "at_evaluation_boundary_before_return"
+      }
+    },
+    {
+      "run": "w0.5",
+      "path": "output\\sfra_b_shared_tradeoff_analysis\\sfra_b_shared_tradeoff\\seed42\\client-longtail\\full-cp\\lambda10_mu1_protocol42_bshared_b_lr0.3_probe0.1_reg0.001_ntclass-cyclic_tw0.5_fast_v2_f128_c4",
+      "hashes": {
+        "initial_lora_sha256": "b5473d9ee219cda6683eae5cf3d5bd6715e37187ed82741a0774614638072ff4",
+        "frozen_model_sha256": "afbfe7df45cfb8e08456b8969d5f377f5bf7566650cee1f388a13cb00d98dc76",
+        "schedule_sha256": "781448d818c69ce6bffc451c5d3c76a05a10891aeb4bb73298fbd647c840d0b9",
+        "pool_sha256": "ade06e329d71eee3f96e3ae1a8d56df5ead0979230bb61aa91e641b278fdc769",
+        "test_sha256": "e69cc87c480dc1049c777b76c360dc1644b48023f15667c44b178648ade75770",
+        "probe_images_sha256": "d14b5b233ca551a2709eb8fefcba25d0655f3e88af74f5475672a6fe34ac316f",
+        "probe_manifest_sha256": "8a43f25c87036442c611f69fb3dedc592ad96bbbf64b16fe2883b63a2ce1fc43"
+      },
+      "partition_sha256": "cb41d01f365c4cd96b52ea1a45c068f639d61de207e38b1a1b023b909812265c",
+      "witness_sha256": "e83753509fc5cefda4ecca017e45044f95a2d964c32252f5c3c3e6a907b5de2b",
+      "execution": {
+        "version": 2,
+        "text_cache": true,
+        "witness_image_cache": true,
+        "frozen_visual_prefix_cache": "bounded_cuda_with_cpu_fallback_original_dtype",
+        "lora_only_restore": true,
+        "low_rank_forward": true,
+        "feedback_forward_batch_size": 128,
+        "feedback_batching": "within_client; individual source gradients retained",
+        "zero_gradient_skip": "disabled_to_avoid_host_synchronization",
+        "device_cache_gib": 4.0,
+        "device_cache_reserve_gib": 4.0,
+        "token_reduction": "batched_matrix_sum_then_divide",
+        "source_finite_checks": "at_evaluation_boundary_before_return"
+      }
+    },
+    {
+      "run": "directed",
+      "path": "output\\sfra_b_directed_analysis\\sfra_b_directed\\seed42\\client-longtail\\full-cp\\lambda10_mu1_protocol42_bshared_b_lr0.3_probe0.1_reg0.001_directed_k3_g1e-06_targetsprotocol_fast_v2_f128_c4",
+      "hashes": {
+        "initial_lora_sha256": "b5473d9ee219cda6683eae5cf3d5bd6715e37187ed82741a0774614638072ff4",
+        "frozen_model_sha256": "afbfe7df45cfb8e08456b8969d5f377f5bf7566650cee1f388a13cb00d98dc76",
+        "schedule_sha256": "781448d818c69ce6bffc451c5d3c76a05a10891aeb4bb73298fbd647c840d0b9",
+        "pool_sha256": "ade06e329d71eee3f96e3ae1a8d56df5ead0979230bb61aa91e641b278fdc769",
+        "test_sha256": "e69cc87c480dc1049c777b76c360dc1644b48023f15667c44b178648ade75770",
+        "probe_images_sha256": "d14b5b233ca551a2709eb8fefcba25d0655f3e88af74f5475672a6fe34ac316f",
+        "probe_manifest_sha256": "8a43f25c87036442c611f69fb3dedc592ad96bbbf64b16fe2883b63a2ce1fc43"
+      },
+      "partition_sha256": "cb41d01f365c4cd96b52ea1a45c068f639d61de207e38b1a1b023b909812265c",
+      "witness_sha256": "e83753509fc5cefda4ecca017e45044f95a2d964c32252f5c3c3e6a907b5de2b",
+      "execution": {
+        "version": 2,
+        "text_cache": true,
+        "witness_image_cache": true,
+        "frozen_visual_prefix_cache": "bounded_cuda_with_cpu_fallback_original_dtype",
+        "lora_only_restore": true,
+        "low_rank_forward": true,
+        "feedback_forward_batch_size": 128,
+        "feedback_batching": "within_client; individual source gradients retained",
+        "zero_gradient_skip": "disabled_to_avoid_host_synchronization",
+        "device_cache_gib": 4.0,
+        "device_cache_reserve_gib": 4.0,
+        "token_reduction": "batched_matrix_sum_then_divide",
+        "source_finite_checks": "at_evaluation_boundary_before_return"
+      }
+    }
+  ],
+  "target_clients": [
+    27,
+    28,
+    29
+  ],
+  "target_samples": 119,
+  "target_class_totals": {
+    "80": 9,
+    "81": 9,
+    "82": 8,
+    "83": 8,
+    "84": 8,
+    "85": 7,
+    "86": 7,
+    "87": 6,
+    "88": 6,
+    "89": 5,
+    "90": 5,
+    "91": 5,
+    "92": 5,
+    "93": 5,
+    "94": 5,
+    "95": 5,
+    "96": 4,
+    "97": 4,
+    "98": 4,
+    "99": 4
+  },
+  "target_receiver_class_units": 39,
+  "performance": [
+    {
+      "run": "A_only",
+      "last20_overall_acc": 70.633,
+      "final_overall_acc": 70.79,
+      "last20_head20_acc": 76.105,
+      "final_head20_acc": 76.3,
+      "last20_middle60_acc": 68.70833333333333,
+      "final_middle60_acc": 69.0,
+      "last20_bottom20_tail_acc": 70.935,
+      "final_bottom20_tail_acc": 70.65,
+      "last20_non_tail_acc": 70.5575,
+      "final_non_tail_acc": 70.825,
+      "last20_many": 73.13142857142857,
+      "last20_medium": 68.60142857142857,
+      "last20_few": 70.08833333333334,
+      "tail_delta_vs_A_pp": 0.0
+    },
+    {
+      "run": "old_shared",
+      "last20_overall_acc": 70.7025,
+      "final_overall_acc": 70.82,
+      "last20_head20_acc": 76.16,
+      "final_head20_acc": 76.5,
+      "last20_middle60_acc": 68.755,
+      "final_middle60_acc": 68.93333333333334,
+      "last20_bottom20_tail_acc": 71.0875,
+      "final_bottom20_tail_acc": 70.8,
+      "last20_non_tail_acc": 70.60625,
+      "final_non_tail_acc": 70.825,
+      "last20_many": 73.15142857142857,
+      "last20_medium": 68.46142857142857,
+      "last20_few": 70.46,
+      "tail_delta_vs_A_pp": 0.1525000000000034
+    },
+    {
+      "run": "w0.2",
+      "last20_overall_acc": 70.69200000000001,
+      "final_overall_acc": 70.95,
+      "last20_head20_acc": 75.9275,
+      "final_head20_acc": 76.35,
+      "last20_middle60_acc": 68.8075,
+      "final_middle60_acc": 69.11666666666666,
+      "last20_bottom20_tail_acc": 71.11,
+      "final_bottom20_tail_acc": 71.05,
+      "last20_non_tail_acc": 70.5875,
+      "final_non_tail_acc": 70.925,
+      "last20_many": 73.03285714285714,
+      "last20_medium": 68.56285714285714,
+      "last20_few": 70.445,
+      "tail_delta_vs_A_pp": 0.17499999999999716
+    },
+    {
+      "run": "w0.35",
+      "last20_overall_acc": 70.6965,
+      "final_overall_acc": 70.86,
+      "last20_head20_acc": 75.955,
+      "final_head20_acc": 76.4,
+      "last20_middle60_acc": 68.79,
+      "final_middle60_acc": 68.96666666666667,
+      "last20_bottom20_tail_acc": 71.1575,
+      "final_bottom20_tail_acc": 71.0,
+      "last20_non_tail_acc": 70.58125,
+      "final_non_tail_acc": 70.825,
+      "last20_many": 73.03571428571429,
+      "last20_medium": 68.53857142857143,
+      "last20_few": 70.485,
+      "tail_delta_vs_A_pp": 0.2224999999999966
+    },
+    {
+      "run": "w0.5",
+      "last20_overall_acc": 70.7065,
+      "final_overall_acc": 70.88,
+      "last20_head20_acc": 76.07,
+      "final_head20_acc": 76.5,
+      "last20_middle60_acc": 68.77583333333334,
+      "final_middle60_acc": 69.0,
+      "last20_bottom20_tail_acc": 71.135,
+      "final_bottom20_tail_acc": 70.9,
+      "last20_non_tail_acc": 70.599375,
+      "final_non_tail_acc": 70.875,
+      "last20_many": 73.10571428571428,
+      "last20_medium": 68.48714285714286,
+      "last20_few": 70.49666666666667,
+      "tail_delta_vs_A_pp": 0.20000000000000284
+    },
+    {
+      "run": "directed",
+      "last20_overall_acc": 70.6475,
+      "final_overall_acc": 70.81,
+      "last20_head20_acc": 76.16250000000001,
+      "final_head20_acc": 76.5,
+      "last20_middle60_acc": 68.72,
+      "final_middle60_acc": 68.9,
+      "last20_bottom20_tail_acc": 70.915,
+      "final_bottom20_tail_acc": 70.85,
+      "last20_non_tail_acc": 70.580625,
+      "final_non_tail_acc": 70.8,
+      "last20_many": 73.14714285714285,
+      "last20_medium": 68.57000000000001,
+      "last20_few": 70.155,
+      "tail_delta_vs_A_pp": -0.01999999999999602
+    }
+  ],
+  "events": [
+    {
+      "round": 30,
+      "candidate_pairs": 506,
+      "positive_pairs": 255,
+      "selected_pairs": 60,
+      "unique_donors": 22,
+      "supported_classes": 20,
+      "mean_B_la_gain": 0.010377977382362135,
+      "mean_A_la_gain": 0.0005023833889780317,
+      "improved_classes": 13,
+      "harmed_classes": 7,
+      "accuracy_improved_classes": 0,
+      "accuracy_harmed_classes": 0,
+      "mean_B_accuracy_delta_pp": 0.0,
+      "transfer_norm": 0.01585520875523483,
+      "ordinary_update_norm": 0.008491785934534118,
+      "norm_ratio": 1.8671229912609293,
+      "objective_before": 2.585085153579712,
+      "objective_after_first": 2.580775721311569,
+      "objective_after_second": 2.577052871628885,
+      "final_regularization": 0.0023459950530862273,
+      "algorithm_forward_images": 3351,
+      "algorithm_backward_images": 238,
+      "seconds": 14.048661543871276
+    },
+    {
+      "round": 40,
+      "candidate_pairs": 506,
+      "positive_pairs": 250,
+      "selected_pairs": 60,
+      "unique_donors": 23,
+      "supported_classes": 20,
+      "mean_B_la_gain": 0.011019881467615848,
+      "mean_A_la_gain": -0.00038479291198271863,
+      "improved_classes": 14,
+      "harmed_classes": 6,
+      "accuracy_improved_classes": 0,
+      "accuracy_harmed_classes": 0,
+      "mean_B_accuracy_delta_pp": 0.0,
+      "transfer_norm": 0.014645449701886444,
+      "ordinary_update_norm": 0.007103462465622024,
+      "norm_ratio": 2.0617339463345776,
+      "objective_before": 2.580955445766449,
+      "objective_after_first": 2.576374570965767,
+      "objective_after_second": 2.572388781502197,
+      "final_regularization": 0.0024540856675041465,
+      "algorithm_forward_images": 3351,
+      "algorithm_backward_images": 238,
+      "seconds": 13.921825134078972
+    },
+    {
+      "round": 50,
+      "candidate_pairs": 506,
+      "positive_pairs": 241,
+      "selected_pairs": 60,
+      "unique_donors": 23,
+      "supported_classes": 20,
+      "mean_B_la_gain": 0.010275665808409875,
+      "mean_A_la_gain": 0.00015729911322338546,
+      "improved_classes": 13,
+      "harmed_classes": 7,
+      "accuracy_improved_classes": 1,
+      "accuracy_harmed_classes": 0,
+      "mean_B_accuracy_delta_pp": 1.0,
+      "transfer_norm": 0.015919812859562114,
+      "ordinary_update_norm": 0.006283886608857333,
+      "norm_ratio": 2.5334341388532766,
+      "objective_before": 2.588833510875702,
+      "objective_after_first": 2.584585727572441,
+      "objective_after_second": 2.5810413814815156,
+      "final_regularization": 0.0024839518636976627,
+      "algorithm_forward_images": 3351,
+      "algorithm_backward_images": 238,
+      "seconds": 14.449650330934674
+    },
+    {
+      "round": 60,
+      "candidate_pairs": 506,
+      "positive_pairs": 246,
+      "selected_pairs": 60,
+      "unique_donors": 24,
+      "supported_classes": 20,
+      "mean_B_la_gain": 0.010290401627694007,
+      "mean_A_la_gain": -0.0003413433474414622,
+      "improved_classes": 14,
+      "harmed_classes": 6,
+      "accuracy_improved_classes": 0,
+      "accuracy_harmed_classes": 0,
+      "mean_B_accuracy_delta_pp": 0.0,
+      "transfer_norm": 0.017826948188675737,
+      "ordinary_update_norm": 0.005778138726220704,
+      "norm_ratio": 3.0852405996724444,
+      "objective_before": 2.5997642278671265,
+      "objective_after_first": 2.5954634234905245,
+      "objective_after_second": 2.591956330501682,
+      "final_regularization": 0.002482855713823862,
+      "algorithm_forward_images": 3351,
+      "algorithm_backward_images": 238,
+      "seconds": 13.866513180080801
+    },
+    {
+      "round": 70,
+      "candidate_pairs": 506,
+      "positive_pairs": 244,
+      "selected_pairs": 60,
+      "unique_donors": 23,
+      "supported_classes": 20,
+      "mean_B_la_gain": 0.00961307679753872,
+      "mean_A_la_gain": -0.000464367510839617,
+      "improved_classes": 14,
+      "harmed_classes": 6,
+      "accuracy_improved_classes": 0,
+      "accuracy_harmed_classes": 0,
+      "mean_B_accuracy_delta_pp": 0.0,
+      "transfer_norm": 0.013665012902151344,
+      "ordinary_update_norm": 0.005352412934361236,
+      "norm_ratio": 2.5530565503317515,
+      "objective_before": 2.6108981370925903,
+      "objective_after_first": 2.607072678565979,
+      "objective_after_second": 2.6037647459703996,
+      "final_regularization": 0.0024807822912708117,
+      "algorithm_forward_images": 3351,
+      "algorithm_backward_images": 238,
+      "seconds": 13.888350709923543
+    },
+    {
+      "round": 80,
+      "candidate_pairs": 506,
+      "positive_pairs": 239,
+      "selected_pairs": 60,
+      "unique_donors": 23,
+      "supported_classes": 20,
+      "mean_B_la_gain": 0.010018752847857276,
+      "mean_A_la_gain": 2.6224106624147657e-05,
+      "improved_classes": 14,
+      "harmed_classes": 6,
+      "accuracy_improved_classes": 0,
+      "accuracy_harmed_classes": 0,
+      "mean_B_accuracy_delta_pp": 0.0,
+      "transfer_norm": 0.012721040599811856,
+      "ordinary_update_norm": 0.005211723716963408,
+      "norm_ratio": 2.4408509143350607,
+      "objective_before": 2.6213550567626953,
+      "objective_after_first": 2.6173347362279893,
+      "objective_after_second": 2.613886944605416,
+      "final_regularization": 0.0025510990791969427,
+      "algorithm_forward_images": 3351,
+      "algorithm_backward_images": 238,
+      "seconds": 13.964799953973852
+    },
+    {
+      "round": 90,
+      "candidate_pairs": 506,
+      "positive_pairs": 247,
+      "selected_pairs": 60,
+      "unique_donors": 23,
+      "supported_classes": 20,
+      "mean_B_la_gain": 0.009788525842189272,
+      "mean_A_la_gain": 0.00029581491924116033,
+      "improved_classes": 14,
+      "harmed_classes": 6,
+      "accuracy_improved_classes": 0,
+      "accuracy_harmed_classes": 0,
+      "mean_B_accuracy_delta_pp": 0.0,
+      "transfer_norm": 0.012493158208110571,
+      "ordinary_update_norm": 0.0049355653304269855,
+      "norm_ratio": 2.5312517151970844,
+      "objective_before": 2.6328856348991394,
+      "objective_after_first": 2.6289746462106707,
+      "objective_after_second": 2.6256128762328848,
+      "final_regularization": 0.002515421236830279,
+      "algorithm_forward_images": 3351,
+      "algorithm_backward_images": 238,
+      "seconds": 13.830182828009129
+    },
+    {
+      "round": 100,
+      "candidate_pairs": 506,
+      "positive_pairs": 250,
+      "selected_pairs": 60,
+      "unique_donors": 23,
+      "supported_classes": 20,
+      "mean_B_la_gain": 0.009566327913900805,
+      "mean_A_la_gain": 0.0,
+      "improved_classes": 14,
+      "harmed_classes": 6,
+      "accuracy_improved_classes": 0,
+      "accuracy_harmed_classes": 0,
+      "mean_B_accuracy_delta_pp": 0.0,
+      "transfer_norm": 0.013536860735839831,
+      "ordinary_update_norm": 0.004665579953069706,
+      "norm_ratio": 2.901431520197889,
+      "objective_before": 2.6461532711982727,
+      "objective_after_first": 2.6423171256780624,
+      "objective_after_second": 2.6390219287604086,
+      "final_regularization": 0.0024355689777171325,
+      "algorithm_forward_images": 3351,
+      "algorithm_backward_images": 238,
+      "seconds": 13.802254050970078
+    }
+  ],
+  "class_event_count": 160,
+  "improved_class_events": 110,
+  "harmed_class_events": 50,
+  "mean_B_la_gain": 0.010118826210945992,
+  "accuracy_improved_class_events": 1,
+  "accuracy_harmed_class_events": 0,
+  "selected_probe_gain": {
+    "min": 0.0011031717061996682,
+    "median": 0.005225311654309506,
+    "max": 0.022376179695129395
+  },
+  "checkpoint_files": 0,
+  "limitations": [
+    "Single seed; rounds are repeated measures, not independent runs.",
+    "Same training pool used for screening, C optimization, and transfer diagnostics.",
+    "Source/weight/matrix axes checked; absent raw deltas and commit.pt prevent independent tensor reconstruction.",
+    "Historical B differs in feedback pool and parameterization; performance comparison does not isolate one changed component."
+  ],
+  "checks": [
+    {
+      "check": "A_only: rounds 0..100 complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: committed round 100",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 80 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 81 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 82 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 83 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 84 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 85 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 86 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 87 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 88 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 89 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 90 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 91 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 92 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 93 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 94 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 95 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 96 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 97 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 98 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: epoch 99 classes complete",
+      "passed": true
+    },
+    {
+      "check": "A_only: Tail20 agrees with per-class files",
+      "passed": true
+    },
+    {
+      "check": "old_shared: rounds 0..100 complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: committed round 100",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 80 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 81 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 82 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 83 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 84 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 85 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 86 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 87 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 88 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 89 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 90 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 91 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 92 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 93 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 94 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 95 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 96 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 97 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 98 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: epoch 99 classes complete",
+      "passed": true
+    },
+    {
+      "check": "old_shared: Tail20 agrees with per-class files",
+      "passed": true
+    },
+    {
+      "check": "w0.2: rounds 0..100 complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: committed round 100",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 80 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 81 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 82 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 83 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 84 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 85 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 86 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 87 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 88 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 89 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 90 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 91 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 92 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 93 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 94 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 95 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 96 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 97 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 98 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: epoch 99 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.2: Tail20 agrees with per-class files",
+      "passed": true
+    },
+    {
+      "check": "w0.35: rounds 0..100 complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: committed round 100",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 80 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 81 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 82 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 83 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 84 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 85 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 86 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 87 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 88 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 89 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 90 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 91 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 92 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 93 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 94 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 95 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 96 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 97 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 98 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: epoch 99 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.35: Tail20 agrees with per-class files",
+      "passed": true
+    },
+    {
+      "check": "w0.5: rounds 0..100 complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: committed round 100",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 80 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 81 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 82 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 83 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 84 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 85 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 86 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 87 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 88 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 89 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 90 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 91 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 92 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 93 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 94 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 95 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 96 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 97 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 98 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: epoch 99 classes complete",
+      "passed": true
+    },
+    {
+      "check": "w0.5: Tail20 agrees with per-class files",
+      "passed": true
+    },
+    {
+      "check": "directed: rounds 0..100 complete",
+      "passed": true
+    },
+    {
+      "check": "directed: committed round 100",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 80 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 81 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 82 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 83 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 84 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 85 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 86 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 87 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 88 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 89 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 90 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 91 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 92 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 93 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 94 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 95 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 96 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 97 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 98 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: epoch 99 classes complete",
+      "passed": true
+    },
+    {
+      "check": "directed: Tail20 agrees with per-class files",
+      "passed": true
+    },
+    {
+      "check": "old_shared: initial_lora_sha256",
+      "passed": true
+    },
+    {
+      "check": "old_shared: frozen_model_sha256",
+      "passed": true
+    },
+    {
+      "check": "old_shared: schedule_sha256",
+      "passed": true
+    },
+    {
+      "check": "old_shared: pool_sha256",
+      "passed": true
+    },
+    {
+      "check": "old_shared: test_sha256",
+      "passed": true
+    },
+    {
+      "check": "old_shared: partition_sha256",
+      "passed": true
+    },
+    {
+      "check": "old_shared: witness_sha256",
+      "passed": true
+    },
+    {
+      "check": "old_shared: pre-B recorded accuracy identical",
+      "passed": true
+    },
+    {
+      "check": "old_shared: same non-transfer SFRA config",
+      "passed": true
+    },
+    {
+      "check": "w0.2: initial_lora_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.2: frozen_model_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.2: schedule_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.2: pool_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.2: test_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.2: partition_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.2: witness_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.2: pre-B recorded accuracy identical",
+      "passed": true
+    },
+    {
+      "check": "w0.2: same non-transfer SFRA config",
+      "passed": true
+    },
+    {
+      "check": "w0.35: initial_lora_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.35: frozen_model_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.35: schedule_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.35: pool_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.35: test_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.35: partition_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.35: witness_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.35: pre-B recorded accuracy identical",
+      "passed": true
+    },
+    {
+      "check": "w0.35: same non-transfer SFRA config",
+      "passed": true
+    },
+    {
+      "check": "w0.5: initial_lora_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.5: frozen_model_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.5: schedule_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.5: pool_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.5: test_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.5: partition_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.5: witness_sha256",
+      "passed": true
+    },
+    {
+      "check": "w0.5: pre-B recorded accuracy identical",
+      "passed": true
+    },
+    {
+      "check": "w0.5: same non-transfer SFRA config",
+      "passed": true
+    },
+    {
+      "check": "directed: initial_lora_sha256",
+      "passed": true
+    },
+    {
+      "check": "directed: frozen_model_sha256",
+      "passed": true
+    },
+    {
+      "check": "directed: schedule_sha256",
+      "passed": true
+    },
+    {
+      "check": "directed: pool_sha256",
+      "passed": true
+    },
+    {
+      "check": "directed: test_sha256",
+      "passed": true
+    },
+    {
+      "check": "directed: partition_sha256",
+      "passed": true
+    },
+    {
+      "check": "directed: witness_sha256",
+      "passed": true
+    },
+    {
+      "check": "directed: pre-B recorded accuracy identical",
+      "passed": true
+    },
+    {
+      "check": "directed: same non-transfer SFRA config",
+      "passed": true
+    },
+    {
+      "check": "target clients exactly 27,28,29",
+      "passed": true
+    },
+    {
+      "check": "target class pool counts match partition",
+      "passed": true
+    },
+    {
+      "check": "all 20 target classes present",
+      "passed": true
+    },
+    {
+      "check": "100 rounds, 8 events, 16 C steps",
+      "passed": true
+    },
+    {
+      "check": "r30: complete eligible class-donor candidates",
+      "passed": true
+    },
+    {
+      "check": "r30: unique selected edges",
+      "passed": true
+    },
+    {
+      "check": "r30: all selected donors external and label-absent",
+      "passed": true
+    },
+    {
+      "check": "r30: exact positive top-K and normalized weights",
+      "passed": true
+    },
+    {
+      "check": "r30: scored flags and weights match selections",
+      "passed": true
+    },
+    {
+      "check": "r30: source manifest matches actual weights",
+      "passed": true
+    },
+    {
+      "check": "r30: feedback clients match targets",
+      "passed": true
+    },
+    {
+      "check": "r30: client 27 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r30: both optimizer steps use full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r30: NPZ source weights match CSV",
+      "passed": true
+    },
+    {
+      "check": "r30: class and donor axes match manifest",
+      "passed": true
+    },
+    {
+      "check": "r30: finite class-indexed 20x4x4 matrices",
+      "passed": true
+    },
+    {
+      "check": "r30: summary source counts match files",
+      "passed": true
+    },
+    {
+      "check": "r30: nonzero transfer, two steps, no non-tail samples",
+      "passed": true
+    },
+    {
+      "check": "r30: complete three-phase target measurements",
+      "passed": true
+    },
+    {
+      "check": "r30: client 27, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 27, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 27, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 27, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 27, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 27, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 27, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 27, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 27, class 94 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 27, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 27, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 28, class 99 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29, class 80 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: client 29, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r30: ordinary_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r30: transferred_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r30: committed_global is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r30: regularized objective falls at both steps",
+      "passed": true
+    },
+    {
+      "check": "r40: complete eligible class-donor candidates",
+      "passed": true
+    },
+    {
+      "check": "r40: unique selected edges",
+      "passed": true
+    },
+    {
+      "check": "r40: all selected donors external and label-absent",
+      "passed": true
+    },
+    {
+      "check": "r40: exact positive top-K and normalized weights",
+      "passed": true
+    },
+    {
+      "check": "r40: scored flags and weights match selections",
+      "passed": true
+    },
+    {
+      "check": "r40: source manifest matches actual weights",
+      "passed": true
+    },
+    {
+      "check": "r40: feedback clients match targets",
+      "passed": true
+    },
+    {
+      "check": "r40: client 27 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r40: both optimizer steps use full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r40: NPZ source weights match CSV",
+      "passed": true
+    },
+    {
+      "check": "r40: class and donor axes match manifest",
+      "passed": true
+    },
+    {
+      "check": "r40: finite class-indexed 20x4x4 matrices",
+      "passed": true
+    },
+    {
+      "check": "r40: summary source counts match files",
+      "passed": true
+    },
+    {
+      "check": "r40: nonzero transfer, two steps, no non-tail samples",
+      "passed": true
+    },
+    {
+      "check": "r40: complete three-phase target measurements",
+      "passed": true
+    },
+    {
+      "check": "r40: client 27, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 27, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 27, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 27, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 27, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 27, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 27, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 27, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 27, class 94 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 27, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 27, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 28, class 99 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29, class 80 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: client 29, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r40: ordinary_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r40: transferred_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r40: committed_global is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r40: regularized objective falls at both steps",
+      "passed": true
+    },
+    {
+      "check": "r50: complete eligible class-donor candidates",
+      "passed": true
+    },
+    {
+      "check": "r50: unique selected edges",
+      "passed": true
+    },
+    {
+      "check": "r50: all selected donors external and label-absent",
+      "passed": true
+    },
+    {
+      "check": "r50: exact positive top-K and normalized weights",
+      "passed": true
+    },
+    {
+      "check": "r50: scored flags and weights match selections",
+      "passed": true
+    },
+    {
+      "check": "r50: source manifest matches actual weights",
+      "passed": true
+    },
+    {
+      "check": "r50: feedback clients match targets",
+      "passed": true
+    },
+    {
+      "check": "r50: client 27 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r50: both optimizer steps use full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r50: NPZ source weights match CSV",
+      "passed": true
+    },
+    {
+      "check": "r50: class and donor axes match manifest",
+      "passed": true
+    },
+    {
+      "check": "r50: finite class-indexed 20x4x4 matrices",
+      "passed": true
+    },
+    {
+      "check": "r50: summary source counts match files",
+      "passed": true
+    },
+    {
+      "check": "r50: nonzero transfer, two steps, no non-tail samples",
+      "passed": true
+    },
+    {
+      "check": "r50: complete three-phase target measurements",
+      "passed": true
+    },
+    {
+      "check": "r50: client 27, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 27, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 27, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 27, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 27, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 27, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 27, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 27, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 27, class 94 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 27, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 27, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 28, class 99 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29, class 80 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: client 29, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r50: ordinary_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r50: transferred_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r50: committed_global is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r50: regularized objective falls at both steps",
+      "passed": true
+    },
+    {
+      "check": "r60: complete eligible class-donor candidates",
+      "passed": true
+    },
+    {
+      "check": "r60: unique selected edges",
+      "passed": true
+    },
+    {
+      "check": "r60: all selected donors external and label-absent",
+      "passed": true
+    },
+    {
+      "check": "r60: exact positive top-K and normalized weights",
+      "passed": true
+    },
+    {
+      "check": "r60: scored flags and weights match selections",
+      "passed": true
+    },
+    {
+      "check": "r60: source manifest matches actual weights",
+      "passed": true
+    },
+    {
+      "check": "r60: feedback clients match targets",
+      "passed": true
+    },
+    {
+      "check": "r60: client 27 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r60: both optimizer steps use full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r60: NPZ source weights match CSV",
+      "passed": true
+    },
+    {
+      "check": "r60: class and donor axes match manifest",
+      "passed": true
+    },
+    {
+      "check": "r60: finite class-indexed 20x4x4 matrices",
+      "passed": true
+    },
+    {
+      "check": "r60: summary source counts match files",
+      "passed": true
+    },
+    {
+      "check": "r60: nonzero transfer, two steps, no non-tail samples",
+      "passed": true
+    },
+    {
+      "check": "r60: complete three-phase target measurements",
+      "passed": true
+    },
+    {
+      "check": "r60: client 27, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 27, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 27, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 27, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 27, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 27, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 27, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 27, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 27, class 94 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 27, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 27, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 28, class 99 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29, class 80 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: client 29, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r60: ordinary_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r60: transferred_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r60: committed_global is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r60: regularized objective falls at both steps",
+      "passed": true
+    },
+    {
+      "check": "r70: complete eligible class-donor candidates",
+      "passed": true
+    },
+    {
+      "check": "r70: unique selected edges",
+      "passed": true
+    },
+    {
+      "check": "r70: all selected donors external and label-absent",
+      "passed": true
+    },
+    {
+      "check": "r70: exact positive top-K and normalized weights",
+      "passed": true
+    },
+    {
+      "check": "r70: scored flags and weights match selections",
+      "passed": true
+    },
+    {
+      "check": "r70: source manifest matches actual weights",
+      "passed": true
+    },
+    {
+      "check": "r70: feedback clients match targets",
+      "passed": true
+    },
+    {
+      "check": "r70: client 27 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r70: both optimizer steps use full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r70: NPZ source weights match CSV",
+      "passed": true
+    },
+    {
+      "check": "r70: class and donor axes match manifest",
+      "passed": true
+    },
+    {
+      "check": "r70: finite class-indexed 20x4x4 matrices",
+      "passed": true
+    },
+    {
+      "check": "r70: summary source counts match files",
+      "passed": true
+    },
+    {
+      "check": "r70: nonzero transfer, two steps, no non-tail samples",
+      "passed": true
+    },
+    {
+      "check": "r70: complete three-phase target measurements",
+      "passed": true
+    },
+    {
+      "check": "r70: client 27, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 27, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 27, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 27, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 27, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 27, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 27, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 27, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 27, class 94 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 27, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 27, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 28, class 99 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29, class 80 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: client 29, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r70: ordinary_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r70: transferred_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r70: committed_global is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r70: regularized objective falls at both steps",
+      "passed": true
+    },
+    {
+      "check": "r80: complete eligible class-donor candidates",
+      "passed": true
+    },
+    {
+      "check": "r80: unique selected edges",
+      "passed": true
+    },
+    {
+      "check": "r80: all selected donors external and label-absent",
+      "passed": true
+    },
+    {
+      "check": "r80: exact positive top-K and normalized weights",
+      "passed": true
+    },
+    {
+      "check": "r80: scored flags and weights match selections",
+      "passed": true
+    },
+    {
+      "check": "r80: source manifest matches actual weights",
+      "passed": true
+    },
+    {
+      "check": "r80: feedback clients match targets",
+      "passed": true
+    },
+    {
+      "check": "r80: client 27 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r80: both optimizer steps use full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r80: NPZ source weights match CSV",
+      "passed": true
+    },
+    {
+      "check": "r80: class and donor axes match manifest",
+      "passed": true
+    },
+    {
+      "check": "r80: finite class-indexed 20x4x4 matrices",
+      "passed": true
+    },
+    {
+      "check": "r80: summary source counts match files",
+      "passed": true
+    },
+    {
+      "check": "r80: nonzero transfer, two steps, no non-tail samples",
+      "passed": true
+    },
+    {
+      "check": "r80: complete three-phase target measurements",
+      "passed": true
+    },
+    {
+      "check": "r80: client 27, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 27, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 27, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 27, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 27, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 27, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 27, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 27, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 27, class 94 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 27, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 27, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 28, class 99 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29, class 80 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: client 29, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r80: ordinary_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r80: transferred_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r80: committed_global is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r80: regularized objective falls at both steps",
+      "passed": true
+    },
+    {
+      "check": "r90: complete eligible class-donor candidates",
+      "passed": true
+    },
+    {
+      "check": "r90: unique selected edges",
+      "passed": true
+    },
+    {
+      "check": "r90: all selected donors external and label-absent",
+      "passed": true
+    },
+    {
+      "check": "r90: exact positive top-K and normalized weights",
+      "passed": true
+    },
+    {
+      "check": "r90: scored flags and weights match selections",
+      "passed": true
+    },
+    {
+      "check": "r90: source manifest matches actual weights",
+      "passed": true
+    },
+    {
+      "check": "r90: feedback clients match targets",
+      "passed": true
+    },
+    {
+      "check": "r90: client 27 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r90: both optimizer steps use full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r90: NPZ source weights match CSV",
+      "passed": true
+    },
+    {
+      "check": "r90: class and donor axes match manifest",
+      "passed": true
+    },
+    {
+      "check": "r90: finite class-indexed 20x4x4 matrices",
+      "passed": true
+    },
+    {
+      "check": "r90: summary source counts match files",
+      "passed": true
+    },
+    {
+      "check": "r90: nonzero transfer, two steps, no non-tail samples",
+      "passed": true
+    },
+    {
+      "check": "r90: complete three-phase target measurements",
+      "passed": true
+    },
+    {
+      "check": "r90: client 27, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 27, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 27, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 27, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 27, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 27, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 27, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 27, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 27, class 94 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 27, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 27, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 28, class 99 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29, class 80 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: client 29, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r90: ordinary_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r90: transferred_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r90: committed_global is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r90: regularized objective falls at both steps",
+      "passed": true
+    },
+    {
+      "check": "r100: complete eligible class-donor candidates",
+      "passed": true
+    },
+    {
+      "check": "r100: unique selected edges",
+      "passed": true
+    },
+    {
+      "check": "r100: all selected donors external and label-absent",
+      "passed": true
+    },
+    {
+      "check": "r100: exact positive top-K and normalized weights",
+      "passed": true
+    },
+    {
+      "check": "r100: scored flags and weights match selections",
+      "passed": true
+    },
+    {
+      "check": "r100: source manifest matches actual weights",
+      "passed": true
+    },
+    {
+      "check": "r100: feedback clients match targets",
+      "passed": true
+    },
+    {
+      "check": "r100: client 27 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29 full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r100: both optimizer steps use full tail-only pool",
+      "passed": true
+    },
+    {
+      "check": "r100: NPZ source weights match CSV",
+      "passed": true
+    },
+    {
+      "check": "r100: class and donor axes match manifest",
+      "passed": true
+    },
+    {
+      "check": "r100: finite class-indexed 20x4x4 matrices",
+      "passed": true
+    },
+    {
+      "check": "r100: summary source counts match files",
+      "passed": true
+    },
+    {
+      "check": "r100: nonzero transfer, two steps, no non-tail samples",
+      "passed": true
+    },
+    {
+      "check": "r100: complete three-phase target measurements",
+      "passed": true
+    },
+    {
+      "check": "r100: client 27, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 27, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 27, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 27, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 27, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 27, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 27, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 27, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 27, class 94 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 27, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 27, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 82 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 83 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 86 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 93 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 98 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 28, class 99 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29, class 80 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29, class 81 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29, class 84 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29, class 85 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29, class 87 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29, class 88 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29, class 89 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29, class 90 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29, class 91 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29, class 92 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29, class 95 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29, class 96 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: client 29, class 97 same full pool",
+      "passed": true
+    },
+    {
+      "check": "r100: ordinary_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r100: transferred_global_B is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r100: committed_global is sample-mean then class-macro",
+      "passed": true
+    },
+    {
+      "check": "r100: regularized objective falls at both steps",
+      "passed": true
+    }
+  ]
+}

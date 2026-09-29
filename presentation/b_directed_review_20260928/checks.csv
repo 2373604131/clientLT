@@ -1,0 +1,668 @@
+﻿check,passed
+A_only: rounds 0..100 complete,True
+A_only: committed round 100,True
+A_only: epoch 80 classes complete,True
+A_only: epoch 81 classes complete,True
+A_only: epoch 82 classes complete,True
+A_only: epoch 83 classes complete,True
+A_only: epoch 84 classes complete,True
+A_only: epoch 85 classes complete,True
+A_only: epoch 86 classes complete,True
+A_only: epoch 87 classes complete,True
+A_only: epoch 88 classes complete,True
+A_only: epoch 89 classes complete,True
+A_only: epoch 90 classes complete,True
+A_only: epoch 91 classes complete,True
+A_only: epoch 92 classes complete,True
+A_only: epoch 93 classes complete,True
+A_only: epoch 94 classes complete,True
+A_only: epoch 95 classes complete,True
+A_only: epoch 96 classes complete,True
+A_only: epoch 97 classes complete,True
+A_only: epoch 98 classes complete,True
+A_only: epoch 99 classes complete,True
+A_only: Tail20 agrees with per-class files,True
+old_shared: rounds 0..100 complete,True
+old_shared: committed round 100,True
+old_shared: epoch 80 classes complete,True
+old_shared: epoch 81 classes complete,True
+old_shared: epoch 82 classes complete,True
+old_shared: epoch 83 classes complete,True
+old_shared: epoch 84 classes complete,True
+old_shared: epoch 85 classes complete,True
+old_shared: epoch 86 classes complete,True
+old_shared: epoch 87 classes complete,True
+old_shared: epoch 88 classes complete,True
+old_shared: epoch 89 classes complete,True
+old_shared: epoch 90 classes complete,True
+old_shared: epoch 91 classes complete,True
+old_shared: epoch 92 classes complete,True
+old_shared: epoch 93 classes complete,True
+old_shared: epoch 94 classes complete,True
+old_shared: epoch 95 classes complete,True
+old_shared: epoch 96 classes complete,True
+old_shared: epoch 97 classes complete,True
+old_shared: epoch 98 classes complete,True
+old_shared: epoch 99 classes complete,True
+old_shared: Tail20 agrees with per-class files,True
+w0.2: rounds 0..100 complete,True
+w0.2: committed round 100,True
+w0.2: epoch 80 classes complete,True
+w0.2: epoch 81 classes complete,True
+w0.2: epoch 82 classes complete,True
+w0.2: epoch 83 classes complete,True
+w0.2: epoch 84 classes complete,True
+w0.2: epoch 85 classes complete,True
+w0.2: epoch 86 classes complete,True
+w0.2: epoch 87 classes complete,True
+w0.2: epoch 88 classes complete,True
+w0.2: epoch 89 classes complete,True
+w0.2: epoch 90 classes complete,True
+w0.2: epoch 91 classes complete,True
+w0.2: epoch 92 classes complete,True
+w0.2: epoch 93 classes complete,True
+w0.2: epoch 94 classes complete,True
+w0.2: epoch 95 classes complete,True
+w0.2: epoch 96 classes complete,True
+w0.2: epoch 97 classes complete,True
+w0.2: epoch 98 classes complete,True
+w0.2: epoch 99 classes complete,True
+w0.2: Tail20 agrees with per-class files,True
+w0.35: rounds 0..100 complete,True
+w0.35: committed round 100,True
+w0.35: epoch 80 classes complete,True
+w0.35: epoch 81 classes complete,True
+w0.35: epoch 82 classes complete,True
+w0.35: epoch 83 classes complete,True
+w0.35: epoch 84 classes complete,True
+w0.35: epoch 85 classes complete,True
+w0.35: epoch 86 classes complete,True
+w0.35: epoch 87 classes complete,True
+w0.35: epoch 88 classes complete,True
+w0.35: epoch 89 classes complete,True
+w0.35: epoch 90 classes complete,True
+w0.35: epoch 91 classes complete,True
+w0.35: epoch 92 classes complete,True
+w0.35: epoch 93 classes complete,True
+w0.35: epoch 94 classes complete,True
+w0.35: epoch 95 classes complete,True
+w0.35: epoch 96 classes complete,True
+w0.35: epoch 97 classes complete,True
+w0.35: epoch 98 classes complete,True
+w0.35: epoch 99 classes complete,True
+w0.35: Tail20 agrees with per-class files,True
+w0.5: rounds 0..100 complete,True
+w0.5: committed round 100,True
+w0.5: epoch 80 classes complete,True
+w0.5: epoch 81 classes complete,True
+w0.5: epoch 82 classes complete,True
+w0.5: epoch 83 classes complete,True
+w0.5: epoch 84 classes complete,True
+w0.5: epoch 85 classes complete,True
+w0.5: epoch 86 classes complete,True
+w0.5: epoch 87 classes complete,True
+w0.5: epoch 88 classes complete,True
+w0.5: epoch 89 classes complete,True
+w0.5: epoch 90 classes complete,True
+w0.5: epoch 91 classes complete,True
+w0.5: epoch 92 classes complete,True
+w0.5: epoch 93 classes complete,True
+w0.5: epoch 94 classes complete,True
+w0.5: epoch 95 classes complete,True
+w0.5: epoch 96 classes complete,True
+w0.5: epoch 97 classes complete,True
+w0.5: epoch 98 classes complete,True
+w0.5: epoch 99 classes complete,True
+w0.5: Tail20 agrees with per-class files,True
+directed: rounds 0..100 complete,True
+directed: committed round 100,True
+directed: epoch 80 classes complete,True
+directed: epoch 81 classes complete,True
+directed: epoch 82 classes complete,True
+directed: epoch 83 classes complete,True
+directed: epoch 84 classes complete,True
+directed: epoch 85 classes complete,True
+directed: epoch 86 classes complete,True
+directed: epoch 87 classes complete,True
+directed: epoch 88 classes complete,True
+directed: epoch 89 classes complete,True
+directed: epoch 90 classes complete,True
+directed: epoch 91 classes complete,True
+directed: epoch 92 classes complete,True
+directed: epoch 93 classes complete,True
+directed: epoch 94 classes complete,True
+directed: epoch 95 classes complete,True
+directed: epoch 96 classes complete,True
+directed: epoch 97 classes complete,True
+directed: epoch 98 classes complete,True
+directed: epoch 99 classes complete,True
+directed: Tail20 agrees with per-class files,True
+old_shared: initial_lora_sha256,True
+old_shared: frozen_model_sha256,True
+old_shared: schedule_sha256,True
+old_shared: pool_sha256,True
+old_shared: test_sha256,True
+old_shared: partition_sha256,True
+old_shared: witness_sha256,True
+old_shared: pre-B recorded accuracy identical,True
+old_shared: same non-transfer SFRA config,True
+w0.2: initial_lora_sha256,True
+w0.2: frozen_model_sha256,True
+w0.2: schedule_sha256,True
+w0.2: pool_sha256,True
+w0.2: test_sha256,True
+w0.2: partition_sha256,True
+w0.2: witness_sha256,True
+w0.2: pre-B recorded accuracy identical,True
+w0.2: same non-transfer SFRA config,True
+w0.35: initial_lora_sha256,True
+w0.35: frozen_model_sha256,True
+w0.35: schedule_sha256,True
+w0.35: pool_sha256,True
+w0.35: test_sha256,True
+w0.35: partition_sha256,True
+w0.35: witness_sha256,True
+w0.35: pre-B recorded accuracy identical,True
+w0.35: same non-transfer SFRA config,True
+w0.5: initial_lora_sha256,True
+w0.5: frozen_model_sha256,True
+w0.5: schedule_sha256,True
+w0.5: pool_sha256,True
+w0.5: test_sha256,True
+w0.5: partition_sha256,True
+w0.5: witness_sha256,True
+w0.5: pre-B recorded accuracy identical,True
+w0.5: same non-transfer SFRA config,True
+directed: initial_lora_sha256,True
+directed: frozen_model_sha256,True
+directed: schedule_sha256,True
+directed: pool_sha256,True
+directed: test_sha256,True
+directed: partition_sha256,True
+directed: witness_sha256,True
+directed: pre-B recorded accuracy identical,True
+directed: same non-transfer SFRA config,True
+"target clients exactly 27,28,29",True
+target class pool counts match partition,True
+all 20 target classes present,True
+"100 rounds, 8 events, 16 C steps",True
+r30: complete eligible class-donor candidates,True
+r30: unique selected edges,True
+r30: all selected donors external and label-absent,True
+r30: exact positive top-K and normalized weights,True
+r30: scored flags and weights match selections,True
+r30: source manifest matches actual weights,True
+r30: feedback clients match targets,True
+r30: client 27 full tail-only pool,True
+r30: client 28 full tail-only pool,True
+r30: client 29 full tail-only pool,True
+r30: both optimizer steps use full tail-only pool,True
+r30: NPZ source weights match CSV,True
+r30: class and donor axes match manifest,True
+r30: finite class-indexed 20x4x4 matrices,True
+r30: summary source counts match files,True
+"r30: nonzero transfer, two steps, no non-tail samples",True
+r30: complete three-phase target measurements,True
+"r30: client 27, class 81 same full pool",True
+"r30: client 27, class 82 same full pool",True
+"r30: client 27, class 83 same full pool",True
+"r30: client 27, class 84 same full pool",True
+"r30: client 27, class 86 same full pool",True
+"r30: client 27, class 87 same full pool",True
+"r30: client 27, class 88 same full pool",True
+"r30: client 27, class 93 same full pool",True
+"r30: client 27, class 94 same full pool",True
+"r30: client 27, class 95 same full pool",True
+"r30: client 27, class 98 same full pool",True
+"r30: client 28, class 82 same full pool",True
+"r30: client 28, class 83 same full pool",True
+"r30: client 28, class 84 same full pool",True
+"r30: client 28, class 85 same full pool",True
+"r30: client 28, class 86 same full pool",True
+"r30: client 28, class 87 same full pool",True
+"r30: client 28, class 89 same full pool",True
+"r30: client 28, class 90 same full pool",True
+"r30: client 28, class 91 same full pool",True
+"r30: client 28, class 92 same full pool",True
+"r30: client 28, class 93 same full pool",True
+"r30: client 28, class 96 same full pool",True
+"r30: client 28, class 97 same full pool",True
+"r30: client 28, class 98 same full pool",True
+"r30: client 28, class 99 same full pool",True
+"r30: client 29, class 80 same full pool",True
+"r30: client 29, class 81 same full pool",True
+"r30: client 29, class 84 same full pool",True
+"r30: client 29, class 85 same full pool",True
+"r30: client 29, class 87 same full pool",True
+"r30: client 29, class 88 same full pool",True
+"r30: client 29, class 89 same full pool",True
+"r30: client 29, class 90 same full pool",True
+"r30: client 29, class 91 same full pool",True
+"r30: client 29, class 92 same full pool",True
+"r30: client 29, class 95 same full pool",True
+"r30: client 29, class 96 same full pool",True
+"r30: client 29, class 97 same full pool",True
+r30: ordinary_global_B is sample-mean then class-macro,True
+r30: transferred_global_B is sample-mean then class-macro,True
+r30: committed_global is sample-mean then class-macro,True
+r30: regularized objective falls at both steps,True
+r40: complete eligible class-donor candidates,True
+r40: unique selected edges,True
+r40: all selected donors external and label-absent,True
+r40: exact positive top-K and normalized weights,True
+r40: scored flags and weights match selections,True
+r40: source manifest matches actual weights,True
+r40: feedback clients match targets,True
+r40: client 27 full tail-only pool,True
+r40: client 28 full tail-only pool,True
+r40: client 29 full tail-only pool,True
+r40: both optimizer steps use full tail-only pool,True
+r40: NPZ source weights match CSV,True
+r40: class and donor axes match manifest,True
+r40: finite class-indexed 20x4x4 matrices,True
+r40: summary source counts match files,True
+"r40: nonzero transfer, two steps, no non-tail samples",True
+r40: complete three-phase target measurements,True
+"r40: client 27, class 81 same full pool",True
+"r40: client 27, class 82 same full pool",True
+"r40: client 27, class 83 same full pool",True
+"r40: client 27, class 84 same full pool",True
+"r40: client 27, class 86 same full pool",True
+"r40: client 27, class 87 same full pool",True
+"r40: client 27, class 88 same full pool",True
+"r40: client 27, class 93 same full pool",True
+"r40: client 27, class 94 same full pool",True
+"r40: client 27, class 95 same full pool",True
+"r40: client 27, class 98 same full pool",True
+"r40: client 28, class 82 same full pool",True
+"r40: client 28, class 83 same full pool",True
+"r40: client 28, class 84 same full pool",True
+"r40: client 28, class 85 same full pool",True
+"r40: client 28, class 86 same full pool",True
+"r40: client 28, class 87 same full pool",True
+"r40: client 28, class 89 same full pool",True
+"r40: client 28, class 90 same full pool",True
+"r40: client 28, class 91 same full pool",True
+"r40: client 28, class 92 same full pool",True
+"r40: client 28, class 93 same full pool",True
+"r40: client 28, class 96 same full pool",True
+"r40: client 28, class 97 same full pool",True
+"r40: client 28, class 98 same full pool",True
+"r40: client 28, class 99 same full pool",True
+"r40: client 29, class 80 same full pool",True
+"r40: client 29, class 81 same full pool",True
+"r40: client 29, class 84 same full pool",True
+"r40: client 29, class 85 same full pool",True
+"r40: client 29, class 87 same full pool",True
+"r40: client 29, class 88 same full pool",True
+"r40: client 29, class 89 same full pool",True
+"r40: client 29, class 90 same full pool",True
+"r40: client 29, class 91 same full pool",True
+"r40: client 29, class 92 same full pool",True
+"r40: client 29, class 95 same full pool",True
+"r40: client 29, class 96 same full pool",True
+"r40: client 29, class 97 same full pool",True
+r40: ordinary_global_B is sample-mean then class-macro,True
+r40: transferred_global_B is sample-mean then class-macro,True
+r40: committed_global is sample-mean then class-macro,True
+r40: regularized objective falls at both steps,True
+r50: complete eligible class-donor candidates,True
+r50: unique selected edges,True
+r50: all selected donors external and label-absent,True
+r50: exact positive top-K and normalized weights,True
+r50: scored flags and weights match selections,True
+r50: source manifest matches actual weights,True
+r50: feedback clients match targets,True
+r50: client 27 full tail-only pool,True
+r50: client 28 full tail-only pool,True
+r50: client 29 full tail-only pool,True
+r50: both optimizer steps use full tail-only pool,True
+r50: NPZ source weights match CSV,True
+r50: class and donor axes match manifest,True
+r50: finite class-indexed 20x4x4 matrices,True
+r50: summary source counts match files,True
+"r50: nonzero transfer, two steps, no non-tail samples",True
+r50: complete three-phase target measurements,True
+"r50: client 27, class 81 same full pool",True
+"r50: client 27, class 82 same full pool",True
+"r50: client 27, class 83 same full pool",True
+"r50: client 27, class 84 same full pool",True
+"r50: client 27, class 86 same full pool",True
+"r50: client 27, class 87 same full pool",True
+"r50: client 27, class 88 same full pool",True
+"r50: client 27, class 93 same full pool",True
+"r50: client 27, class 94 same full pool",True
+"r50: client 27, class 95 same full pool",True
+"r50: client 27, class 98 same full pool",True
+"r50: client 28, class 82 same full pool",True
+"r50: client 28, class 83 same full pool",True
+"r50: client 28, class 84 same full pool",True
+"r50: client 28, class 85 same full pool",True
+"r50: client 28, class 86 same full pool",True
+"r50: client 28, class 87 same full pool",True
+"r50: client 28, class 89 same full pool",True
+"r50: client 28, class 90 same full pool",True
+"r50: client 28, class 91 same full pool",True
+"r50: client 28, class 92 same full pool",True
+"r50: client 28, class 93 same full pool",True
+"r50: client 28, class 96 same full pool",True
+"r50: client 28, class 97 same full pool",True
+"r50: client 28, class 98 same full pool",True
+"r50: client 28, class 99 same full pool",True
+"r50: client 29, class 80 same full pool",True
+"r50: client 29, class 81 same full pool",True
+"r50: client 29, class 84 same full pool",True
+"r50: client 29, class 85 same full pool",True
+"r50: client 29, class 87 same full pool",True
+"r50: client 29, class 88 same full pool",True
+"r50: client 29, class 89 same full pool",True
+"r50: client 29, class 90 same full pool",True
+"r50: client 29, class 91 same full pool",True
+"r50: client 29, class 92 same full pool",True
+"r50: client 29, class 95 same full pool",True
+"r50: client 29, class 96 same full pool",True
+"r50: client 29, class 97 same full pool",True
+r50: ordinary_global_B is sample-mean then class-macro,True
+r50: transferred_global_B is sample-mean then class-macro,True
+r50: committed_global is sample-mean then class-macro,True
+r50: regularized objective falls at both steps,True
+r60: complete eligible class-donor candidates,True
+r60: unique selected edges,True
+r60: all selected donors external and label-absent,True
+r60: exact positive top-K and normalized weights,True
+r60: scored flags and weights match selections,True
+r60: source manifest matches actual weights,True
+r60: feedback clients match targets,True
+r60: client 27 full tail-only pool,True
+r60: client 28 full tail-only pool,True
+r60: client 29 full tail-only pool,True
+r60: both optimizer steps use full tail-only pool,True
+r60: NPZ source weights match CSV,True
+r60: class and donor axes match manifest,True
+r60: finite class-indexed 20x4x4 matrices,True
+r60: summary source counts match files,True
+"r60: nonzero transfer, two steps, no non-tail samples",True
+r60: complete three-phase target measurements,True
+"r60: client 27, class 81 same full pool",True
+"r60: client 27, class 82 same full pool",True
+"r60: client 27, class 83 same full pool",True
+"r60: client 27, class 84 same full pool",True
+"r60: client 27, class 86 same full pool",True
+"r60: client 27, class 87 same full pool",True
+"r60: client 27, class 88 same full pool",True
+"r60: client 27, class 93 same full pool",True
+"r60: client 27, class 94 same full pool",True
+"r60: client 27, class 95 same full pool",True
+"r60: client 27, class 98 same full pool",True
+"r60: client 28, class 82 same full pool",True
+"r60: client 28, class 83 same full pool",True
+"r60: client 28, class 84 same full pool",True
+"r60: client 28, class 85 same full pool",True
+"r60: client 28, class 86 same full pool",True
+"r60: client 28, class 87 same full pool",True
+"r60: client 28, class 89 same full pool",True
+"r60: client 28, class 90 same full pool",True
+"r60: client 28, class 91 same full pool",True
+"r60: client 28, class 92 same full pool",True
+"r60: client 28, class 93 same full pool",True
+"r60: client 28, class 96 same full pool",True
+"r60: client 28, class 97 same full pool",True
+"r60: client 28, class 98 same full pool",True
+"r60: client 28, class 99 same full pool",True
+"r60: client 29, class 80 same full pool",True
+"r60: client 29, class 81 same full pool",True
+"r60: client 29, class 84 same full pool",True
+"r60: client 29, class 85 same full pool",True
+"r60: client 29, class 87 same full pool",True
+"r60: client 29, class 88 same full pool",True
+"r60: client 29, class 89 same full pool",True
+"r60: client 29, class 90 same full pool",True
+"r60: client 29, class 91 same full pool",True
+"r60: client 29, class 92 same full pool",True
+"r60: client 29, class 95 same full pool",True
+"r60: client 29, class 96 same full pool",True
+"r60: client 29, class 97 same full pool",True
+r60: ordinary_global_B is sample-mean then class-macro,True
+r60: transferred_global_B is sample-mean then class-macro,True
+r60: committed_global is sample-mean then class-macro,True
+r60: regularized objective falls at both steps,True
+r70: complete eligible class-donor candidates,True
+r70: unique selected edges,True
+r70: all selected donors external and label-absent,True
+r70: exact positive top-K and normalized weights,True
+r70: scored flags and weights match selections,True
+r70: source manifest matches actual weights,True
+r70: feedback clients match targets,True
+r70: client 27 full tail-only pool,True
+r70: client 28 full tail-only pool,True
+r70: client 29 full tail-only pool,True
+r70: both optimizer steps use full tail-only pool,True
+r70: NPZ source weights match CSV,True
+r70: class and donor axes match manifest,True
+r70: finite class-indexed 20x4x4 matrices,True
+r70: summary source counts match files,True
+"r70: nonzero transfer, two steps, no non-tail samples",True
+r70: complete three-phase target measurements,True
+"r70: client 27, class 81 same full pool",True
+"r70: client 27, class 82 same full pool",True
+"r70: client 27, class 83 same full pool",True
+"r70: client 27, class 84 same full pool",True
+"r70: client 27, class 86 same full pool",True
+"r70: client 27, class 87 same full pool",True
+"r70: client 27, class 88 same full pool",True
+"r70: client 27, class 93 same full pool",True
+"r70: client 27, class 94 same full pool",True
+"r70: client 27, class 95 same full pool",True
+"r70: client 27, class 98 same full pool",True
+"r70: client 28, class 82 same full pool",True
+"r70: client 28, class 83 same full pool",True
+"r70: client 28, class 84 same full pool",True
+"r70: client 28, class 85 same full pool",True
+"r70: client 28, class 86 same full pool",True
+"r70: client 28, class 87 same full pool",True
+"r70: client 28, class 89 same full pool",True
+"r70: client 28, class 90 same full pool",True
+"r70: client 28, class 91 same full pool",True
+"r70: client 28, class 92 same full pool",True
+"r70: client 28, class 93 same full pool",True
+"r70: client 28, class 96 same full pool",True
+"r70: client 28, class 97 same full pool",True
+"r70: client 28, class 98 same full pool",True
+"r70: client 28, class 99 same full pool",True
+"r70: client 29, class 80 same full pool",True
+"r70: client 29, class 81 same full pool",True
+"r70: client 29, class 84 same full pool",True
+"r70: client 29, class 85 same full pool",True
+"r70: client 29, class 87 same full pool",True
+"r70: client 29, class 88 same full pool",True
+"r70: client 29, class 89 same full pool",True
+"r70: client 29, class 90 same full pool",True
+"r70: client 29, class 91 same full pool",True
+"r70: client 29, class 92 same full pool",True
+"r70: client 29, class 95 same full pool",True
+"r70: client 29, class 96 same full pool",True
+"r70: client 29, class 97 same full pool",True
+r70: ordinary_global_B is sample-mean then class-macro,True
+r70: transferred_global_B is sample-mean then class-macro,True
+r70: committed_global is sample-mean then class-macro,True
+r70: regularized objective falls at both steps,True
+r80: complete eligible class-donor candidates,True
+r80: unique selected edges,True
+r80: all selected donors external and label-absent,True
+r80: exact positive top-K and normalized weights,True
+r80: scored flags and weights match selections,True
+r80: source manifest matches actual weights,True
+r80: feedback clients match targets,True
+r80: client 27 full tail-only pool,True
+r80: client 28 full tail-only pool,True
+r80: client 29 full tail-only pool,True
+r80: both optimizer steps use full tail-only pool,True
+r80: NPZ source weights match CSV,True
+r80: class and donor axes match manifest,True
+r80: finite class-indexed 20x4x4 matrices,True
+r80: summary source counts match files,True
+"r80: nonzero transfer, two steps, no non-tail samples",True
+r80: complete three-phase target measurements,True
+"r80: client 27, class 81 same full pool",True
+"r80: client 27, class 82 same full pool",True
+"r80: client 27, class 83 same full pool",True
+"r80: client 27, class 84 same full pool",True
+"r80: client 27, class 86 same full pool",True
+"r80: client 27, class 87 same full pool",True
+"r80: client 27, class 88 same full pool",True
+"r80: client 27, class 93 same full pool",True
+"r80: client 27, class 94 same full pool",True
+"r80: client 27, class 95 same full pool",True
+"r80: client 27, class 98 same full pool",True
+"r80: client 28, class 82 same full pool",True
+"r80: client 28, class 83 same full pool",True
+"r80: client 28, class 84 same full pool",True
+"r80: client 28, class 85 same full pool",True
+"r80: client 28, class 86 same full pool",True
+"r80: client 28, class 87 same full pool",True
+"r80: client 28, class 89 same full pool",True
+"r80: client 28, class 90 same full pool",True
+"r80: client 28, class 91 same full pool",True
+"r80: client 28, class 92 same full pool",True
+"r80: client 28, class 93 same full pool",True
+"r80: client 28, class 96 same full pool",True
+"r80: client 28, class 97 same full pool",True
+"r80: client 28, class 98 same full pool",True
+"r80: client 28, class 99 same full pool",True
+"r80: client 29, class 80 same full pool",True
+"r80: client 29, class 81 same full pool",True
+"r80: client 29, class 84 same full pool",True
+"r80: client 29, class 85 same full pool",True
+"r80: client 29, class 87 same full pool",True
+"r80: client 29, class 88 same full pool",True
+"r80: client 29, class 89 same full pool",True
+"r80: client 29, class 90 same full pool",True
+"r80: client 29, class 91 same full pool",True
+"r80: client 29, class 92 same full pool",True
+"r80: client 29, class 95 same full pool",True
+"r80: client 29, class 96 same full pool",True
+"r80: client 29, class 97 same full pool",True
+r80: ordinary_global_B is sample-mean then class-macro,True
+r80: transferred_global_B is sample-mean then class-macro,True
+r80: committed_global is sample-mean then class-macro,True
+r80: regularized objective falls at both steps,True
+r90: complete eligible class-donor candidates,True
+r90: unique selected edges,True
+r90: all selected donors external and label-absent,True
+r90: exact positive top-K and normalized weights,True
+r90: scored flags and weights match selections,True
+r90: source manifest matches actual weights,True
+r90: feedback clients match targets,True
+r90: client 27 full tail-only pool,True
+r90: client 28 full tail-only pool,True
+r90: client 29 full tail-only pool,True
+r90: both optimizer steps use full tail-only pool,True
+r90: NPZ source weights match CSV,True
+r90: class and donor axes match manifest,True
+r90: finite class-indexed 20x4x4 matrices,True
+r90: summary source counts match files,True
+"r90: nonzero transfer, two steps, no non-tail samples",True
+r90: complete three-phase target measurements,True
+"r90: client 27, class 81 same full pool",True
+"r90: client 27, class 82 same full pool",True
+"r90: client 27, class 83 same full pool",True
+"r90: client 27, class 84 same full pool",True
+"r90: client 27, class 86 same full pool",True
+"r90: client 27, class 87 same full pool",True
+"r90: client 27, class 88 same full pool",True
+"r90: client 27, class 93 same full pool",True
+"r90: client 27, class 94 same full pool",True
+"r90: client 27, class 95 same full pool",True
+"r90: client 27, class 98 same full pool",True
+"r90: client 28, class 82 same full pool",True
+"r90: client 28, class 83 same full pool",True
+"r90: client 28, class 84 same full pool",True
+"r90: client 28, class 85 same full pool",True
+"r90: client 28, class 86 same full pool",True
+"r90: client 28, class 87 same full pool",True
+"r90: client 28, class 89 same full pool",True
+"r90: client 28, class 90 same full pool",True
+"r90: client 28, class 91 same full pool",True
+"r90: client 28, class 92 same full pool",True
+"r90: client 28, class 93 same full pool",True
+"r90: client 28, class 96 same full pool",True
+"r90: client 28, class 97 same full pool",True
+"r90: client 28, class 98 same full pool",True
+"r90: client 28, class 99 same full pool",True
+"r90: client 29, class 80 same full pool",True
+"r90: client 29, class 81 same full pool",True
+"r90: client 29, class 84 same full pool",True
+"r90: client 29, class 85 same full pool",True
+"r90: client 29, class 87 same full pool",True
+"r90: client 29, class 88 same full pool",True
+"r90: client 29, class 89 same full pool",True
+"r90: client 29, class 90 same full pool",True
+"r90: client 29, class 91 same full pool",True
+"r90: client 29, class 92 same full pool",True
+"r90: client 29, class 95 same full pool",True
+"r90: client 29, class 96 same full pool",True
+"r90: client 29, class 97 same full pool",True
+r90: ordinary_global_B is sample-mean then class-macro,True
+r90: transferred_global_B is sample-mean then class-macro,True
+r90: committed_global is sample-mean then class-macro,True
+r90: regularized objective falls at both steps,True
+r100: complete eligible class-donor candidates,True
+r100: unique selected edges,True
+r100: all selected donors external and label-absent,True
+r100: exact positive top-K and normalized weights,True
+r100: scored flags and weights match selections,True
+r100: source manifest matches actual weights,True
+r100: feedback clients match targets,True
+r100: client 27 full tail-only pool,True
+r100: client 28 full tail-only pool,True
+r100: client 29 full tail-only pool,True
+r100: both optimizer steps use full tail-only pool,True
+r100: NPZ source weights match CSV,True
+r100: class and donor axes match manifest,True
+r100: finite class-indexed 20x4x4 matrices,True
+r100: summary source counts match files,True
+"r100: nonzero transfer, two steps, no non-tail samples",True
+r100: complete three-phase target measurements,True
+"r100: client 27, class 81 same full pool",True
+"r100: client 27, class 82 same full pool",True
+"r100: client 27, class 83 same full pool",True
+"r100: client 27, class 84 same full pool",True
+"r100: client 27, class 86 same full pool",True
+"r100: client 27, class 87 same full pool",True
+"r100: client 27, class 88 same full pool",True
+"r100: client 27, class 93 same full pool",True
+"r100: client 27, class 94 same full pool",True
+"r100: client 27, class 95 same full pool",True
+"r100: client 27, class 98 same full pool",True
+"r100: client 28, class 82 same full pool",True
+"r100: client 28, class 83 same full pool",True
+"r100: client 28, class 84 same full pool",True
+"r100: client 28, class 85 same full pool",True
+"r100: client 28, class 86 same full pool",True
+"r100: client 28, class 87 same full pool",True
+"r100: client 28, class 89 same full pool",True
+"r100: client 28, class 90 same full pool",True
+"r100: client 28, class 91 same full pool",True
+"r100: client 28, class 92 same full pool",True
+"r100: client 28, class 93 same full pool",True
+"r100: client 28, class 96 same full pool",True
+"r100: client 28, class 97 same full pool",True
+"r100: client 28, class 98 same full pool",True
+"r100: client 28, class 99 same full pool",True
+"r100: client 29, class 80 same full pool",True
+"r100: client 29, class 81 same full pool",True
+"r100: client 29, class 84 same full pool",True
+"r100: client 29, class 85 same full pool",True
+"r100: client 29, class 87 same full pool",True
+"r100: client 29, class 88 same full pool",True
+"r100: client 29, class 89 same full pool",True
+"r100: client 29, class 90 same full pool",True
+"r100: client 29, class 91 same full pool",True
+"r100: client 29, class 92 same full pool",True
+"r100: client 29, class 95 same full pool",True
+"r100: client 29, class 96 same full pool",True
+"r100: client 29, class 97 same full pool",True
+r100: ordinary_global_B is sample-mean then class-macro,True
+r100: transferred_global_B is sample-mean then class-macro,True
+r100: committed_global is sample-mean then class-macro,True
+r100: regularized objective falls at both steps,True

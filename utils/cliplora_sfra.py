@@ -65,15 +65,21 @@ class SFRARuntime(LAControlRuntime):
                 from utils.b_problem2_math import problem2_config
                 self.sfra_config['b_transfer'] = problem2_config(
                     self.sfra_config['b_transfer'], problem2, getattr(args, 'b_problem2_harm_beta', 1.))
-            if getattr(args, 'b_directed_enable', False):
+            if getattr(args, 'b_response_enable', False):
+                from utils.b_response_math import response_config
+                self.sfra_config['b_transfer'] = response_config(self.sfra_config['b_transfer'], args)
+            elif getattr(args, 'b_directed_enable', False):
                 from utils.b_directed_math import directed_config
                 self.sfra_config['b_transfer'] = directed_config(self.sfra_config['b_transfer'], args)
             self.method += '_b_shared_transfer' if getattr(args, 'b_transfer_mode', 'local') == 'shared' else '_b_transfer'
             if problem2 != 'off':
                 self.method += '_problem2_' + problem2
-            if getattr(args, 'b_directed_enable', False):
+            if getattr(args, 'b_response_enable', False):
+                self.method += '_tail_response_' + self.sfra_config['b_transfer']['response_variant']
+            elif getattr(args, 'b_directed_enable', False):
                 self.method += '_tail_directed'
-        elif getattr(args, 'b_problem2_variant', 'off') != 'off' or getattr(args, 'b_directed_enable', False):
+        elif (getattr(args, 'b_problem2_variant', 'off') != 'off' or getattr(args, 'b_directed_enable', False)
+              or getattr(args, 'b_response_enable', False)):
             raise ValueError('Problem 2 / directed B require shared B transfer')
         self.configure_experiment()
         self.resume_payload = None
@@ -128,7 +134,10 @@ class SFRARuntime(LAControlRuntime):
             write_json(self.root/'private_witness_manifest.json', self.bank.tokens)
         self.b_transfer = None
         if 'b_transfer' in self.sfra_config:
-            if self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_directed':
+            if self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_response':
+                from utils.cliplora_b_response import ResponseDonorBTransfer
+                self.b_transfer = ResponseDonorBTransfer(self)
+            elif self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_directed':
                 from utils.cliplora_b_directed import DirectedDonorBTransfer
                 self.b_transfer = DirectedDonorBTransfer(self)
             elif self.sfra_config['b_transfer'].get('calibration_profile') == 'problem2':
@@ -144,7 +153,11 @@ class SFRARuntime(LAControlRuntime):
         print(f'SFRA: {self.variant}, retention lambda={self.strength:g}{label}, A rounds=1..90', flush=True)
         if self.b_transfer is not None:
             print(f'B-transfer enabled: C lr={args.b_transfer_lr:g}, rounds=30,40,...,100', flush=True)
-            if self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_directed':
+            if self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_response':
+                print('Response B: protocol target-tail feedback; independent donor C; '
+                      f'two-view class response supervision ({self.sfra_config["b_transfer"]["response_variant"]}); '
+                      'one post-FedAvg shared residual.', flush=True)
+            elif self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_directed':
                 print('Directed B: protocol tail clients, tail-only class-macro feedback; '
                       'fixed label-absent donor mixtures and class C; one shared residual.', flush=True)
             elif self.sfra_config['b_transfer'].get('mode') == 'shared':
