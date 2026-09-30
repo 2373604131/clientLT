@@ -66,6 +66,9 @@ def summarize(root, reference=None):
                             transfer_tail_weight=transfer.get('tail_weight', .5))
                 if transfer.get('calibration_profile') == 'coverage_tradeoff':
                     info['method'] += '-tradeoff'
+                if transfer.get('calibration_profile') == 'direct_norm_matched':
+                    info['method'] += '-direct-calibration-norm-matched'
+                    info['calibration_control'] = 'direct_norm_matched'
                 if transfer.get('calibration_profile') == 'problem2':
                     info.update(problem2_variant=transfer['problem2_variant'], harm_beta=transfer['harm_beta'])
                     info['method'] += '-problem2-' + transfer['problem2_variant']
@@ -185,7 +188,7 @@ def summarize(root, reference=None):
                   'committed_global includes the subsequent A update (none in round 100); it is not a no-transfer counterfactual.',
                   'Local non-tail monitoring is a fixed at-most-16-image subset, not the full non-tail test set.',
                   'Transfer group scores average present classes within each receiver, then average receivers; they are not official global class-macro accuracy.']
-    if any(r.get('transfer_mode') == 'shared' and 'directed_topk' not in r and 'response_variant' not in r for r in performance):
+    if any(r.get('transfer_mode') == 'shared' and 'directed_topk' not in r and 'response_variant' not in r and 'calibration_control' not in r for r in performance):
         lines += ['', '## Shared-model B transfer', '',
                   'B-shared uses the original tail-present recipients, two calibration batches and unchanged tail sample positions.',
                   'The original profile keeps image-uniform non-tail sampling and 50:50 group LA; the tradeoff profile is labeled separately.',
@@ -250,6 +253,10 @@ def summarize(root, reference=None):
                   'C loss traces use the same full tail pool and both views, not the legacy two sampled batches.',
                   'Training-side response attainment is separate from official Tail20 test accuracy; there is no test-based gate.',
                   'Old A-only/shared/tradeoff/directed results are reference methods, not a matched ablation of each new design choice.']
+    if any('calibration_control' in r for r in performance):
+        lines += ['', 'Direct calibration is a reference-dependent control: same class-cyclic feedback and two steps,',
+                  'direct shared B residual projected to paired AB training-side effective norms; no donor basis or C.',
+                  'It matches calibration data/steps/norms, not total compute, parameter count or optimizer geometry.']
     (out/'report.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
     print(f'Summary written: {out/"report.md"}', flush=True)
 

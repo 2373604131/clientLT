@@ -65,7 +65,13 @@ class SFRARuntime(LAControlRuntime):
                 from utils.b_problem2_math import problem2_config
                 self.sfra_config['b_transfer'] = problem2_config(
                     self.sfra_config['b_transfer'], problem2, getattr(args, 'b_problem2_harm_beta', 1.))
-            if getattr(args, 'b_response_enable', False):
+            if getattr(args, 'b_calibration_reference', ''):
+                if problem2 != 'off' or getattr(args, 'b_directed_enable', False) or getattr(args, 'b_response_enable', False):
+                    raise ValueError('Direct calibration is separate from directed/response/problem2 B')
+                from tools.sfra.calibration_reference import control_config, load_reference
+                self.sfra_config['b_transfer'] = control_config(
+                    self.sfra_config['b_transfer'], load_reference(args.b_calibration_reference))
+            elif getattr(args, 'b_response_enable', False):
                 from utils.b_response_math import response_config
                 self.sfra_config['b_transfer'] = response_config(self.sfra_config['b_transfer'], args)
             elif getattr(args, 'b_directed_enable', False):
@@ -79,7 +85,7 @@ class SFRARuntime(LAControlRuntime):
             elif getattr(args, 'b_directed_enable', False):
                 self.method += '_tail_directed'
         elif (getattr(args, 'b_problem2_variant', 'off') != 'off' or getattr(args, 'b_directed_enable', False)
-              or getattr(args, 'b_response_enable', False)):
+              or getattr(args, 'b_response_enable', False) or getattr(args, 'b_calibration_reference', '')):
             raise ValueError('Problem 2 / directed B require shared B transfer')
         self.configure_experiment()
         self.resume_payload = None
@@ -134,7 +140,10 @@ class SFRARuntime(LAControlRuntime):
             write_json(self.root/'private_witness_manifest.json', self.bank.tokens)
         self.b_transfer = None
         if 'b_transfer' in self.sfra_config:
-            if self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_response':
+            if self.sfra_config['b_transfer'].get('calibration_profile') == 'direct_norm_matched':
+                from utils.cliplora_b_calibration import DirectCalibrationControl
+                self.b_transfer = DirectCalibrationControl(self)
+            elif self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_response':
                 from utils.cliplora_b_response import ResponseDonorBTransfer
                 self.b_transfer = ResponseDonorBTransfer(self)
             elif self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_directed':
@@ -153,7 +162,9 @@ class SFRARuntime(LAControlRuntime):
         print(f'SFRA: {self.variant}, retention lambda={self.strength:g}{label}, A rounds=1..90', flush=True)
         if self.b_transfer is not None:
             print(f'B-transfer enabled: C lr={args.b_transfer_lr:g}, rounds=30,40,...,100', flush=True)
-            if self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_response':
+            if self.sfra_config['b_transfer'].get('calibration_profile') == 'direct_norm_matched':
+                print('Direct B calibration control: identical feedback batches; paired AB step norms; no donor basis.', flush=True)
+            elif self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_response':
                 print('Response B: protocol target-tail feedback; independent donor C; '
                       f'two-view class response supervision ({self.sfra_config["b_transfer"]["response_variant"]}); '
                       'one post-FedAvg shared residual.', flush=True)

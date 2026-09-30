@@ -45,6 +45,8 @@ def run_directory(args):
             setting += f'_responseC_{args.response_variant}_rw{args.response_weight:g}'
     if getattr(args, 'b_aggregation', 'sample') == 'uniform-transfer-rounds':
         setting += '_bagg_uniform8'
+    if getattr(args, 'calibration_reference', None):
+        setting += '_directnorm'
     if getattr(args, 'fast_execution_v2', False):
         setting += f'_fast_v2_f{args.feedback_batch_size}_c{args.feedback_cache_gib:g}'
     elif getattr(args, 'fast_execution', False):
@@ -113,6 +115,8 @@ def main(default_b_transfer=False, default_transfer_mode='local',
     parser.add_argument('--response-variant', choices=['positive', 'zero'], default='positive',
                         help='zero: matched C control with measured positive teacher increments set to zero')
     parser.add_argument('--response-weight', type=float, default=1., help='Response loss coefficient; response B only')
+    parser.add_argument('--calibration-reference', type=Path,
+                        help='Completed paired AB run or portable training-norm JSON; direct-B control only')
     parser.add_argument('--classification-weight', type=float, default=1., help='Classification preservation mu; all -cp variants')
     parser.add_argument('--partition', choices=['client-longtail', 'noniid-labeldir-fine'], default='client-longtail')
     parser.add_argument('--dirichlet-beta', type=float, default=.5)
@@ -156,6 +160,20 @@ def main(default_b_transfer=False, default_transfer_mode='local',
         if args.stage == 'pack':
             pack(args.output_root)
         return
+    calibration = None
+    if args.calibration_reference:
+        if not (args.b_transfer and args.transfer_mode == 'shared' and args.method == 'full-cp'
+                and args.b_aggregation == 'sample' and args.transfer_non_tail_sampling == 'class-cyclic'
+                and args.transfer_tail_weight == .35 and args.retention_weight == 10
+                and args.classification_weight == 1 and args.transfer_lr == .3
+                and args.transfer_reg == .001 and args.probe_step == .1):
+            parser.error('Calibration control requires frozen Full-CP/shared/class-cyclic/w0.35 settings')
+        if args.directed_b or args.response_b or args.problem2_variant != 'off':
+            parser.error('Calibration control cannot mix with directed, response or problem2 B')
+        from tools.sfra.calibration_reference import load_reference
+        calibration = load_reference(args.calibration_reference)
+        if any(calibration[k] != v for k,v in [('seed',args.seed),('protocol_seed',args.protocol_seed),('partition',args.partition)]):
+            parser.error('Calibration reference seed/protocol/partition differs')
     if args.response_b:
         if not args.directed_b:
             parser.error('Response B requires --directed-b target/source rules')
@@ -228,6 +246,12 @@ def main(default_b_transfer=False, default_transfer_mode='local',
         command = json.loads((run/'command.json').read_text(encoding='utf-8'))
         command[0] = sys.executable
         command[command.index('--sfra_resume')+1] = str(checkpoint)
+        if calibration is not None:
+            saved = json.loads((run/'calibration_reference.json').read_text(encoding='utf-8'))
+            if saved != calibration or '--b_calibration_reference' not in command:
+                parser.error('Calibration reference changed; use the original paired AB reference')
+        elif '--b_calibration_reference' in command:
+            parser.error('Direct calibration must resume with its original reference')
         if args.problem2_variant != 'off':
             for flag, value in [('--b_problem2_variant', args.problem2_variant),
                                 ('--b_problem2_harm_beta', str(args.harm_beta))]:
@@ -266,6 +290,11 @@ def main(default_b_transfer=False, default_transfer_mode='local',
             '--sfra_retention_weight',str(args.retention_weight),
             '--sfra_classification_weight',str(args.classification_weight),
             '--sfra_witness_batch_size',str(args.witness_batch_size), '--sfra_resume','']
+        if calibration is not None:
+            reference_path = run/'calibration_reference.json'
+            reference_path.write_text(json.dumps(calibration,indent=2),encoding='utf-8')
+            index = command.index('DATALOADER.NUM_WORKERS')
+            command[index:index] = ['--b_calibration_reference',str(reference_path)]
         if args.b_aggregation != 'sample':
             index = command.index('DATALOADER.NUM_WORKERS')
             command[index:index] = ['--sfra_b_aggregation', args.b_aggregation]

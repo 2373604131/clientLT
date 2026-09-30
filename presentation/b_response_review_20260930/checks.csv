@@ -1,0 +1,3695 @@
+﻿check,passed
+positive and zero present,True
+A_only: exact committed rounds 0..100,True
+A_only: completed round 100,True
+A_only: epoch 80 has all classes,True
+A_only: epoch 81 has all classes,True
+A_only: epoch 82 has all classes,True
+A_only: epoch 83 has all classes,True
+A_only: epoch 84 has all classes,True
+A_only: epoch 85 has all classes,True
+A_only: epoch 86 has all classes,True
+A_only: epoch 87 has all classes,True
+A_only: epoch 88 has all classes,True
+A_only: epoch 89 has all classes,True
+A_only: epoch 90 has all classes,True
+A_only: epoch 91 has all classes,True
+A_only: epoch 92 has all classes,True
+A_only: epoch 93 has all classes,True
+A_only: epoch 94 has all classes,True
+A_only: epoch 95 has all classes,True
+A_only: epoch 96 has all classes,True
+A_only: epoch 97 has all classes,True
+A_only: epoch 98 has all classes,True
+A_only: epoch 99 has all classes,True
+A_only: per-class Tail20 equals round table,True
+old_shared: exact committed rounds 0..100,True
+old_shared: completed round 100,True
+old_shared: epoch 80 has all classes,True
+old_shared: epoch 81 has all classes,True
+old_shared: epoch 82 has all classes,True
+old_shared: epoch 83 has all classes,True
+old_shared: epoch 84 has all classes,True
+old_shared: epoch 85 has all classes,True
+old_shared: epoch 86 has all classes,True
+old_shared: epoch 87 has all classes,True
+old_shared: epoch 88 has all classes,True
+old_shared: epoch 89 has all classes,True
+old_shared: epoch 90 has all classes,True
+old_shared: epoch 91 has all classes,True
+old_shared: epoch 92 has all classes,True
+old_shared: epoch 93 has all classes,True
+old_shared: epoch 94 has all classes,True
+old_shared: epoch 95 has all classes,True
+old_shared: epoch 96 has all classes,True
+old_shared: epoch 97 has all classes,True
+old_shared: epoch 98 has all classes,True
+old_shared: epoch 99 has all classes,True
+old_shared: per-class Tail20 equals round table,True
+old_shared: same initial_lora_sha256,True
+old_shared: same frozen_model_sha256,True
+old_shared: same schedule_sha256,True
+old_shared: same pool_sha256,True
+old_shared: same test_sha256,True
+old_shared: same partition_sha256,True
+old_shared: same witness_sha256,True
+old_shared: same pre-B test accuracies,True
+old_shared: same A and base training config,True
+w0.2: exact committed rounds 0..100,True
+w0.2: completed round 100,True
+w0.2: epoch 80 has all classes,True
+w0.2: epoch 81 has all classes,True
+w0.2: epoch 82 has all classes,True
+w0.2: epoch 83 has all classes,True
+w0.2: epoch 84 has all classes,True
+w0.2: epoch 85 has all classes,True
+w0.2: epoch 86 has all classes,True
+w0.2: epoch 87 has all classes,True
+w0.2: epoch 88 has all classes,True
+w0.2: epoch 89 has all classes,True
+w0.2: epoch 90 has all classes,True
+w0.2: epoch 91 has all classes,True
+w0.2: epoch 92 has all classes,True
+w0.2: epoch 93 has all classes,True
+w0.2: epoch 94 has all classes,True
+w0.2: epoch 95 has all classes,True
+w0.2: epoch 96 has all classes,True
+w0.2: epoch 97 has all classes,True
+w0.2: epoch 98 has all classes,True
+w0.2: epoch 99 has all classes,True
+w0.2: per-class Tail20 equals round table,True
+w0.2: same initial_lora_sha256,True
+w0.2: same frozen_model_sha256,True
+w0.2: same schedule_sha256,True
+w0.2: same pool_sha256,True
+w0.2: same test_sha256,True
+w0.2: same partition_sha256,True
+w0.2: same witness_sha256,True
+w0.2: same pre-B test accuracies,True
+w0.2: same A and base training config,True
+w0.35: exact committed rounds 0..100,True
+w0.35: completed round 100,True
+w0.35: epoch 80 has all classes,True
+w0.35: epoch 81 has all classes,True
+w0.35: epoch 82 has all classes,True
+w0.35: epoch 83 has all classes,True
+w0.35: epoch 84 has all classes,True
+w0.35: epoch 85 has all classes,True
+w0.35: epoch 86 has all classes,True
+w0.35: epoch 87 has all classes,True
+w0.35: epoch 88 has all classes,True
+w0.35: epoch 89 has all classes,True
+w0.35: epoch 90 has all classes,True
+w0.35: epoch 91 has all classes,True
+w0.35: epoch 92 has all classes,True
+w0.35: epoch 93 has all classes,True
+w0.35: epoch 94 has all classes,True
+w0.35: epoch 95 has all classes,True
+w0.35: epoch 96 has all classes,True
+w0.35: epoch 97 has all classes,True
+w0.35: epoch 98 has all classes,True
+w0.35: epoch 99 has all classes,True
+w0.35: per-class Tail20 equals round table,True
+w0.35: same initial_lora_sha256,True
+w0.35: same frozen_model_sha256,True
+w0.35: same schedule_sha256,True
+w0.35: same pool_sha256,True
+w0.35: same test_sha256,True
+w0.35: same partition_sha256,True
+w0.35: same witness_sha256,True
+w0.35: same pre-B test accuracies,True
+w0.35: same A and base training config,True
+w0.5: exact committed rounds 0..100,True
+w0.5: completed round 100,True
+w0.5: epoch 80 has all classes,True
+w0.5: epoch 81 has all classes,True
+w0.5: epoch 82 has all classes,True
+w0.5: epoch 83 has all classes,True
+w0.5: epoch 84 has all classes,True
+w0.5: epoch 85 has all classes,True
+w0.5: epoch 86 has all classes,True
+w0.5: epoch 87 has all classes,True
+w0.5: epoch 88 has all classes,True
+w0.5: epoch 89 has all classes,True
+w0.5: epoch 90 has all classes,True
+w0.5: epoch 91 has all classes,True
+w0.5: epoch 92 has all classes,True
+w0.5: epoch 93 has all classes,True
+w0.5: epoch 94 has all classes,True
+w0.5: epoch 95 has all classes,True
+w0.5: epoch 96 has all classes,True
+w0.5: epoch 97 has all classes,True
+w0.5: epoch 98 has all classes,True
+w0.5: epoch 99 has all classes,True
+w0.5: per-class Tail20 equals round table,True
+w0.5: same initial_lora_sha256,True
+w0.5: same frozen_model_sha256,True
+w0.5: same schedule_sha256,True
+w0.5: same pool_sha256,True
+w0.5: same test_sha256,True
+w0.5: same partition_sha256,True
+w0.5: same witness_sha256,True
+w0.5: same pre-B test accuracies,True
+w0.5: same A and base training config,True
+directed: exact committed rounds 0..100,True
+directed: completed round 100,True
+directed: epoch 80 has all classes,True
+directed: epoch 81 has all classes,True
+directed: epoch 82 has all classes,True
+directed: epoch 83 has all classes,True
+directed: epoch 84 has all classes,True
+directed: epoch 85 has all classes,True
+directed: epoch 86 has all classes,True
+directed: epoch 87 has all classes,True
+directed: epoch 88 has all classes,True
+directed: epoch 89 has all classes,True
+directed: epoch 90 has all classes,True
+directed: epoch 91 has all classes,True
+directed: epoch 92 has all classes,True
+directed: epoch 93 has all classes,True
+directed: epoch 94 has all classes,True
+directed: epoch 95 has all classes,True
+directed: epoch 96 has all classes,True
+directed: epoch 97 has all classes,True
+directed: epoch 98 has all classes,True
+directed: epoch 99 has all classes,True
+directed: per-class Tail20 equals round table,True
+directed: same initial_lora_sha256,True
+directed: same frozen_model_sha256,True
+directed: same schedule_sha256,True
+directed: same pool_sha256,True
+directed: same test_sha256,True
+directed: same partition_sha256,True
+directed: same witness_sha256,True
+directed: same pre-B test accuracies,True
+directed: same A and base training config,True
+positive: exact committed rounds 0..100,True
+positive: completed round 100,True
+positive: epoch 80 has all classes,True
+positive: epoch 81 has all classes,True
+positive: epoch 82 has all classes,True
+positive: epoch 83 has all classes,True
+positive: epoch 84 has all classes,True
+positive: epoch 85 has all classes,True
+positive: epoch 86 has all classes,True
+positive: epoch 87 has all classes,True
+positive: epoch 88 has all classes,True
+positive: epoch 89 has all classes,True
+positive: epoch 90 has all classes,True
+positive: epoch 91 has all classes,True
+positive: epoch 92 has all classes,True
+positive: epoch 93 has all classes,True
+positive: epoch 94 has all classes,True
+positive: epoch 95 has all classes,True
+positive: epoch 96 has all classes,True
+positive: epoch 97 has all classes,True
+positive: epoch 98 has all classes,True
+positive: epoch 99 has all classes,True
+positive: per-class Tail20 equals round table,True
+positive: same initial_lora_sha256,True
+positive: same frozen_model_sha256,True
+positive: same schedule_sha256,True
+positive: same pool_sha256,True
+positive: same test_sha256,True
+positive: same partition_sha256,True
+positive: same witness_sha256,True
+positive: same pre-B test accuracies,True
+positive: same A and base training config,True
+zero: exact committed rounds 0..100,True
+zero: completed round 100,True
+zero: epoch 80 has all classes,True
+zero: epoch 81 has all classes,True
+zero: epoch 82 has all classes,True
+zero: epoch 83 has all classes,True
+zero: epoch 84 has all classes,True
+zero: epoch 85 has all classes,True
+zero: epoch 86 has all classes,True
+zero: epoch 87 has all classes,True
+zero: epoch 88 has all classes,True
+zero: epoch 89 has all classes,True
+zero: epoch 90 has all classes,True
+zero: epoch 91 has all classes,True
+zero: epoch 92 has all classes,True
+zero: epoch 93 has all classes,True
+zero: epoch 94 has all classes,True
+zero: epoch 95 has all classes,True
+zero: epoch 96 has all classes,True
+zero: epoch 97 has all classes,True
+zero: epoch 98 has all classes,True
+zero: epoch 99 has all classes,True
+zero: per-class Tail20 equals round table,True
+zero: same initial_lora_sha256,True
+zero: same frozen_model_sha256,True
+zero: same schedule_sha256,True
+zero: same pool_sha256,True
+zero: same test_sha256,True
+zero: same partition_sha256,True
+zero: same witness_sha256,True
+zero: same pre-B test accuracies,True
+zero: same A and base training config,True
+P/Z transfer config differs only variant,True
+P/Z packed performance matches recomputation,True
+positive: protocol full target pool,True
+positive: 8 events and 16 C steps,True
+positive r30: complete eligible candidates,True
+positive r30: exact top3 and normalized weights,True
+positive r30: source qualification and flags,True
+positive r30: teacher class relations in manifest,True
+positive r30: selected union and source counts,True
+positive r30: NPZ class weights,True
+positive r30: NPZ axes,True
+positive r30: independent finite donor C,True
+positive r30: identical full-pool two-view budget,True
+positive r30: client27 full original tail positions,True
+positive r30: client27 mixed-then-min-clipped response,True
+positive r30: client27 variant application,True
+positive r30: client27 baseline margin,True
+positive r30: client27 target baseline plus increment,True
+positive r30: client27 frozen competitor weights,True
+positive r30: client28 full original tail positions,True
+positive r30: client28 mixed-then-min-clipped response,True
+positive r30: client28 variant application,True
+positive r30: client28 baseline margin,True
+positive r30: client28 target baseline plus increment,True
+positive r30: client28 frozen competitor weights,True
+positive r30: client29 full original tail positions,True
+positive r30: client29 mixed-then-min-clipped response,True
+positive r30: client29 variant application,True
+positive r30: client29 baseline margin,True
+positive r30: client29 target baseline plus increment,True
+positive r30: client29 frozen competitor weights,True
+positive r30: selected 80/11 probe from logits,True
+positive r30: selected 80/6 probe from logits,True
+positive r30: selected 80/18 probe from logits,True
+positive r30: selected 81/14 probe from logits,True
+positive r30: selected 81/12 probe from logits,True
+positive r30: selected 81/19 probe from logits,True
+positive r30: selected 82/22 probe from logits,True
+positive r30: selected 82/0 probe from logits,True
+positive r30: selected 82/10 probe from logits,True
+positive r30: selected 83/19 probe from logits,True
+positive r30: selected 83/7 probe from logits,True
+positive r30: selected 83/18 probe from logits,True
+positive r30: selected 84/16 probe from logits,True
+positive r30: selected 84/5 probe from logits,True
+positive r30: selected 84/2 probe from logits,True
+positive r30: selected 85/11 probe from logits,True
+positive r30: selected 85/21 probe from logits,True
+positive r30: selected 85/16 probe from logits,True
+positive r30: selected 86/25 probe from logits,True
+positive r30: selected 86/10 probe from logits,True
+positive r30: selected 86/14 probe from logits,True
+positive r30: selected 87/25 probe from logits,True
+positive r30: selected 87/21 probe from logits,True
+positive r30: selected 87/18 probe from logits,True
+positive r30: selected 88/14 probe from logits,True
+positive r30: selected 88/24 probe from logits,True
+positive r30: selected 88/10 probe from logits,True
+positive r30: selected 89/8 probe from logits,True
+positive r30: selected 89/1 probe from logits,True
+positive r30: selected 89/14 probe from logits,True
+positive r30: selected 90/6 probe from logits,True
+positive r30: selected 90/23 probe from logits,True
+positive r30: selected 90/21 probe from logits,True
+positive r30: selected 91/17 probe from logits,True
+positive r30: selected 91/7 probe from logits,True
+positive r30: selected 91/4 probe from logits,True
+positive r30: selected 92/14 probe from logits,True
+positive r30: selected 92/18 probe from logits,True
+positive r30: selected 92/26 probe from logits,True
+positive r30: selected 93/7 probe from logits,True
+positive r30: selected 93/11 probe from logits,True
+positive r30: selected 93/1 probe from logits,True
+positive r30: selected 94/23 probe from logits,True
+positive r30: selected 94/5 probe from logits,True
+positive r30: selected 94/26 probe from logits,True
+positive r30: selected 95/1 probe from logits,True
+positive r30: selected 95/11 probe from logits,True
+positive r30: selected 95/6 probe from logits,True
+positive r30: selected 96/12 probe from logits,True
+positive r30: selected 96/7 probe from logits,True
+positive r30: selected 96/24 probe from logits,True
+positive r30: selected 97/20 probe from logits,True
+positive r30: selected 97/25 probe from logits,True
+positive r30: selected 97/16 probe from logits,True
+positive r30: selected 98/25 probe from logits,True
+positive r30: selected 98/6 probe from logits,True
+positive r30: selected 98/3 probe from logits,True
+positive r30: selected 99/6 probe from logits,True
+positive r30: selected 99/18 probe from logits,True
+positive r30: selected 99/22 probe from logits,True
+positive r30: class80 sample count,True
+positive r30: class80 baseline LA reconstruction,True
+positive r30: class80 baseline response reconstruction,True
+positive r30: class80 student LA reconstruction,True
+positive r30: class80 student response reconstruction,True
+positive r30: class80 positive/attainment counts,True
+positive r30: class81 sample count,True
+positive r30: class81 baseline LA reconstruction,True
+positive r30: class81 baseline response reconstruction,True
+positive r30: class81 student LA reconstruction,True
+positive r30: class81 student response reconstruction,True
+positive r30: class81 positive/attainment counts,True
+positive r30: class82 sample count,True
+positive r30: class82 baseline LA reconstruction,True
+positive r30: class82 baseline response reconstruction,True
+positive r30: class82 student LA reconstruction,True
+positive r30: class82 student response reconstruction,True
+positive r30: class82 positive/attainment counts,True
+positive r30: class83 sample count,True
+positive r30: class83 baseline LA reconstruction,True
+positive r30: class83 baseline response reconstruction,True
+positive r30: class83 student LA reconstruction,True
+positive r30: class83 student response reconstruction,True
+positive r30: class83 positive/attainment counts,True
+positive r30: class84 sample count,True
+positive r30: class84 baseline LA reconstruction,True
+positive r30: class84 baseline response reconstruction,True
+positive r30: class84 student LA reconstruction,True
+positive r30: class84 student response reconstruction,True
+positive r30: class84 positive/attainment counts,True
+positive r30: class85 sample count,True
+positive r30: class85 baseline LA reconstruction,True
+positive r30: class85 baseline response reconstruction,True
+positive r30: class85 student LA reconstruction,True
+positive r30: class85 student response reconstruction,True
+positive r30: class85 positive/attainment counts,True
+positive r30: class86 sample count,True
+positive r30: class86 baseline LA reconstruction,True
+positive r30: class86 baseline response reconstruction,True
+positive r30: class86 student LA reconstruction,True
+positive r30: class86 student response reconstruction,True
+positive r30: class86 positive/attainment counts,True
+positive r30: class87 sample count,True
+positive r30: class87 baseline LA reconstruction,True
+positive r30: class87 baseline response reconstruction,True
+positive r30: class87 student LA reconstruction,True
+positive r30: class87 student response reconstruction,True
+positive r30: class87 positive/attainment counts,True
+positive r30: class88 sample count,True
+positive r30: class88 baseline LA reconstruction,True
+positive r30: class88 baseline response reconstruction,True
+positive r30: class88 student LA reconstruction,True
+positive r30: class88 student response reconstruction,True
+positive r30: class88 positive/attainment counts,True
+positive r30: class89 sample count,True
+positive r30: class89 baseline LA reconstruction,True
+positive r30: class89 baseline response reconstruction,True
+positive r30: class89 student LA reconstruction,True
+positive r30: class89 student response reconstruction,True
+positive r30: class89 positive/attainment counts,True
+positive r30: class90 sample count,True
+positive r30: class90 baseline LA reconstruction,True
+positive r30: class90 baseline response reconstruction,True
+positive r30: class90 student LA reconstruction,True
+positive r30: class90 student response reconstruction,True
+positive r30: class90 positive/attainment counts,True
+positive r30: class91 sample count,True
+positive r30: class91 baseline LA reconstruction,True
+positive r30: class91 baseline response reconstruction,True
+positive r30: class91 student LA reconstruction,True
+positive r30: class91 student response reconstruction,True
+positive r30: class91 positive/attainment counts,True
+positive r30: class92 sample count,True
+positive r30: class92 baseline LA reconstruction,True
+positive r30: class92 baseline response reconstruction,True
+positive r30: class92 student LA reconstruction,True
+positive r30: class92 student response reconstruction,True
+positive r30: class92 positive/attainment counts,True
+positive r30: class93 sample count,True
+positive r30: class93 baseline LA reconstruction,True
+positive r30: class93 baseline response reconstruction,True
+positive r30: class93 student LA reconstruction,True
+positive r30: class93 student response reconstruction,True
+positive r30: class93 positive/attainment counts,True
+positive r30: class94 sample count,True
+positive r30: class94 baseline LA reconstruction,True
+positive r30: class94 baseline response reconstruction,True
+positive r30: class94 student LA reconstruction,True
+positive r30: class94 student response reconstruction,True
+positive r30: class94 positive/attainment counts,True
+positive r30: class95 sample count,True
+positive r30: class95 baseline LA reconstruction,True
+positive r30: class95 baseline response reconstruction,True
+positive r30: class95 student LA reconstruction,True
+positive r30: class95 student response reconstruction,True
+positive r30: class95 positive/attainment counts,True
+positive r30: class96 sample count,True
+positive r30: class96 baseline LA reconstruction,True
+positive r30: class96 baseline response reconstruction,True
+positive r30: class96 student LA reconstruction,True
+positive r30: class96 student response reconstruction,True
+positive r30: class96 positive/attainment counts,True
+positive r30: class97 sample count,True
+positive r30: class97 baseline LA reconstruction,True
+positive r30: class97 baseline response reconstruction,True
+positive r30: class97 student LA reconstruction,True
+positive r30: class97 student response reconstruction,True
+positive r30: class97 positive/attainment counts,True
+positive r30: class98 sample count,True
+positive r30: class98 baseline LA reconstruction,True
+positive r30: class98 baseline response reconstruction,True
+positive r30: class98 student LA reconstruction,True
+positive r30: class98 student response reconstruction,True
+positive r30: class98 positive/attainment counts,True
+positive r30: class99 sample count,True
+positive r30: class99 baseline LA reconstruction,True
+positive r30: class99 baseline response reconstruction,True
+positive r30: class99 student LA reconstruction,True
+positive r30: class99 student response reconstruction,True
+positive r30: class99 positive/attainment counts,True
+positive r30: trace contains C0/C1/C2,True
+positive r30: step0 objective components,True
+positive r30: step1 objective components,True
+positive r30: step2 objective components,True
+positive r30: saved C reconstructs regularizer,True
+positive r30: endpoint LA matches logits,True
+positive r30: endpoint response matches logits,True
+positive r30: measured responses counted before ablation,True
+positive r40: complete eligible candidates,True
+positive r40: exact top3 and normalized weights,True
+positive r40: source qualification and flags,True
+positive r40: teacher class relations in manifest,True
+positive r40: selected union and source counts,True
+positive r40: NPZ class weights,True
+positive r40: NPZ axes,True
+positive r40: independent finite donor C,True
+positive r40: identical full-pool two-view budget,True
+positive r40: client27 full original tail positions,True
+positive r40: client27 mixed-then-min-clipped response,True
+positive r40: client27 variant application,True
+positive r40: client27 baseline margin,True
+positive r40: client27 target baseline plus increment,True
+positive r40: client27 frozen competitor weights,True
+positive r40: client28 full original tail positions,True
+positive r40: client28 mixed-then-min-clipped response,True
+positive r40: client28 variant application,True
+positive r40: client28 baseline margin,True
+positive r40: client28 target baseline plus increment,True
+positive r40: client28 frozen competitor weights,True
+positive r40: client29 full original tail positions,True
+positive r40: client29 mixed-then-min-clipped response,True
+positive r40: client29 variant application,True
+positive r40: client29 baseline margin,True
+positive r40: client29 target baseline plus increment,True
+positive r40: client29 frozen competitor weights,True
+positive r40: selected 80/11 probe from logits,True
+positive r40: selected 80/6 probe from logits,True
+positive r40: selected 80/16 probe from logits,True
+positive r40: selected 81/14 probe from logits,True
+positive r40: selected 81/12 probe from logits,True
+positive r40: selected 81/13 probe from logits,True
+positive r40: selected 82/0 probe from logits,True
+positive r40: selected 82/10 probe from logits,True
+positive r40: selected 82/22 probe from logits,True
+positive r40: selected 83/19 probe from logits,True
+positive r40: selected 83/7 probe from logits,True
+positive r40: selected 83/18 probe from logits,True
+positive r40: selected 84/16 probe from logits,True
+positive r40: selected 84/2 probe from logits,True
+positive r40: selected 84/5 probe from logits,True
+positive r40: selected 85/17 probe from logits,True
+positive r40: selected 85/16 probe from logits,True
+positive r40: selected 85/2 probe from logits,True
+positive r40: selected 86/25 probe from logits,True
+positive r40: selected 86/10 probe from logits,True
+positive r40: selected 86/14 probe from logits,True
+positive r40: selected 87/25 probe from logits,True
+positive r40: selected 87/24 probe from logits,True
+positive r40: selected 87/21 probe from logits,True
+positive r40: selected 88/14 probe from logits,True
+positive r40: selected 88/24 probe from logits,True
+positive r40: selected 88/10 probe from logits,True
+positive r40: selected 89/0 probe from logits,True
+positive r40: selected 89/6 probe from logits,True
+positive r40: selected 89/8 probe from logits,True
+positive r40: selected 90/6 probe from logits,True
+positive r40: selected 90/23 probe from logits,True
+positive r40: selected 90/9 probe from logits,True
+positive r40: selected 91/17 probe from logits,True
+positive r40: selected 91/6 probe from logits,True
+positive r40: selected 91/4 probe from logits,True
+positive r40: selected 92/13 probe from logits,True
+positive r40: selected 92/26 probe from logits,True
+positive r40: selected 92/5 probe from logits,True
+positive r40: selected 93/11 probe from logits,True
+positive r40: selected 93/7 probe from logits,True
+positive r40: selected 93/3 probe from logits,True
+positive r40: selected 94/23 probe from logits,True
+positive r40: selected 94/26 probe from logits,True
+positive r40: selected 94/25 probe from logits,True
+positive r40: selected 95/1 probe from logits,True
+positive r40: selected 95/11 probe from logits,True
+positive r40: selected 95/6 probe from logits,True
+positive r40: selected 96/12 probe from logits,True
+positive r40: selected 96/1 probe from logits,True
+positive r40: selected 96/24 probe from logits,True
+positive r40: selected 97/20 probe from logits,True
+positive r40: selected 97/25 probe from logits,True
+positive r40: selected 97/16 probe from logits,True
+positive r40: selected 98/25 probe from logits,True
+positive r40: selected 98/6 probe from logits,True
+positive r40: selected 98/3 probe from logits,True
+positive r40: selected 99/6 probe from logits,True
+positive r40: selected 99/18 probe from logits,True
+positive r40: selected 99/22 probe from logits,True
+positive r40: class80 sample count,True
+positive r40: class80 baseline LA reconstruction,True
+positive r40: class80 baseline response reconstruction,True
+positive r40: class80 student LA reconstruction,True
+positive r40: class80 student response reconstruction,True
+positive r40: class80 positive/attainment counts,True
+positive r40: class81 sample count,True
+positive r40: class81 baseline LA reconstruction,True
+positive r40: class81 baseline response reconstruction,True
+positive r40: class81 student LA reconstruction,True
+positive r40: class81 student response reconstruction,True
+positive r40: class81 positive/attainment counts,True
+positive r40: class82 sample count,True
+positive r40: class82 baseline LA reconstruction,True
+positive r40: class82 baseline response reconstruction,True
+positive r40: class82 student LA reconstruction,True
+positive r40: class82 student response reconstruction,True
+positive r40: class82 positive/attainment counts,True
+positive r40: class83 sample count,True
+positive r40: class83 baseline LA reconstruction,True
+positive r40: class83 baseline response reconstruction,True
+positive r40: class83 student LA reconstruction,True
+positive r40: class83 student response reconstruction,True
+positive r40: class83 positive/attainment counts,True
+positive r40: class84 sample count,True
+positive r40: class84 baseline LA reconstruction,True
+positive r40: class84 baseline response reconstruction,True
+positive r40: class84 student LA reconstruction,True
+positive r40: class84 student response reconstruction,True
+positive r40: class84 positive/attainment counts,True
+positive r40: class85 sample count,True
+positive r40: class85 baseline LA reconstruction,True
+positive r40: class85 baseline response reconstruction,True
+positive r40: class85 student LA reconstruction,True
+positive r40: class85 student response reconstruction,True
+positive r40: class85 positive/attainment counts,True
+positive r40: class86 sample count,True
+positive r40: class86 baseline LA reconstruction,True
+positive r40: class86 baseline response reconstruction,True
+positive r40: class86 student LA reconstruction,True
+positive r40: class86 student response reconstruction,True
+positive r40: class86 positive/attainment counts,True
+positive r40: class87 sample count,True
+positive r40: class87 baseline LA reconstruction,True
+positive r40: class87 baseline response reconstruction,True
+positive r40: class87 student LA reconstruction,True
+positive r40: class87 student response reconstruction,True
+positive r40: class87 positive/attainment counts,True
+positive r40: class88 sample count,True
+positive r40: class88 baseline LA reconstruction,True
+positive r40: class88 baseline response reconstruction,True
+positive r40: class88 student LA reconstruction,True
+positive r40: class88 student response reconstruction,True
+positive r40: class88 positive/attainment counts,True
+positive r40: class89 sample count,True
+positive r40: class89 baseline LA reconstruction,True
+positive r40: class89 baseline response reconstruction,True
+positive r40: class89 student LA reconstruction,True
+positive r40: class89 student response reconstruction,True
+positive r40: class89 positive/attainment counts,True
+positive r40: class90 sample count,True
+positive r40: class90 baseline LA reconstruction,True
+positive r40: class90 baseline response reconstruction,True
+positive r40: class90 student LA reconstruction,True
+positive r40: class90 student response reconstruction,True
+positive r40: class90 positive/attainment counts,True
+positive r40: class91 sample count,True
+positive r40: class91 baseline LA reconstruction,True
+positive r40: class91 baseline response reconstruction,True
+positive r40: class91 student LA reconstruction,True
+positive r40: class91 student response reconstruction,True
+positive r40: class91 positive/attainment counts,True
+positive r40: class92 sample count,True
+positive r40: class92 baseline LA reconstruction,True
+positive r40: class92 baseline response reconstruction,True
+positive r40: class92 student LA reconstruction,True
+positive r40: class92 student response reconstruction,True
+positive r40: class92 positive/attainment counts,True
+positive r40: class93 sample count,True
+positive r40: class93 baseline LA reconstruction,True
+positive r40: class93 baseline response reconstruction,True
+positive r40: class93 student LA reconstruction,True
+positive r40: class93 student response reconstruction,True
+positive r40: class93 positive/attainment counts,True
+positive r40: class94 sample count,True
+positive r40: class94 baseline LA reconstruction,True
+positive r40: class94 baseline response reconstruction,True
+positive r40: class94 student LA reconstruction,True
+positive r40: class94 student response reconstruction,True
+positive r40: class94 positive/attainment counts,True
+positive r40: class95 sample count,True
+positive r40: class95 baseline LA reconstruction,True
+positive r40: class95 baseline response reconstruction,True
+positive r40: class95 student LA reconstruction,True
+positive r40: class95 student response reconstruction,True
+positive r40: class95 positive/attainment counts,True
+positive r40: class96 sample count,True
+positive r40: class96 baseline LA reconstruction,True
+positive r40: class96 baseline response reconstruction,True
+positive r40: class96 student LA reconstruction,True
+positive r40: class96 student response reconstruction,True
+positive r40: class96 positive/attainment counts,True
+positive r40: class97 sample count,True
+positive r40: class97 baseline LA reconstruction,True
+positive r40: class97 baseline response reconstruction,True
+positive r40: class97 student LA reconstruction,True
+positive r40: class97 student response reconstruction,True
+positive r40: class97 positive/attainment counts,True
+positive r40: class98 sample count,True
+positive r40: class98 baseline LA reconstruction,True
+positive r40: class98 baseline response reconstruction,True
+positive r40: class98 student LA reconstruction,True
+positive r40: class98 student response reconstruction,True
+positive r40: class98 positive/attainment counts,True
+positive r40: class99 sample count,True
+positive r40: class99 baseline LA reconstruction,True
+positive r40: class99 baseline response reconstruction,True
+positive r40: class99 student LA reconstruction,True
+positive r40: class99 student response reconstruction,True
+positive r40: class99 positive/attainment counts,True
+positive r40: trace contains C0/C1/C2,True
+positive r40: step0 objective components,True
+positive r40: step1 objective components,True
+positive r40: step2 objective components,True
+positive r40: saved C reconstructs regularizer,True
+positive r40: endpoint LA matches logits,True
+positive r40: endpoint response matches logits,True
+positive r40: measured responses counted before ablation,True
+positive r50: complete eligible candidates,True
+positive r50: exact top3 and normalized weights,True
+positive r50: source qualification and flags,True
+positive r50: teacher class relations in manifest,True
+positive r50: selected union and source counts,True
+positive r50: NPZ class weights,True
+positive r50: NPZ axes,True
+positive r50: independent finite donor C,True
+positive r50: identical full-pool two-view budget,True
+positive r50: client27 full original tail positions,True
+positive r50: client27 mixed-then-min-clipped response,True
+positive r50: client27 variant application,True
+positive r50: client27 baseline margin,True
+positive r50: client27 target baseline plus increment,True
+positive r50: client27 frozen competitor weights,True
+positive r50: client28 full original tail positions,True
+positive r50: client28 mixed-then-min-clipped response,True
+positive r50: client28 variant application,True
+positive r50: client28 baseline margin,True
+positive r50: client28 target baseline plus increment,True
+positive r50: client28 frozen competitor weights,True
+positive r50: client29 full original tail positions,True
+positive r50: client29 mixed-then-min-clipped response,True
+positive r50: client29 variant application,True
+positive r50: client29 baseline margin,True
+positive r50: client29 target baseline plus increment,True
+positive r50: client29 frozen competitor weights,True
+positive r50: selected 80/11 probe from logits,True
+positive r50: selected 80/6 probe from logits,True
+positive r50: selected 80/14 probe from logits,True
+positive r50: selected 81/14 probe from logits,True
+positive r50: selected 81/12 probe from logits,True
+positive r50: selected 81/1 probe from logits,True
+positive r50: selected 82/0 probe from logits,True
+positive r50: selected 82/10 probe from logits,True
+positive r50: selected 82/19 probe from logits,True
+positive r50: selected 83/19 probe from logits,True
+positive r50: selected 83/7 probe from logits,True
+positive r50: selected 83/18 probe from logits,True
+positive r50: selected 84/16 probe from logits,True
+positive r50: selected 84/2 probe from logits,True
+positive r50: selected 84/23 probe from logits,True
+positive r50: selected 85/11 probe from logits,True
+positive r50: selected 85/17 probe from logits,True
+positive r50: selected 85/16 probe from logits,True
+positive r50: selected 86/25 probe from logits,True
+positive r50: selected 86/10 probe from logits,True
+positive r50: selected 86/14 probe from logits,True
+positive r50: selected 87/25 probe from logits,True
+positive r50: selected 87/24 probe from logits,True
+positive r50: selected 87/21 probe from logits,True
+positive r50: selected 88/14 probe from logits,True
+positive r50: selected 88/24 probe from logits,True
+positive r50: selected 88/10 probe from logits,True
+positive r50: selected 89/0 probe from logits,True
+positive r50: selected 89/5 probe from logits,True
+positive r50: selected 89/14 probe from logits,True
+positive r50: selected 90/23 probe from logits,True
+positive r50: selected 90/9 probe from logits,True
+positive r50: selected 90/6 probe from logits,True
+positive r50: selected 91/4 probe from logits,True
+positive r50: selected 91/6 probe from logits,True
+positive r50: selected 91/17 probe from logits,True
+positive r50: selected 92/26 probe from logits,True
+positive r50: selected 92/13 probe from logits,True
+positive r50: selected 92/0 probe from logits,True
+positive r50: selected 93/11 probe from logits,True
+positive r50: selected 93/1 probe from logits,True
+positive r50: selected 93/3 probe from logits,True
+positive r50: selected 94/26 probe from logits,True
+positive r50: selected 94/23 probe from logits,True
+positive r50: selected 94/5 probe from logits,True
+positive r50: selected 95/11 probe from logits,True
+positive r50: selected 95/1 probe from logits,True
+positive r50: selected 95/6 probe from logits,True
+positive r50: selected 96/1 probe from logits,True
+positive r50: selected 96/12 probe from logits,True
+positive r50: selected 96/8 probe from logits,True
+positive r50: selected 97/20 probe from logits,True
+positive r50: selected 97/25 probe from logits,True
+positive r50: selected 97/16 probe from logits,True
+positive r50: selected 98/25 probe from logits,True
+positive r50: selected 98/6 probe from logits,True
+positive r50: selected 98/11 probe from logits,True
+positive r50: selected 99/18 probe from logits,True
+positive r50: selected 99/6 probe from logits,True
+positive r50: selected 99/17 probe from logits,True
+positive r50: class80 sample count,True
+positive r50: class80 baseline LA reconstruction,True
+positive r50: class80 baseline response reconstruction,True
+positive r50: class80 student LA reconstruction,True
+positive r50: class80 student response reconstruction,True
+positive r50: class80 positive/attainment counts,True
+positive r50: class81 sample count,True
+positive r50: class81 baseline LA reconstruction,True
+positive r50: class81 baseline response reconstruction,True
+positive r50: class81 student LA reconstruction,True
+positive r50: class81 student response reconstruction,True
+positive r50: class81 positive/attainment counts,True
+positive r50: class82 sample count,True
+positive r50: class82 baseline LA reconstruction,True
+positive r50: class82 baseline response reconstruction,True
+positive r50: class82 student LA reconstruction,True
+positive r50: class82 student response reconstruction,True
+positive r50: class82 positive/attainment counts,True
+positive r50: class83 sample count,True
+positive r50: class83 baseline LA reconstruction,True
+positive r50: class83 baseline response reconstruction,True
+positive r50: class83 student LA reconstruction,True
+positive r50: class83 student response reconstruction,True
+positive r50: class83 positive/attainment counts,True
+positive r50: class84 sample count,True
+positive r50: class84 baseline LA reconstruction,True
+positive r50: class84 baseline response reconstruction,True
+positive r50: class84 student LA reconstruction,True
+positive r50: class84 student response reconstruction,True
+positive r50: class84 positive/attainment counts,True
+positive r50: class85 sample count,True
+positive r50: class85 baseline LA reconstruction,True
+positive r50: class85 baseline response reconstruction,True
+positive r50: class85 student LA reconstruction,True
+positive r50: class85 student response reconstruction,True
+positive r50: class85 positive/attainment counts,True
+positive r50: class86 sample count,True
+positive r50: class86 baseline LA reconstruction,True
+positive r50: class86 baseline response reconstruction,True
+positive r50: class86 student LA reconstruction,True
+positive r50: class86 student response reconstruction,True
+positive r50: class86 positive/attainment counts,True
+positive r50: class87 sample count,True
+positive r50: class87 baseline LA reconstruction,True
+positive r50: class87 baseline response reconstruction,True
+positive r50: class87 student LA reconstruction,True
+positive r50: class87 student response reconstruction,True
+positive r50: class87 positive/attainment counts,True
+positive r50: class88 sample count,True
+positive r50: class88 baseline LA reconstruction,True
+positive r50: class88 baseline response reconstruction,True
+positive r50: class88 student LA reconstruction,True
+positive r50: class88 student response reconstruction,True
+positive r50: class88 positive/attainment counts,True
+positive r50: class89 sample count,True
+positive r50: class89 baseline LA reconstruction,True
+positive r50: class89 baseline response reconstruction,True
+positive r50: class89 student LA reconstruction,True
+positive r50: class89 student response reconstruction,True
+positive r50: class89 positive/attainment counts,True
+positive r50: class90 sample count,True
+positive r50: class90 baseline LA reconstruction,True
+positive r50: class90 baseline response reconstruction,True
+positive r50: class90 student LA reconstruction,True
+positive r50: class90 student response reconstruction,True
+positive r50: class90 positive/attainment counts,True
+positive r50: class91 sample count,True
+positive r50: class91 baseline LA reconstruction,True
+positive r50: class91 baseline response reconstruction,True
+positive r50: class91 student LA reconstruction,True
+positive r50: class91 student response reconstruction,True
+positive r50: class91 positive/attainment counts,True
+positive r50: class92 sample count,True
+positive r50: class92 baseline LA reconstruction,True
+positive r50: class92 baseline response reconstruction,True
+positive r50: class92 student LA reconstruction,True
+positive r50: class92 student response reconstruction,True
+positive r50: class92 positive/attainment counts,True
+positive r50: class93 sample count,True
+positive r50: class93 baseline LA reconstruction,True
+positive r50: class93 baseline response reconstruction,True
+positive r50: class93 student LA reconstruction,True
+positive r50: class93 student response reconstruction,True
+positive r50: class93 positive/attainment counts,True
+positive r50: class94 sample count,True
+positive r50: class94 baseline LA reconstruction,True
+positive r50: class94 baseline response reconstruction,True
+positive r50: class94 student LA reconstruction,True
+positive r50: class94 student response reconstruction,True
+positive r50: class94 positive/attainment counts,True
+positive r50: class95 sample count,True
+positive r50: class95 baseline LA reconstruction,True
+positive r50: class95 baseline response reconstruction,True
+positive r50: class95 student LA reconstruction,True
+positive r50: class95 student response reconstruction,True
+positive r50: class95 positive/attainment counts,True
+positive r50: class96 sample count,True
+positive r50: class96 baseline LA reconstruction,True
+positive r50: class96 baseline response reconstruction,True
+positive r50: class96 student LA reconstruction,True
+positive r50: class96 student response reconstruction,True
+positive r50: class96 positive/attainment counts,True
+positive r50: class97 sample count,True
+positive r50: class97 baseline LA reconstruction,True
+positive r50: class97 baseline response reconstruction,True
+positive r50: class97 student LA reconstruction,True
+positive r50: class97 student response reconstruction,True
+positive r50: class97 positive/attainment counts,True
+positive r50: class98 sample count,True
+positive r50: class98 baseline LA reconstruction,True
+positive r50: class98 baseline response reconstruction,True
+positive r50: class98 student LA reconstruction,True
+positive r50: class98 student response reconstruction,True
+positive r50: class98 positive/attainment counts,True
+positive r50: class99 sample count,True
+positive r50: class99 baseline LA reconstruction,True
+positive r50: class99 baseline response reconstruction,True
+positive r50: class99 student LA reconstruction,True
+positive r50: class99 student response reconstruction,True
+positive r50: class99 positive/attainment counts,True
+positive r50: trace contains C0/C1/C2,True
+positive r50: step0 objective components,True
+positive r50: step1 objective components,True
+positive r50: step2 objective components,True
+positive r50: saved C reconstructs regularizer,True
+positive r50: endpoint LA matches logits,True
+positive r50: endpoint response matches logits,True
+positive r50: measured responses counted before ablation,True
+positive r60: complete eligible candidates,True
+positive r60: exact top3 and normalized weights,True
+positive r60: source qualification and flags,True
+positive r60: teacher class relations in manifest,True
+positive r60: selected union and source counts,True
+positive r60: NPZ class weights,True
+positive r60: NPZ axes,True
+positive r60: independent finite donor C,True
+positive r60: identical full-pool two-view budget,True
+positive r60: client27 full original tail positions,True
+positive r60: client27 mixed-then-min-clipped response,True
+positive r60: client27 variant application,True
+positive r60: client27 baseline margin,True
+positive r60: client27 target baseline plus increment,True
+positive r60: client27 frozen competitor weights,True
+positive r60: client28 full original tail positions,True
+positive r60: client28 mixed-then-min-clipped response,True
+positive r60: client28 variant application,True
+positive r60: client28 baseline margin,True
+positive r60: client28 target baseline plus increment,True
+positive r60: client28 frozen competitor weights,True
+positive r60: client29 full original tail positions,True
+positive r60: client29 mixed-then-min-clipped response,True
+positive r60: client29 variant application,True
+positive r60: client29 baseline margin,True
+positive r60: client29 target baseline plus increment,True
+positive r60: client29 frozen competitor weights,True
+positive r60: selected 80/11 probe from logits,True
+positive r60: selected 80/6 probe from logits,True
+positive r60: selected 80/16 probe from logits,True
+positive r60: selected 81/1 probe from logits,True
+positive r60: selected 81/14 probe from logits,True
+positive r60: selected 81/12 probe from logits,True
+positive r60: selected 82/0 probe from logits,True
+positive r60: selected 82/10 probe from logits,True
+positive r60: selected 82/7 probe from logits,True
+positive r60: selected 83/19 probe from logits,True
+positive r60: selected 83/18 probe from logits,True
+positive r60: selected 83/7 probe from logits,True
+positive r60: selected 84/16 probe from logits,True
+positive r60: selected 84/5 probe from logits,True
+positive r60: selected 84/2 probe from logits,True
+positive r60: selected 85/11 probe from logits,True
+positive r60: selected 85/16 probe from logits,True
+positive r60: selected 85/21 probe from logits,True
+positive r60: selected 86/25 probe from logits,True
+positive r60: selected 86/10 probe from logits,True
+positive r60: selected 86/14 probe from logits,True
+positive r60: selected 87/25 probe from logits,True
+positive r60: selected 87/21 probe from logits,True
+positive r60: selected 87/24 probe from logits,True
+positive r60: selected 88/14 probe from logits,True
+positive r60: selected 88/24 probe from logits,True
+positive r60: selected 88/0 probe from logits,True
+positive r60: selected 89/0 probe from logits,True
+positive r60: selected 89/5 probe from logits,True
+positive r60: selected 89/14 probe from logits,True
+positive r60: selected 90/23 probe from logits,True
+positive r60: selected 90/6 probe from logits,True
+positive r60: selected 90/17 probe from logits,True
+positive r60: selected 91/6 probe from logits,True
+positive r60: selected 91/4 probe from logits,True
+positive r60: selected 91/7 probe from logits,True
+positive r60: selected 92/26 probe from logits,True
+positive r60: selected 92/0 probe from logits,True
+positive r60: selected 92/13 probe from logits,True
+positive r60: selected 93/1 probe from logits,True
+positive r60: selected 93/24 probe from logits,True
+positive r60: selected 93/26 probe from logits,True
+positive r60: selected 94/26 probe from logits,True
+positive r60: selected 94/23 probe from logits,True
+positive r60: selected 94/5 probe from logits,True
+positive r60: selected 95/1 probe from logits,True
+positive r60: selected 95/11 probe from logits,True
+positive r60: selected 95/19 probe from logits,True
+positive r60: selected 96/1 probe from logits,True
+positive r60: selected 96/12 probe from logits,True
+positive r60: selected 96/8 probe from logits,True
+positive r60: selected 97/20 probe from logits,True
+positive r60: selected 97/25 probe from logits,True
+positive r60: selected 97/17 probe from logits,True
+positive r60: selected 98/25 probe from logits,True
+positive r60: selected 98/6 probe from logits,True
+positive r60: selected 98/12 probe from logits,True
+positive r60: selected 99/18 probe from logits,True
+positive r60: selected 99/6 probe from logits,True
+positive r60: selected 99/17 probe from logits,True
+positive r60: class80 sample count,True
+positive r60: class80 baseline LA reconstruction,True
+positive r60: class80 baseline response reconstruction,True
+positive r60: class80 student LA reconstruction,True
+positive r60: class80 student response reconstruction,True
+positive r60: class80 positive/attainment counts,True
+positive r60: class81 sample count,True
+positive r60: class81 baseline LA reconstruction,True
+positive r60: class81 baseline response reconstruction,True
+positive r60: class81 student LA reconstruction,True
+positive r60: class81 student response reconstruction,True
+positive r60: class81 positive/attainment counts,True
+positive r60: class82 sample count,True
+positive r60: class82 baseline LA reconstruction,True
+positive r60: class82 baseline response reconstruction,True
+positive r60: class82 student LA reconstruction,True
+positive r60: class82 student response reconstruction,True
+positive r60: class82 positive/attainment counts,True
+positive r60: class83 sample count,True
+positive r60: class83 baseline LA reconstruction,True
+positive r60: class83 baseline response reconstruction,True
+positive r60: class83 student LA reconstruction,True
+positive r60: class83 student response reconstruction,True
+positive r60: class83 positive/attainment counts,True
+positive r60: class84 sample count,True
+positive r60: class84 baseline LA reconstruction,True
+positive r60: class84 baseline response reconstruction,True
+positive r60: class84 student LA reconstruction,True
+positive r60: class84 student response reconstruction,True
+positive r60: class84 positive/attainment counts,True
+positive r60: class85 sample count,True
+positive r60: class85 baseline LA reconstruction,True
+positive r60: class85 baseline response reconstruction,True
+positive r60: class85 student LA reconstruction,True
+positive r60: class85 student response reconstruction,True
+positive r60: class85 positive/attainment counts,True
+positive r60: class86 sample count,True
+positive r60: class86 baseline LA reconstruction,True
+positive r60: class86 baseline response reconstruction,True
+positive r60: class86 student LA reconstruction,True
+positive r60: class86 student response reconstruction,True
+positive r60: class86 positive/attainment counts,True
+positive r60: class87 sample count,True
+positive r60: class87 baseline LA reconstruction,True
+positive r60: class87 baseline response reconstruction,True
+positive r60: class87 student LA reconstruction,True
+positive r60: class87 student response reconstruction,True
+positive r60: class87 positive/attainment counts,True
+positive r60: class88 sample count,True
+positive r60: class88 baseline LA reconstruction,True
+positive r60: class88 baseline response reconstruction,True
+positive r60: class88 student LA reconstruction,True
+positive r60: class88 student response reconstruction,True
+positive r60: class88 positive/attainment counts,True
+positive r60: class89 sample count,True
+positive r60: class89 baseline LA reconstruction,True
+positive r60: class89 baseline response reconstruction,True
+positive r60: class89 student LA reconstruction,True
+positive r60: class89 student response reconstruction,True
+positive r60: class89 positive/attainment counts,True
+positive r60: class90 sample count,True
+positive r60: class90 baseline LA reconstruction,True
+positive r60: class90 baseline response reconstruction,True
+positive r60: class90 student LA reconstruction,True
+positive r60: class90 student response reconstruction,True
+positive r60: class90 positive/attainment counts,True
+positive r60: class91 sample count,True
+positive r60: class91 baseline LA reconstruction,True
+positive r60: class91 baseline response reconstruction,True
+positive r60: class91 student LA reconstruction,True
+positive r60: class91 student response reconstruction,True
+positive r60: class91 positive/attainment counts,True
+positive r60: class92 sample count,True
+positive r60: class92 baseline LA reconstruction,True
+positive r60: class92 baseline response reconstruction,True
+positive r60: class92 student LA reconstruction,True
+positive r60: class92 student response reconstruction,True
+positive r60: class92 positive/attainment counts,True
+positive r60: class93 sample count,True
+positive r60: class93 baseline LA reconstruction,True
+positive r60: class93 baseline response reconstruction,True
+positive r60: class93 student LA reconstruction,True
+positive r60: class93 student response reconstruction,True
+positive r60: class93 positive/attainment counts,True
+positive r60: class94 sample count,True
+positive r60: class94 baseline LA reconstruction,True
+positive r60: class94 baseline response reconstruction,True
+positive r60: class94 student LA reconstruction,True
+positive r60: class94 student response reconstruction,True
+positive r60: class94 positive/attainment counts,True
+positive r60: class95 sample count,True
+positive r60: class95 baseline LA reconstruction,True
+positive r60: class95 baseline response reconstruction,True
+positive r60: class95 student LA reconstruction,True
+positive r60: class95 student response reconstruction,True
+positive r60: class95 positive/attainment counts,True
+positive r60: class96 sample count,True
+positive r60: class96 baseline LA reconstruction,True
+positive r60: class96 baseline response reconstruction,True
+positive r60: class96 student LA reconstruction,True
+positive r60: class96 student response reconstruction,True
+positive r60: class96 positive/attainment counts,True
+positive r60: class97 sample count,True
+positive r60: class97 baseline LA reconstruction,True
+positive r60: class97 baseline response reconstruction,True
+positive r60: class97 student LA reconstruction,True
+positive r60: class97 student response reconstruction,True
+positive r60: class97 positive/attainment counts,True
+positive r60: class98 sample count,True
+positive r60: class98 baseline LA reconstruction,True
+positive r60: class98 baseline response reconstruction,True
+positive r60: class98 student LA reconstruction,True
+positive r60: class98 student response reconstruction,True
+positive r60: class98 positive/attainment counts,True
+positive r60: class99 sample count,True
+positive r60: class99 baseline LA reconstruction,True
+positive r60: class99 baseline response reconstruction,True
+positive r60: class99 student LA reconstruction,True
+positive r60: class99 student response reconstruction,True
+positive r60: class99 positive/attainment counts,True
+positive r60: trace contains C0/C1/C2,True
+positive r60: step0 objective components,True
+positive r60: step1 objective components,True
+positive r60: step2 objective components,True
+positive r60: saved C reconstructs regularizer,True
+positive r60: endpoint LA matches logits,True
+positive r60: endpoint response matches logits,True
+positive r60: measured responses counted before ablation,True
+positive r70: complete eligible candidates,True
+positive r70: exact top3 and normalized weights,True
+positive r70: source qualification and flags,True
+positive r70: teacher class relations in manifest,True
+positive r70: selected union and source counts,True
+positive r70: NPZ class weights,True
+positive r70: NPZ axes,True
+positive r70: independent finite donor C,True
+positive r70: identical full-pool two-view budget,True
+positive r70: client27 full original tail positions,True
+positive r70: client27 mixed-then-min-clipped response,True
+positive r70: client27 variant application,True
+positive r70: client27 baseline margin,True
+positive r70: client27 target baseline plus increment,True
+positive r70: client27 frozen competitor weights,True
+positive r70: client28 full original tail positions,True
+positive r70: client28 mixed-then-min-clipped response,True
+positive r70: client28 variant application,True
+positive r70: client28 baseline margin,True
+positive r70: client28 target baseline plus increment,True
+positive r70: client28 frozen competitor weights,True
+positive r70: client29 full original tail positions,True
+positive r70: client29 mixed-then-min-clipped response,True
+positive r70: client29 variant application,True
+positive r70: client29 baseline margin,True
+positive r70: client29 target baseline plus increment,True
+positive r70: client29 frozen competitor weights,True
+positive r70: selected 80/11 probe from logits,True
+positive r70: selected 80/6 probe from logits,True
+positive r70: selected 80/14 probe from logits,True
+positive r70: selected 81/1 probe from logits,True
+positive r70: selected 81/12 probe from logits,True
+positive r70: selected 81/14 probe from logits,True
+positive r70: selected 82/10 probe from logits,True
+positive r70: selected 82/0 probe from logits,True
+positive r70: selected 82/19 probe from logits,True
+positive r70: selected 83/19 probe from logits,True
+positive r70: selected 83/18 probe from logits,True
+positive r70: selected 83/7 probe from logits,True
+positive r70: selected 84/16 probe from logits,True
+positive r70: selected 84/2 probe from logits,True
+positive r70: selected 84/0 probe from logits,True
+positive r70: selected 85/11 probe from logits,True
+positive r70: selected 85/16 probe from logits,True
+positive r70: selected 85/21 probe from logits,True
+positive r70: selected 86/10 probe from logits,True
+positive r70: selected 86/25 probe from logits,True
+positive r70: selected 86/14 probe from logits,True
+positive r70: selected 87/21 probe from logits,True
+positive r70: selected 87/24 probe from logits,True
+positive r70: selected 87/25 probe from logits,True
+positive r70: selected 88/14 probe from logits,True
+positive r70: selected 88/24 probe from logits,True
+positive r70: selected 88/0 probe from logits,True
+positive r70: selected 89/5 probe from logits,True
+positive r70: selected 89/0 probe from logits,True
+positive r70: selected 89/14 probe from logits,True
+positive r70: selected 90/23 probe from logits,True
+positive r70: selected 90/6 probe from logits,True
+positive r70: selected 90/9 probe from logits,True
+positive r70: selected 91/6 probe from logits,True
+positive r70: selected 91/4 probe from logits,True
+positive r70: selected 91/7 probe from logits,True
+positive r70: selected 92/26 probe from logits,True
+positive r70: selected 92/0 probe from logits,True
+positive r70: selected 92/13 probe from logits,True
+positive r70: selected 93/11 probe from logits,True
+positive r70: selected 93/1 probe from logits,True
+positive r70: selected 93/26 probe from logits,True
+positive r70: selected 94/26 probe from logits,True
+positive r70: selected 94/25 probe from logits,True
+positive r70: selected 94/5 probe from logits,True
+positive r70: selected 95/1 probe from logits,True
+positive r70: selected 95/19 probe from logits,True
+positive r70: selected 95/11 probe from logits,True
+positive r70: selected 96/12 probe from logits,True
+positive r70: selected 96/1 probe from logits,True
+positive r70: selected 96/8 probe from logits,True
+positive r70: selected 97/20 probe from logits,True
+positive r70: selected 97/25 probe from logits,True
+positive r70: selected 97/17 probe from logits,True
+positive r70: selected 98/25 probe from logits,True
+positive r70: selected 98/6 probe from logits,True
+positive r70: selected 98/12 probe from logits,True
+positive r70: selected 99/18 probe from logits,True
+positive r70: selected 99/17 probe from logits,True
+positive r70: selected 99/6 probe from logits,True
+positive r70: class80 sample count,True
+positive r70: class80 baseline LA reconstruction,True
+positive r70: class80 baseline response reconstruction,True
+positive r70: class80 student LA reconstruction,True
+positive r70: class80 student response reconstruction,True
+positive r70: class80 positive/attainment counts,True
+positive r70: class81 sample count,True
+positive r70: class81 baseline LA reconstruction,True
+positive r70: class81 baseline response reconstruction,True
+positive r70: class81 student LA reconstruction,True
+positive r70: class81 student response reconstruction,True
+positive r70: class81 positive/attainment counts,True
+positive r70: class82 sample count,True
+positive r70: class82 baseline LA reconstruction,True
+positive r70: class82 baseline response reconstruction,True
+positive r70: class82 student LA reconstruction,True
+positive r70: class82 student response reconstruction,True
+positive r70: class82 positive/attainment counts,True
+positive r70: class83 sample count,True
+positive r70: class83 baseline LA reconstruction,True
+positive r70: class83 baseline response reconstruction,True
+positive r70: class83 student LA reconstruction,True
+positive r70: class83 student response reconstruction,True
+positive r70: class83 positive/attainment counts,True
+positive r70: class84 sample count,True
+positive r70: class84 baseline LA reconstruction,True
+positive r70: class84 baseline response reconstruction,True
+positive r70: class84 student LA reconstruction,True
+positive r70: class84 student response reconstruction,True
+positive r70: class84 positive/attainment counts,True
+positive r70: class85 sample count,True
+positive r70: class85 baseline LA reconstruction,True
+positive r70: class85 baseline response reconstruction,True
+positive r70: class85 student LA reconstruction,True
+positive r70: class85 student response reconstruction,True
+positive r70: class85 positive/attainment counts,True
+positive r70: class86 sample count,True
+positive r70: class86 baseline LA reconstruction,True
+positive r70: class86 baseline response reconstruction,True
+positive r70: class86 student LA reconstruction,True
+positive r70: class86 student response reconstruction,True
+positive r70: class86 positive/attainment counts,True
+positive r70: class87 sample count,True
+positive r70: class87 baseline LA reconstruction,True
+positive r70: class87 baseline response reconstruction,True
+positive r70: class87 student LA reconstruction,True
+positive r70: class87 student response reconstruction,True
+positive r70: class87 positive/attainment counts,True
+positive r70: class88 sample count,True
+positive r70: class88 baseline LA reconstruction,True
+positive r70: class88 baseline response reconstruction,True
+positive r70: class88 student LA reconstruction,True
+positive r70: class88 student response reconstruction,True
+positive r70: class88 positive/attainment counts,True
+positive r70: class89 sample count,True
+positive r70: class89 baseline LA reconstruction,True
+positive r70: class89 baseline response reconstruction,True
+positive r70: class89 student LA reconstruction,True
+positive r70: class89 student response reconstruction,True
+positive r70: class89 positive/attainment counts,True
+positive r70: class90 sample count,True
+positive r70: class90 baseline LA reconstruction,True
+positive r70: class90 baseline response reconstruction,True
+positive r70: class90 student LA reconstruction,True
+positive r70: class90 student response reconstruction,True
+positive r70: class90 positive/attainment counts,True
+positive r70: class91 sample count,True
+positive r70: class91 baseline LA reconstruction,True
+positive r70: class91 baseline response reconstruction,True
+positive r70: class91 student LA reconstruction,True
+positive r70: class91 student response reconstruction,True
+positive r70: class91 positive/attainment counts,True
+positive r70: class92 sample count,True
+positive r70: class92 baseline LA reconstruction,True
+positive r70: class92 baseline response reconstruction,True
+positive r70: class92 student LA reconstruction,True
+positive r70: class92 student response reconstruction,True
+positive r70: class92 positive/attainment counts,True
+positive r70: class93 sample count,True
+positive r70: class93 baseline LA reconstruction,True
+positive r70: class93 baseline response reconstruction,True
+positive r70: class93 student LA reconstruction,True
+positive r70: class93 student response reconstruction,True
+positive r70: class93 positive/attainment counts,True
+positive r70: class94 sample count,True
+positive r70: class94 baseline LA reconstruction,True
+positive r70: class94 baseline response reconstruction,True
+positive r70: class94 student LA reconstruction,True
+positive r70: class94 student response reconstruction,True
+positive r70: class94 positive/attainment counts,True
+positive r70: class95 sample count,True
+positive r70: class95 baseline LA reconstruction,True
+positive r70: class95 baseline response reconstruction,True
+positive r70: class95 student LA reconstruction,True
+positive r70: class95 student response reconstruction,True
+positive r70: class95 positive/attainment counts,True
+positive r70: class96 sample count,True
+positive r70: class96 baseline LA reconstruction,True
+positive r70: class96 baseline response reconstruction,True
+positive r70: class96 student LA reconstruction,True
+positive r70: class96 student response reconstruction,True
+positive r70: class96 positive/attainment counts,True
+positive r70: class97 sample count,True
+positive r70: class97 baseline LA reconstruction,True
+positive r70: class97 baseline response reconstruction,True
+positive r70: class97 student LA reconstruction,True
+positive r70: class97 student response reconstruction,True
+positive r70: class97 positive/attainment counts,True
+positive r70: class98 sample count,True
+positive r70: class98 baseline LA reconstruction,True
+positive r70: class98 baseline response reconstruction,True
+positive r70: class98 student LA reconstruction,True
+positive r70: class98 student response reconstruction,True
+positive r70: class98 positive/attainment counts,True
+positive r70: class99 sample count,True
+positive r70: class99 baseline LA reconstruction,True
+positive r70: class99 baseline response reconstruction,True
+positive r70: class99 student LA reconstruction,True
+positive r70: class99 student response reconstruction,True
+positive r70: class99 positive/attainment counts,True
+positive r70: trace contains C0/C1/C2,True
+positive r70: step0 objective components,True
+positive r70: step1 objective components,True
+positive r70: step2 objective components,True
+positive r70: saved C reconstructs regularizer,True
+positive r70: endpoint LA matches logits,True
+positive r70: endpoint response matches logits,True
+positive r70: measured responses counted before ablation,True
+positive r80: complete eligible candidates,True
+positive r80: exact top3 and normalized weights,True
+positive r80: source qualification and flags,True
+positive r80: teacher class relations in manifest,True
+positive r80: selected union and source counts,True
+positive r80: NPZ class weights,True
+positive r80: NPZ axes,True
+positive r80: independent finite donor C,True
+positive r80: identical full-pool two-view budget,True
+positive r80: client27 full original tail positions,True
+positive r80: client27 mixed-then-min-clipped response,True
+positive r80: client27 variant application,True
+positive r80: client27 baseline margin,True
+positive r80: client27 target baseline plus increment,True
+positive r80: client27 frozen competitor weights,True
+positive r80: client28 full original tail positions,True
+positive r80: client28 mixed-then-min-clipped response,True
+positive r80: client28 variant application,True
+positive r80: client28 baseline margin,True
+positive r80: client28 target baseline plus increment,True
+positive r80: client28 frozen competitor weights,True
+positive r80: client29 full original tail positions,True
+positive r80: client29 mixed-then-min-clipped response,True
+positive r80: client29 variant application,True
+positive r80: client29 baseline margin,True
+positive r80: client29 target baseline plus increment,True
+positive r80: client29 frozen competitor weights,True
+positive r80: selected 80/6 probe from logits,True
+positive r80: selected 80/14 probe from logits,True
+positive r80: selected 80/11 probe from logits,True
+positive r80: selected 81/1 probe from logits,True
+positive r80: selected 81/12 probe from logits,True
+positive r80: selected 81/14 probe from logits,True
+positive r80: selected 82/10 probe from logits,True
+positive r80: selected 82/0 probe from logits,True
+positive r80: selected 82/11 probe from logits,True
+positive r80: selected 83/19 probe from logits,True
+positive r80: selected 83/18 probe from logits,True
+positive r80: selected 83/7 probe from logits,True
+positive r80: selected 84/16 probe from logits,True
+positive r80: selected 84/2 probe from logits,True
+positive r80: selected 84/4 probe from logits,True
+positive r80: selected 85/17 probe from logits,True
+positive r80: selected 85/16 probe from logits,True
+positive r80: selected 85/21 probe from logits,True
+positive r80: selected 86/25 probe from logits,True
+positive r80: selected 86/10 probe from logits,True
+positive r80: selected 86/14 probe from logits,True
+positive r80: selected 87/21 probe from logits,True
+positive r80: selected 87/25 probe from logits,True
+positive r80: selected 87/24 probe from logits,True
+positive r80: selected 88/14 probe from logits,True
+positive r80: selected 88/24 probe from logits,True
+positive r80: selected 88/0 probe from logits,True
+positive r80: selected 89/5 probe from logits,True
+positive r80: selected 89/0 probe from logits,True
+positive r80: selected 89/6 probe from logits,True
+positive r80: selected 90/23 probe from logits,True
+positive r80: selected 90/6 probe from logits,True
+positive r80: selected 90/17 probe from logits,True
+positive r80: selected 91/6 probe from logits,True
+positive r80: selected 91/4 probe from logits,True
+positive r80: selected 91/7 probe from logits,True
+positive r80: selected 92/26 probe from logits,True
+positive r80: selected 92/0 probe from logits,True
+positive r80: selected 92/13 probe from logits,True
+positive r80: selected 93/11 probe from logits,True
+positive r80: selected 93/1 probe from logits,True
+positive r80: selected 93/26 probe from logits,True
+positive r80: selected 94/26 probe from logits,True
+positive r80: selected 94/25 probe from logits,True
+positive r80: selected 94/5 probe from logits,True
+positive r80: selected 95/11 probe from logits,True
+positive r80: selected 95/1 probe from logits,True
+positive r80: selected 95/19 probe from logits,True
+positive r80: selected 96/11 probe from logits,True
+positive r80: selected 96/1 probe from logits,True
+positive r80: selected 96/12 probe from logits,True
+positive r80: selected 97/20 probe from logits,True
+positive r80: selected 97/25 probe from logits,True
+positive r80: selected 97/16 probe from logits,True
+positive r80: selected 98/25 probe from logits,True
+positive r80: selected 98/6 probe from logits,True
+positive r80: selected 98/11 probe from logits,True
+positive r80: selected 99/18 probe from logits,True
+positive r80: selected 99/17 probe from logits,True
+positive r80: selected 99/6 probe from logits,True
+positive r80: class80 sample count,True
+positive r80: class80 baseline LA reconstruction,True
+positive r80: class80 baseline response reconstruction,True
+positive r80: class80 student LA reconstruction,True
+positive r80: class80 student response reconstruction,True
+positive r80: class80 positive/attainment counts,True
+positive r80: class81 sample count,True
+positive r80: class81 baseline LA reconstruction,True
+positive r80: class81 baseline response reconstruction,True
+positive r80: class81 student LA reconstruction,True
+positive r80: class81 student response reconstruction,True
+positive r80: class81 positive/attainment counts,True
+positive r80: class82 sample count,True
+positive r80: class82 baseline LA reconstruction,True
+positive r80: class82 baseline response reconstruction,True
+positive r80: class82 student LA reconstruction,True
+positive r80: class82 student response reconstruction,True
+positive r80: class82 positive/attainment counts,True
+positive r80: class83 sample count,True
+positive r80: class83 baseline LA reconstruction,True
+positive r80: class83 baseline response reconstruction,True
+positive r80: class83 student LA reconstruction,True
+positive r80: class83 student response reconstruction,True
+positive r80: class83 positive/attainment counts,True
+positive r80: class84 sample count,True
+positive r80: class84 baseline LA reconstruction,True
+positive r80: class84 baseline response reconstruction,True
+positive r80: class84 student LA reconstruction,True
+positive r80: class84 student response reconstruction,True
+positive r80: class84 positive/attainment counts,True
+positive r80: class85 sample count,True
+positive r80: class85 baseline LA reconstruction,True
+positive r80: class85 baseline response reconstruction,True
+positive r80: class85 student LA reconstruction,True
+positive r80: class85 student response reconstruction,True
+positive r80: class85 positive/attainment counts,True
+positive r80: class86 sample count,True
+positive r80: class86 baseline LA reconstruction,True
+positive r80: class86 baseline response reconstruction,True
+positive r80: class86 student LA reconstruction,True
+positive r80: class86 student response reconstruction,True
+positive r80: class86 positive/attainment counts,True
+positive r80: class87 sample count,True
+positive r80: class87 baseline LA reconstruction,True
+positive r80: class87 baseline response reconstruction,True
+positive r80: class87 student LA reconstruction,True
+positive r80: class87 student response reconstruction,True
+positive r80: class87 positive/attainment counts,True
+positive r80: class88 sample count,True
+positive r80: class88 baseline LA reconstruction,True
+positive r80: class88 baseline response reconstruction,True
+positive r80: class88 student LA reconstruction,True
+positive r80: class88 student response reconstruction,True
+positive r80: class88 positive/attainment counts,True
+positive r80: class89 sample count,True
+positive r80: class89 baseline LA reconstruction,True
+positive r80: class89 baseline response reconstruction,True
+positive r80: class89 student LA reconstruction,True
+positive r80: class89 student response reconstruction,True
+positive r80: class89 positive/attainment counts,True
+positive r80: class90 sample count,True
+positive r80: class90 baseline LA reconstruction,True
+positive r80: class90 baseline response reconstruction,True
+positive r80: class90 student LA reconstruction,True
+positive r80: class90 student response reconstruction,True
+positive r80: class90 positive/attainment counts,True
+positive r80: class91 sample count,True
+positive r80: class91 baseline LA reconstruction,True
+positive r80: class91 baseline response reconstruction,True
+positive r80: class91 student LA reconstruction,True
+positive r80: class91 student response reconstruction,True
+positive r80: class91 positive/attainment counts,True
+positive r80: class92 sample count,True
+positive r80: class92 baseline LA reconstruction,True
+positive r80: class92 baseline response reconstruction,True
+positive r80: class92 student LA reconstruction,True
+positive r80: class92 student response reconstruction,True
+positive r80: class92 positive/attainment counts,True
+positive r80: class93 sample count,True
+positive r80: class93 baseline LA reconstruction,True
+positive r80: class93 baseline response reconstruction,True
+positive r80: class93 student LA reconstruction,True
+positive r80: class93 student response reconstruction,True
+positive r80: class93 positive/attainment counts,True
+positive r80: class94 sample count,True
+positive r80: class94 baseline LA reconstruction,True
+positive r80: class94 baseline response reconstruction,True
+positive r80: class94 student LA reconstruction,True
+positive r80: class94 student response reconstruction,True
+positive r80: class94 positive/attainment counts,True
+positive r80: class95 sample count,True
+positive r80: class95 baseline LA reconstruction,True
+positive r80: class95 baseline response reconstruction,True
+positive r80: class95 student LA reconstruction,True
+positive r80: class95 student response reconstruction,True
+positive r80: class95 positive/attainment counts,True
+positive r80: class96 sample count,True
+positive r80: class96 baseline LA reconstruction,True
+positive r80: class96 baseline response reconstruction,True
+positive r80: class96 student LA reconstruction,True
+positive r80: class96 student response reconstruction,True
+positive r80: class96 positive/attainment counts,True
+positive r80: class97 sample count,True
+positive r80: class97 baseline LA reconstruction,True
+positive r80: class97 baseline response reconstruction,True
+positive r80: class97 student LA reconstruction,True
+positive r80: class97 student response reconstruction,True
+positive r80: class97 positive/attainment counts,True
+positive r80: class98 sample count,True
+positive r80: class98 baseline LA reconstruction,True
+positive r80: class98 baseline response reconstruction,True
+positive r80: class98 student LA reconstruction,True
+positive r80: class98 student response reconstruction,True
+positive r80: class98 positive/attainment counts,True
+positive r80: class99 sample count,True
+positive r80: class99 baseline LA reconstruction,True
+positive r80: class99 baseline response reconstruction,True
+positive r80: class99 student LA reconstruction,True
+positive r80: class99 student response reconstruction,True
+positive r80: class99 positive/attainment counts,True
+positive r80: trace contains C0/C1/C2,True
+positive r80: step0 objective components,True
+positive r80: step1 objective components,True
+positive r80: step2 objective components,True
+positive r80: saved C reconstructs regularizer,True
+positive r80: endpoint LA matches logits,True
+positive r80: endpoint response matches logits,True
+positive r80: measured responses counted before ablation,True
+positive r90: complete eligible candidates,True
+positive r90: exact top3 and normalized weights,True
+positive r90: source qualification and flags,True
+positive r90: teacher class relations in manifest,True
+positive r90: selected union and source counts,True
+positive r90: NPZ class weights,True
+positive r90: NPZ axes,True
+positive r90: independent finite donor C,True
+positive r90: identical full-pool two-view budget,True
+positive r90: client27 full original tail positions,True
+positive r90: client27 mixed-then-min-clipped response,True
+positive r90: client27 variant application,True
+positive r90: client27 baseline margin,True
+positive r90: client27 target baseline plus increment,True
+positive r90: client27 frozen competitor weights,True
+positive r90: client28 full original tail positions,True
+positive r90: client28 mixed-then-min-clipped response,True
+positive r90: client28 variant application,True
+positive r90: client28 baseline margin,True
+positive r90: client28 target baseline plus increment,True
+positive r90: client28 frozen competitor weights,True
+positive r90: client29 full original tail positions,True
+positive r90: client29 mixed-then-min-clipped response,True
+positive r90: client29 variant application,True
+positive r90: client29 baseline margin,True
+positive r90: client29 target baseline plus increment,True
+positive r90: client29 frozen competitor weights,True
+positive r90: selected 80/11 probe from logits,True
+positive r90: selected 80/6 probe from logits,True
+positive r90: selected 80/14 probe from logits,True
+positive r90: selected 81/1 probe from logits,True
+positive r90: selected 81/12 probe from logits,True
+positive r90: selected 81/14 probe from logits,True
+positive r90: selected 82/10 probe from logits,True
+positive r90: selected 82/0 probe from logits,True
+positive r90: selected 82/16 probe from logits,True
+positive r90: selected 83/19 probe from logits,True
+positive r90: selected 83/7 probe from logits,True
+positive r90: selected 83/18 probe from logits,True
+positive r90: selected 84/16 probe from logits,True
+positive r90: selected 84/4 probe from logits,True
+positive r90: selected 84/3 probe from logits,True
+positive r90: selected 85/21 probe from logits,True
+positive r90: selected 85/11 probe from logits,True
+positive r90: selected 85/13 probe from logits,True
+positive r90: selected 86/25 probe from logits,True
+positive r90: selected 86/10 probe from logits,True
+positive r90: selected 86/18 probe from logits,True
+positive r90: selected 87/21 probe from logits,True
+positive r90: selected 87/3 probe from logits,True
+positive r90: selected 87/17 probe from logits,True
+positive r90: selected 88/14 probe from logits,True
+positive r90: selected 88/24 probe from logits,True
+positive r90: selected 88/6 probe from logits,True
+positive r90: selected 89/0 probe from logits,True
+positive r90: selected 89/5 probe from logits,True
+positive r90: selected 89/14 probe from logits,True
+positive r90: selected 90/23 probe from logits,True
+positive r90: selected 90/6 probe from logits,True
+positive r90: selected 90/9 probe from logits,True
+positive r90: selected 91/6 probe from logits,True
+positive r90: selected 91/4 probe from logits,True
+positive r90: selected 91/11 probe from logits,True
+positive r90: selected 92/26 probe from logits,True
+positive r90: selected 92/25 probe from logits,True
+positive r90: selected 92/0 probe from logits,True
+positive r90: selected 93/11 probe from logits,True
+positive r90: selected 93/1 probe from logits,True
+positive r90: selected 93/26 probe from logits,True
+positive r90: selected 94/26 probe from logits,True
+positive r90: selected 94/25 probe from logits,True
+positive r90: selected 94/5 probe from logits,True
+positive r90: selected 95/1 probe from logits,True
+positive r90: selected 95/19 probe from logits,True
+positive r90: selected 95/11 probe from logits,True
+positive r90: selected 96/1 probe from logits,True
+positive r90: selected 96/12 probe from logits,True
+positive r90: selected 96/7 probe from logits,True
+positive r90: selected 97/20 probe from logits,True
+positive r90: selected 97/25 probe from logits,True
+positive r90: selected 97/16 probe from logits,True
+positive r90: selected 98/25 probe from logits,True
+positive r90: selected 98/6 probe from logits,True
+positive r90: selected 98/9 probe from logits,True
+positive r90: selected 99/17 probe from logits,True
+positive r90: selected 99/18 probe from logits,True
+positive r90: selected 99/3 probe from logits,True
+positive r90: class80 sample count,True
+positive r90: class80 baseline LA reconstruction,True
+positive r90: class80 baseline response reconstruction,True
+positive r90: class80 student LA reconstruction,True
+positive r90: class80 student response reconstruction,True
+positive r90: class80 positive/attainment counts,True
+positive r90: class81 sample count,True
+positive r90: class81 baseline LA reconstruction,True
+positive r90: class81 baseline response reconstruction,True
+positive r90: class81 student LA reconstruction,True
+positive r90: class81 student response reconstruction,True
+positive r90: class81 positive/attainment counts,True
+positive r90: class82 sample count,True
+positive r90: class82 baseline LA reconstruction,True
+positive r90: class82 baseline response reconstruction,True
+positive r90: class82 student LA reconstruction,True
+positive r90: class82 student response reconstruction,True
+positive r90: class82 positive/attainment counts,True
+positive r90: class83 sample count,True
+positive r90: class83 baseline LA reconstruction,True
+positive r90: class83 baseline response reconstruction,True
+positive r90: class83 student LA reconstruction,True
+positive r90: class83 student response reconstruction,True
+positive r90: class83 positive/attainment counts,True
+positive r90: class84 sample count,True
+positive r90: class84 baseline LA reconstruction,True
+positive r90: class84 baseline response reconstruction,True
+positive r90: class84 student LA reconstruction,True
+positive r90: class84 student response reconstruction,True
+positive r90: class84 positive/attainment counts,True
+positive r90: class85 sample count,True
+positive r90: class85 baseline LA reconstruction,True
+positive r90: class85 baseline response reconstruction,True
+positive r90: class85 student LA reconstruction,True
+positive r90: class85 student response reconstruction,True
+positive r90: class85 positive/attainment counts,True
+positive r90: class86 sample count,True
+positive r90: class86 baseline LA reconstruction,True
+positive r90: class86 baseline response reconstruction,True
+positive r90: class86 student LA reconstruction,True
+positive r90: class86 student response reconstruction,True
+positive r90: class86 positive/attainment counts,True
+positive r90: class87 sample count,True
+positive r90: class87 baseline LA reconstruction,True
+positive r90: class87 baseline response reconstruction,True
+positive r90: class87 student LA reconstruction,True
+positive r90: class87 student response reconstruction,True
+positive r90: class87 positive/attainment counts,True
+positive r90: class88 sample count,True
+positive r90: class88 baseline LA reconstruction,True
+positive r90: class88 baseline response reconstruction,True
+positive r90: class88 student LA reconstruction,True
+positive r90: class88 student response reconstruction,True
+positive r90: class88 positive/attainment counts,True
+positive r90: class89 sample count,True
+positive r90: class89 baseline LA reconstruction,True
+positive r90: class89 baseline response reconstruction,True
+positive r90: class89 student LA reconstruction,True
+positive r90: class89 student response reconstruction,True
+positive r90: class89 positive/attainment counts,True
+positive r90: class90 sample count,True
+positive r90: class90 baseline LA reconstruction,True
+positive r90: class90 baseline response reconstruction,True
+positive r90: class90 student LA reconstruction,True
+positive r90: class90 student response reconstruction,True
+positive r90: class90 positive/attainment counts,True
+positive r90: class91 sample count,True
+positive r90: class91 baseline LA reconstruction,True
+positive r90: class91 baseline response reconstruction,True
+positive r90: class91 student LA reconstruction,True
+positive r90: class91 student response reconstruction,True
+positive r90: class91 positive/attainment counts,True
+positive r90: class92 sample count,True
+positive r90: class92 baseline LA reconstruction,True
+positive r90: class92 baseline response reconstruction,True
+positive r90: class92 student LA reconstruction,True
+positive r90: class92 student response reconstruction,True
+positive r90: class92 positive/attainment counts,True
+positive r90: class93 sample count,True
+positive r90: class93 baseline LA reconstruction,True
+positive r90: class93 baseline response reconstruction,True
+positive r90: class93 student LA reconstruction,True
+positive r90: class93 student response reconstruction,True
+positive r90: class93 positive/attainment counts,True
+positive r90: class94 sample count,True
+positive r90: class94 baseline LA reconstruction,True
+positive r90: class94 baseline response reconstruction,True
+positive r90: class94 student LA reconstruction,True
+positive r90: class94 student response reconstruction,True
+positive r90: class94 positive/attainment counts,True
+positive r90: class95 sample count,True
+positive r90: class95 baseline LA reconstruction,True
+positive r90: class95 baseline response reconstruction,True
+positive r90: class95 student LA reconstruction,True
+positive r90: class95 student response reconstruction,True
+positive r90: class95 positive/attainment counts,True
+positive r90: class96 sample count,True
+positive r90: class96 baseline LA reconstruction,True
+positive r90: class96 baseline response reconstruction,True
+positive r90: class96 student LA reconstruction,True
+positive r90: class96 student response reconstruction,True
+positive r90: class96 positive/attainment counts,True
+positive r90: class97 sample count,True
+positive r90: class97 baseline LA reconstruction,True
+positive r90: class97 baseline response reconstruction,True
+positive r90: class97 student LA reconstruction,True
+positive r90: class97 student response reconstruction,True
+positive r90: class97 positive/attainment counts,True
+positive r90: class98 sample count,True
+positive r90: class98 baseline LA reconstruction,True
+positive r90: class98 baseline response reconstruction,True
+positive r90: class98 student LA reconstruction,True
+positive r90: class98 student response reconstruction,True
+positive r90: class98 positive/attainment counts,True
+positive r90: class99 sample count,True
+positive r90: class99 baseline LA reconstruction,True
+positive r90: class99 baseline response reconstruction,True
+positive r90: class99 student LA reconstruction,True
+positive r90: class99 student response reconstruction,True
+positive r90: class99 positive/attainment counts,True
+positive r90: trace contains C0/C1/C2,True
+positive r90: step0 objective components,True
+positive r90: step1 objective components,True
+positive r90: step2 objective components,True
+positive r90: saved C reconstructs regularizer,True
+positive r90: endpoint LA matches logits,True
+positive r90: endpoint response matches logits,True
+positive r90: measured responses counted before ablation,True
+positive r100: complete eligible candidates,True
+positive r100: exact top3 and normalized weights,True
+positive r100: source qualification and flags,True
+positive r100: teacher class relations in manifest,True
+positive r100: selected union and source counts,True
+positive r100: NPZ class weights,True
+positive r100: NPZ axes,True
+positive r100: independent finite donor C,True
+positive r100: identical full-pool two-view budget,True
+positive r100: client27 full original tail positions,True
+positive r100: client27 mixed-then-min-clipped response,True
+positive r100: client27 variant application,True
+positive r100: client27 baseline margin,True
+positive r100: client27 target baseline plus increment,True
+positive r100: client27 frozen competitor weights,True
+positive r100: client28 full original tail positions,True
+positive r100: client28 mixed-then-min-clipped response,True
+positive r100: client28 variant application,True
+positive r100: client28 baseline margin,True
+positive r100: client28 target baseline plus increment,True
+positive r100: client28 frozen competitor weights,True
+positive r100: client29 full original tail positions,True
+positive r100: client29 mixed-then-min-clipped response,True
+positive r100: client29 variant application,True
+positive r100: client29 baseline margin,True
+positive r100: client29 target baseline plus increment,True
+positive r100: client29 frozen competitor weights,True
+positive r100: selected 80/11 probe from logits,True
+positive r100: selected 80/6 probe from logits,True
+positive r100: selected 80/14 probe from logits,True
+positive r100: selected 81/1 probe from logits,True
+positive r100: selected 81/12 probe from logits,True
+positive r100: selected 81/14 probe from logits,True
+positive r100: selected 82/10 probe from logits,True
+positive r100: selected 82/11 probe from logits,True
+positive r100: selected 82/0 probe from logits,True
+positive r100: selected 83/19 probe from logits,True
+positive r100: selected 83/18 probe from logits,True
+positive r100: selected 83/7 probe from logits,True
+positive r100: selected 84/16 probe from logits,True
+positive r100: selected 84/4 probe from logits,True
+positive r100: selected 84/2 probe from logits,True
+positive r100: selected 85/11 probe from logits,True
+positive r100: selected 85/21 probe from logits,True
+positive r100: selected 85/13 probe from logits,True
+positive r100: selected 86/25 probe from logits,True
+positive r100: selected 86/10 probe from logits,True
+positive r100: selected 86/18 probe from logits,True
+positive r100: selected 87/21 probe from logits,True
+positive r100: selected 87/3 probe from logits,True
+positive r100: selected 87/24 probe from logits,True
+positive r100: selected 88/14 probe from logits,True
+positive r100: selected 88/24 probe from logits,True
+positive r100: selected 88/6 probe from logits,True
+positive r100: selected 89/0 probe from logits,True
+positive r100: selected 89/5 probe from logits,True
+positive r100: selected 89/14 probe from logits,True
+positive r100: selected 90/23 probe from logits,True
+positive r100: selected 90/9 probe from logits,True
+positive r100: selected 90/17 probe from logits,True
+positive r100: selected 91/4 probe from logits,True
+positive r100: selected 91/6 probe from logits,True
+positive r100: selected 91/7 probe from logits,True
+positive r100: selected 92/26 probe from logits,True
+positive r100: selected 92/25 probe from logits,True
+positive r100: selected 92/23 probe from logits,True
+positive r100: selected 93/11 probe from logits,True
+positive r100: selected 93/1 probe from logits,True
+positive r100: selected 93/26 probe from logits,True
+positive r100: selected 94/26 probe from logits,True
+positive r100: selected 94/25 probe from logits,True
+positive r100: selected 94/5 probe from logits,True
+positive r100: selected 95/1 probe from logits,True
+positive r100: selected 95/19 probe from logits,True
+positive r100: selected 95/11 probe from logits,True
+positive r100: selected 96/1 probe from logits,True
+positive r100: selected 96/12 probe from logits,True
+positive r100: selected 96/8 probe from logits,True
+positive r100: selected 97/20 probe from logits,True
+positive r100: selected 97/25 probe from logits,True
+positive r100: selected 97/17 probe from logits,True
+positive r100: selected 98/25 probe from logits,True
+positive r100: selected 98/6 probe from logits,True
+positive r100: selected 98/9 probe from logits,True
+positive r100: selected 99/18 probe from logits,True
+positive r100: selected 99/17 probe from logits,True
+positive r100: selected 99/3 probe from logits,True
+positive r100: class80 sample count,True
+positive r100: class80 baseline LA reconstruction,True
+positive r100: class80 baseline response reconstruction,True
+positive r100: class80 student LA reconstruction,True
+positive r100: class80 student response reconstruction,True
+positive r100: class80 positive/attainment counts,True
+positive r100: class81 sample count,True
+positive r100: class81 baseline LA reconstruction,True
+positive r100: class81 baseline response reconstruction,True
+positive r100: class81 student LA reconstruction,True
+positive r100: class81 student response reconstruction,True
+positive r100: class81 positive/attainment counts,True
+positive r100: class82 sample count,True
+positive r100: class82 baseline LA reconstruction,True
+positive r100: class82 baseline response reconstruction,True
+positive r100: class82 student LA reconstruction,True
+positive r100: class82 student response reconstruction,True
+positive r100: class82 positive/attainment counts,True
+positive r100: class83 sample count,True
+positive r100: class83 baseline LA reconstruction,True
+positive r100: class83 baseline response reconstruction,True
+positive r100: class83 student LA reconstruction,True
+positive r100: class83 student response reconstruction,True
+positive r100: class83 positive/attainment counts,True
+positive r100: class84 sample count,True
+positive r100: class84 baseline LA reconstruction,True
+positive r100: class84 baseline response reconstruction,True
+positive r100: class84 student LA reconstruction,True
+positive r100: class84 student response reconstruction,True
+positive r100: class84 positive/attainment counts,True
+positive r100: class85 sample count,True
+positive r100: class85 baseline LA reconstruction,True
+positive r100: class85 baseline response reconstruction,True
+positive r100: class85 student LA reconstruction,True
+positive r100: class85 student response reconstruction,True
+positive r100: class85 positive/attainment counts,True
+positive r100: class86 sample count,True
+positive r100: class86 baseline LA reconstruction,True
+positive r100: class86 baseline response reconstruction,True
+positive r100: class86 student LA reconstruction,True
+positive r100: class86 student response reconstruction,True
+positive r100: class86 positive/attainment counts,True
+positive r100: class87 sample count,True
+positive r100: class87 baseline LA reconstruction,True
+positive r100: class87 baseline response reconstruction,True
+positive r100: class87 student LA reconstruction,True
+positive r100: class87 student response reconstruction,True
+positive r100: class87 positive/attainment counts,True
+positive r100: class88 sample count,True
+positive r100: class88 baseline LA reconstruction,True
+positive r100: class88 baseline response reconstruction,True
+positive r100: class88 student LA reconstruction,True
+positive r100: class88 student response reconstruction,True
+positive r100: class88 positive/attainment counts,True
+positive r100: class89 sample count,True
+positive r100: class89 baseline LA reconstruction,True
+positive r100: class89 baseline response reconstruction,True
+positive r100: class89 student LA reconstruction,True
+positive r100: class89 student response reconstruction,True
+positive r100: class89 positive/attainment counts,True
+positive r100: class90 sample count,True
+positive r100: class90 baseline LA reconstruction,True
+positive r100: class90 baseline response reconstruction,True
+positive r100: class90 student LA reconstruction,True
+positive r100: class90 student response reconstruction,True
+positive r100: class90 positive/attainment counts,True
+positive r100: class91 sample count,True
+positive r100: class91 baseline LA reconstruction,True
+positive r100: class91 baseline response reconstruction,True
+positive r100: class91 student LA reconstruction,True
+positive r100: class91 student response reconstruction,True
+positive r100: class91 positive/attainment counts,True
+positive r100: class92 sample count,True
+positive r100: class92 baseline LA reconstruction,True
+positive r100: class92 baseline response reconstruction,True
+positive r100: class92 student LA reconstruction,True
+positive r100: class92 student response reconstruction,True
+positive r100: class92 positive/attainment counts,True
+positive r100: class93 sample count,True
+positive r100: class93 baseline LA reconstruction,True
+positive r100: class93 baseline response reconstruction,True
+positive r100: class93 student LA reconstruction,True
+positive r100: class93 student response reconstruction,True
+positive r100: class93 positive/attainment counts,True
+positive r100: class94 sample count,True
+positive r100: class94 baseline LA reconstruction,True
+positive r100: class94 baseline response reconstruction,True
+positive r100: class94 student LA reconstruction,True
+positive r100: class94 student response reconstruction,True
+positive r100: class94 positive/attainment counts,True
+positive r100: class95 sample count,True
+positive r100: class95 baseline LA reconstruction,True
+positive r100: class95 baseline response reconstruction,True
+positive r100: class95 student LA reconstruction,True
+positive r100: class95 student response reconstruction,True
+positive r100: class95 positive/attainment counts,True
+positive r100: class96 sample count,True
+positive r100: class96 baseline LA reconstruction,True
+positive r100: class96 baseline response reconstruction,True
+positive r100: class96 student LA reconstruction,True
+positive r100: class96 student response reconstruction,True
+positive r100: class96 positive/attainment counts,True
+positive r100: class97 sample count,True
+positive r100: class97 baseline LA reconstruction,True
+positive r100: class97 baseline response reconstruction,True
+positive r100: class97 student LA reconstruction,True
+positive r100: class97 student response reconstruction,True
+positive r100: class97 positive/attainment counts,True
+positive r100: class98 sample count,True
+positive r100: class98 baseline LA reconstruction,True
+positive r100: class98 baseline response reconstruction,True
+positive r100: class98 student LA reconstruction,True
+positive r100: class98 student response reconstruction,True
+positive r100: class98 positive/attainment counts,True
+positive r100: class99 sample count,True
+positive r100: class99 baseline LA reconstruction,True
+positive r100: class99 baseline response reconstruction,True
+positive r100: class99 student LA reconstruction,True
+positive r100: class99 student response reconstruction,True
+positive r100: class99 positive/attainment counts,True
+positive r100: trace contains C0/C1/C2,True
+positive r100: step0 objective components,True
+positive r100: step1 objective components,True
+positive r100: step2 objective components,True
+positive r100: saved C reconstructs regularizer,True
+positive r100: endpoint LA matches logits,True
+positive r100: endpoint response matches logits,True
+positive r100: measured responses counted before ablation,True
+zero: protocol full target pool,True
+zero: 8 events and 16 C steps,True
+zero r30: complete eligible candidates,True
+zero r30: exact top3 and normalized weights,True
+zero r30: source qualification and flags,True
+zero r30: teacher class relations in manifest,True
+zero r30: selected union and source counts,True
+zero r30: NPZ class weights,True
+zero r30: NPZ axes,True
+zero r30: independent finite donor C,True
+zero r30: identical full-pool two-view budget,True
+zero r30: client27 full original tail positions,True
+zero r30: client27 mixed-then-min-clipped response,True
+zero r30: client27 variant application,True
+zero r30: client27 baseline margin,True
+zero r30: client27 target baseline plus increment,True
+zero r30: client27 frozen competitor weights,True
+zero r30: client28 full original tail positions,True
+zero r30: client28 mixed-then-min-clipped response,True
+zero r30: client28 variant application,True
+zero r30: client28 baseline margin,True
+zero r30: client28 target baseline plus increment,True
+zero r30: client28 frozen competitor weights,True
+zero r30: client29 full original tail positions,True
+zero r30: client29 mixed-then-min-clipped response,True
+zero r30: client29 variant application,True
+zero r30: client29 baseline margin,True
+zero r30: client29 target baseline plus increment,True
+zero r30: client29 frozen competitor weights,True
+zero r30: selected 80/11 probe from logits,True
+zero r30: selected 80/6 probe from logits,True
+zero r30: selected 80/18 probe from logits,True
+zero r30: selected 81/14 probe from logits,True
+zero r30: selected 81/12 probe from logits,True
+zero r30: selected 81/19 probe from logits,True
+zero r30: selected 82/22 probe from logits,True
+zero r30: selected 82/0 probe from logits,True
+zero r30: selected 82/10 probe from logits,True
+zero r30: selected 83/19 probe from logits,True
+zero r30: selected 83/7 probe from logits,True
+zero r30: selected 83/18 probe from logits,True
+zero r30: selected 84/16 probe from logits,True
+zero r30: selected 84/5 probe from logits,True
+zero r30: selected 84/2 probe from logits,True
+zero r30: selected 85/11 probe from logits,True
+zero r30: selected 85/21 probe from logits,True
+zero r30: selected 85/16 probe from logits,True
+zero r30: selected 86/25 probe from logits,True
+zero r30: selected 86/10 probe from logits,True
+zero r30: selected 86/14 probe from logits,True
+zero r30: selected 87/25 probe from logits,True
+zero r30: selected 87/21 probe from logits,True
+zero r30: selected 87/18 probe from logits,True
+zero r30: selected 88/14 probe from logits,True
+zero r30: selected 88/24 probe from logits,True
+zero r30: selected 88/10 probe from logits,True
+zero r30: selected 89/8 probe from logits,True
+zero r30: selected 89/1 probe from logits,True
+zero r30: selected 89/14 probe from logits,True
+zero r30: selected 90/6 probe from logits,True
+zero r30: selected 90/23 probe from logits,True
+zero r30: selected 90/21 probe from logits,True
+zero r30: selected 91/17 probe from logits,True
+zero r30: selected 91/7 probe from logits,True
+zero r30: selected 91/4 probe from logits,True
+zero r30: selected 92/14 probe from logits,True
+zero r30: selected 92/18 probe from logits,True
+zero r30: selected 92/26 probe from logits,True
+zero r30: selected 93/7 probe from logits,True
+zero r30: selected 93/11 probe from logits,True
+zero r30: selected 93/1 probe from logits,True
+zero r30: selected 94/23 probe from logits,True
+zero r30: selected 94/5 probe from logits,True
+zero r30: selected 94/26 probe from logits,True
+zero r30: selected 95/1 probe from logits,True
+zero r30: selected 95/11 probe from logits,True
+zero r30: selected 95/6 probe from logits,True
+zero r30: selected 96/12 probe from logits,True
+zero r30: selected 96/7 probe from logits,True
+zero r30: selected 96/24 probe from logits,True
+zero r30: selected 97/20 probe from logits,True
+zero r30: selected 97/25 probe from logits,True
+zero r30: selected 97/16 probe from logits,True
+zero r30: selected 98/25 probe from logits,True
+zero r30: selected 98/6 probe from logits,True
+zero r30: selected 98/3 probe from logits,True
+zero r30: selected 99/6 probe from logits,True
+zero r30: selected 99/18 probe from logits,True
+zero r30: selected 99/22 probe from logits,True
+zero r30: class80 sample count,True
+zero r30: class80 baseline LA reconstruction,True
+zero r30: class80 baseline response reconstruction,True
+zero r30: class80 student LA reconstruction,True
+zero r30: class80 student response reconstruction,True
+zero r30: class80 positive/attainment counts,True
+zero r30: class81 sample count,True
+zero r30: class81 baseline LA reconstruction,True
+zero r30: class81 baseline response reconstruction,True
+zero r30: class81 student LA reconstruction,True
+zero r30: class81 student response reconstruction,True
+zero r30: class81 positive/attainment counts,True
+zero r30: class82 sample count,True
+zero r30: class82 baseline LA reconstruction,True
+zero r30: class82 baseline response reconstruction,True
+zero r30: class82 student LA reconstruction,True
+zero r30: class82 student response reconstruction,True
+zero r30: class82 positive/attainment counts,True
+zero r30: class83 sample count,True
+zero r30: class83 baseline LA reconstruction,True
+zero r30: class83 baseline response reconstruction,True
+zero r30: class83 student LA reconstruction,True
+zero r30: class83 student response reconstruction,True
+zero r30: class83 positive/attainment counts,True
+zero r30: class84 sample count,True
+zero r30: class84 baseline LA reconstruction,True
+zero r30: class84 baseline response reconstruction,True
+zero r30: class84 student LA reconstruction,True
+zero r30: class84 student response reconstruction,True
+zero r30: class84 positive/attainment counts,True
+zero r30: class85 sample count,True
+zero r30: class85 baseline LA reconstruction,True
+zero r30: class85 baseline response reconstruction,True
+zero r30: class85 student LA reconstruction,True
+zero r30: class85 student response reconstruction,True
+zero r30: class85 positive/attainment counts,True
+zero r30: class86 sample count,True
+zero r30: class86 baseline LA reconstruction,True
+zero r30: class86 baseline response reconstruction,True
+zero r30: class86 student LA reconstruction,True
+zero r30: class86 student response reconstruction,True
+zero r30: class86 positive/attainment counts,True
+zero r30: class87 sample count,True
+zero r30: class87 baseline LA reconstruction,True
+zero r30: class87 baseline response reconstruction,True
+zero r30: class87 student LA reconstruction,True
+zero r30: class87 student response reconstruction,True
+zero r30: class87 positive/attainment counts,True
+zero r30: class88 sample count,True
+zero r30: class88 baseline LA reconstruction,True
+zero r30: class88 baseline response reconstruction,True
+zero r30: class88 student LA reconstruction,True
+zero r30: class88 student response reconstruction,True
+zero r30: class88 positive/attainment counts,True
+zero r30: class89 sample count,True
+zero r30: class89 baseline LA reconstruction,True
+zero r30: class89 baseline response reconstruction,True
+zero r30: class89 student LA reconstruction,True
+zero r30: class89 student response reconstruction,True
+zero r30: class89 positive/attainment counts,True
+zero r30: class90 sample count,True
+zero r30: class90 baseline LA reconstruction,True
+zero r30: class90 baseline response reconstruction,True
+zero r30: class90 student LA reconstruction,True
+zero r30: class90 student response reconstruction,True
+zero r30: class90 positive/attainment counts,True
+zero r30: class91 sample count,True
+zero r30: class91 baseline LA reconstruction,True
+zero r30: class91 baseline response reconstruction,True
+zero r30: class91 student LA reconstruction,True
+zero r30: class91 student response reconstruction,True
+zero r30: class91 positive/attainment counts,True
+zero r30: class92 sample count,True
+zero r30: class92 baseline LA reconstruction,True
+zero r30: class92 baseline response reconstruction,True
+zero r30: class92 student LA reconstruction,True
+zero r30: class92 student response reconstruction,True
+zero r30: class92 positive/attainment counts,True
+zero r30: class93 sample count,True
+zero r30: class93 baseline LA reconstruction,True
+zero r30: class93 baseline response reconstruction,True
+zero r30: class93 student LA reconstruction,True
+zero r30: class93 student response reconstruction,True
+zero r30: class93 positive/attainment counts,True
+zero r30: class94 sample count,True
+zero r30: class94 baseline LA reconstruction,True
+zero r30: class94 baseline response reconstruction,True
+zero r30: class94 student LA reconstruction,True
+zero r30: class94 student response reconstruction,True
+zero r30: class94 positive/attainment counts,True
+zero r30: class95 sample count,True
+zero r30: class95 baseline LA reconstruction,True
+zero r30: class95 baseline response reconstruction,True
+zero r30: class95 student LA reconstruction,True
+zero r30: class95 student response reconstruction,True
+zero r30: class95 positive/attainment counts,True
+zero r30: class96 sample count,True
+zero r30: class96 baseline LA reconstruction,True
+zero r30: class96 baseline response reconstruction,True
+zero r30: class96 student LA reconstruction,True
+zero r30: class96 student response reconstruction,True
+zero r30: class96 positive/attainment counts,True
+zero r30: class97 sample count,True
+zero r30: class97 baseline LA reconstruction,True
+zero r30: class97 baseline response reconstruction,True
+zero r30: class97 student LA reconstruction,True
+zero r30: class97 student response reconstruction,True
+zero r30: class97 positive/attainment counts,True
+zero r30: class98 sample count,True
+zero r30: class98 baseline LA reconstruction,True
+zero r30: class98 baseline response reconstruction,True
+zero r30: class98 student LA reconstruction,True
+zero r30: class98 student response reconstruction,True
+zero r30: class98 positive/attainment counts,True
+zero r30: class99 sample count,True
+zero r30: class99 baseline LA reconstruction,True
+zero r30: class99 baseline response reconstruction,True
+zero r30: class99 student LA reconstruction,True
+zero r30: class99 student response reconstruction,True
+zero r30: class99 positive/attainment counts,True
+zero r30: trace contains C0/C1/C2,True
+zero r30: step0 objective components,True
+zero r30: step1 objective components,True
+zero r30: step2 objective components,True
+zero r30: saved C reconstructs regularizer,True
+zero r30: endpoint LA matches logits,True
+zero r30: endpoint response matches logits,True
+zero r30: measured responses counted before ablation,True
+zero r40: complete eligible candidates,True
+zero r40: exact top3 and normalized weights,True
+zero r40: source qualification and flags,True
+zero r40: teacher class relations in manifest,True
+zero r40: selected union and source counts,True
+zero r40: NPZ class weights,True
+zero r40: NPZ axes,True
+zero r40: independent finite donor C,True
+zero r40: identical full-pool two-view budget,True
+zero r40: client27 full original tail positions,True
+zero r40: client27 mixed-then-min-clipped response,True
+zero r40: client27 variant application,True
+zero r40: client27 baseline margin,True
+zero r40: client27 target baseline plus increment,True
+zero r40: client27 frozen competitor weights,True
+zero r40: client28 full original tail positions,True
+zero r40: client28 mixed-then-min-clipped response,True
+zero r40: client28 variant application,True
+zero r40: client28 baseline margin,True
+zero r40: client28 target baseline plus increment,True
+zero r40: client28 frozen competitor weights,True
+zero r40: client29 full original tail positions,True
+zero r40: client29 mixed-then-min-clipped response,True
+zero r40: client29 variant application,True
+zero r40: client29 baseline margin,True
+zero r40: client29 target baseline plus increment,True
+zero r40: client29 frozen competitor weights,True
+zero r40: selected 80/11 probe from logits,True
+zero r40: selected 80/6 probe from logits,True
+zero r40: selected 80/16 probe from logits,True
+zero r40: selected 81/14 probe from logits,True
+zero r40: selected 81/12 probe from logits,True
+zero r40: selected 81/13 probe from logits,True
+zero r40: selected 82/0 probe from logits,True
+zero r40: selected 82/10 probe from logits,True
+zero r40: selected 82/22 probe from logits,True
+zero r40: selected 83/19 probe from logits,True
+zero r40: selected 83/7 probe from logits,True
+zero r40: selected 83/18 probe from logits,True
+zero r40: selected 84/16 probe from logits,True
+zero r40: selected 84/2 probe from logits,True
+zero r40: selected 84/5 probe from logits,True
+zero r40: selected 85/17 probe from logits,True
+zero r40: selected 85/16 probe from logits,True
+zero r40: selected 85/2 probe from logits,True
+zero r40: selected 86/25 probe from logits,True
+zero r40: selected 86/10 probe from logits,True
+zero r40: selected 86/14 probe from logits,True
+zero r40: selected 87/25 probe from logits,True
+zero r40: selected 87/24 probe from logits,True
+zero r40: selected 87/21 probe from logits,True
+zero r40: selected 88/14 probe from logits,True
+zero r40: selected 88/24 probe from logits,True
+zero r40: selected 88/10 probe from logits,True
+zero r40: selected 89/0 probe from logits,True
+zero r40: selected 89/6 probe from logits,True
+zero r40: selected 89/8 probe from logits,True
+zero r40: selected 90/6 probe from logits,True
+zero r40: selected 90/23 probe from logits,True
+zero r40: selected 90/9 probe from logits,True
+zero r40: selected 91/17 probe from logits,True
+zero r40: selected 91/6 probe from logits,True
+zero r40: selected 91/4 probe from logits,True
+zero r40: selected 92/13 probe from logits,True
+zero r40: selected 92/26 probe from logits,True
+zero r40: selected 92/5 probe from logits,True
+zero r40: selected 93/11 probe from logits,True
+zero r40: selected 93/7 probe from logits,True
+zero r40: selected 93/3 probe from logits,True
+zero r40: selected 94/23 probe from logits,True
+zero r40: selected 94/26 probe from logits,True
+zero r40: selected 94/25 probe from logits,True
+zero r40: selected 95/1 probe from logits,True
+zero r40: selected 95/11 probe from logits,True
+zero r40: selected 95/6 probe from logits,True
+zero r40: selected 96/12 probe from logits,True
+zero r40: selected 96/1 probe from logits,True
+zero r40: selected 96/24 probe from logits,True
+zero r40: selected 97/20 probe from logits,True
+zero r40: selected 97/25 probe from logits,True
+zero r40: selected 97/16 probe from logits,True
+zero r40: selected 98/25 probe from logits,True
+zero r40: selected 98/6 probe from logits,True
+zero r40: selected 98/3 probe from logits,True
+zero r40: selected 99/6 probe from logits,True
+zero r40: selected 99/18 probe from logits,True
+zero r40: selected 99/22 probe from logits,True
+zero r40: class80 sample count,True
+zero r40: class80 baseline LA reconstruction,True
+zero r40: class80 baseline response reconstruction,True
+zero r40: class80 student LA reconstruction,True
+zero r40: class80 student response reconstruction,True
+zero r40: class80 positive/attainment counts,True
+zero r40: class81 sample count,True
+zero r40: class81 baseline LA reconstruction,True
+zero r40: class81 baseline response reconstruction,True
+zero r40: class81 student LA reconstruction,True
+zero r40: class81 student response reconstruction,True
+zero r40: class81 positive/attainment counts,True
+zero r40: class82 sample count,True
+zero r40: class82 baseline LA reconstruction,True
+zero r40: class82 baseline response reconstruction,True
+zero r40: class82 student LA reconstruction,True
+zero r40: class82 student response reconstruction,True
+zero r40: class82 positive/attainment counts,True
+zero r40: class83 sample count,True
+zero r40: class83 baseline LA reconstruction,True
+zero r40: class83 baseline response reconstruction,True
+zero r40: class83 student LA reconstruction,True
+zero r40: class83 student response reconstruction,True
+zero r40: class83 positive/attainment counts,True
+zero r40: class84 sample count,True
+zero r40: class84 baseline LA reconstruction,True
+zero r40: class84 baseline response reconstruction,True
+zero r40: class84 student LA reconstruction,True
+zero r40: class84 student response reconstruction,True
+zero r40: class84 positive/attainment counts,True
+zero r40: class85 sample count,True
+zero r40: class85 baseline LA reconstruction,True
+zero r40: class85 baseline response reconstruction,True
+zero r40: class85 student LA reconstruction,True
+zero r40: class85 student response reconstruction,True
+zero r40: class85 positive/attainment counts,True
+zero r40: class86 sample count,True
+zero r40: class86 baseline LA reconstruction,True
+zero r40: class86 baseline response reconstruction,True
+zero r40: class86 student LA reconstruction,True
+zero r40: class86 student response reconstruction,True
+zero r40: class86 positive/attainment counts,True
+zero r40: class87 sample count,True
+zero r40: class87 baseline LA reconstruction,True
+zero r40: class87 baseline response reconstruction,True
+zero r40: class87 student LA reconstruction,True
+zero r40: class87 student response reconstruction,True
+zero r40: class87 positive/attainment counts,True
+zero r40: class88 sample count,True
+zero r40: class88 baseline LA reconstruction,True
+zero r40: class88 baseline response reconstruction,True
+zero r40: class88 student LA reconstruction,True
+zero r40: class88 student response reconstruction,True
+zero r40: class88 positive/attainment counts,True
+zero r40: class89 sample count,True
+zero r40: class89 baseline LA reconstruction,True
+zero r40: class89 baseline response reconstruction,True
+zero r40: class89 student LA reconstruction,True
+zero r40: class89 student response reconstruction,True
+zero r40: class89 positive/attainment counts,True
+zero r40: class90 sample count,True
+zero r40: class90 baseline LA reconstruction,True
+zero r40: class90 baseline response reconstruction,True
+zero r40: class90 student LA reconstruction,True
+zero r40: class90 student response reconstruction,True
+zero r40: class90 positive/attainment counts,True
+zero r40: class91 sample count,True
+zero r40: class91 baseline LA reconstruction,True
+zero r40: class91 baseline response reconstruction,True
+zero r40: class91 student LA reconstruction,True
+zero r40: class91 student response reconstruction,True
+zero r40: class91 positive/attainment counts,True
+zero r40: class92 sample count,True
+zero r40: class92 baseline LA reconstruction,True
+zero r40: class92 baseline response reconstruction,True
+zero r40: class92 student LA reconstruction,True
+zero r40: class92 student response reconstruction,True
+zero r40: class92 positive/attainment counts,True
+zero r40: class93 sample count,True
+zero r40: class93 baseline LA reconstruction,True
+zero r40: class93 baseline response reconstruction,True
+zero r40: class93 student LA reconstruction,True
+zero r40: class93 student response reconstruction,True
+zero r40: class93 positive/attainment counts,True
+zero r40: class94 sample count,True
+zero r40: class94 baseline LA reconstruction,True
+zero r40: class94 baseline response reconstruction,True
+zero r40: class94 student LA reconstruction,True
+zero r40: class94 student response reconstruction,True
+zero r40: class94 positive/attainment counts,True
+zero r40: class95 sample count,True
+zero r40: class95 baseline LA reconstruction,True
+zero r40: class95 baseline response reconstruction,True
+zero r40: class95 student LA reconstruction,True
+zero r40: class95 student response reconstruction,True
+zero r40: class95 positive/attainment counts,True
+zero r40: class96 sample count,True
+zero r40: class96 baseline LA reconstruction,True
+zero r40: class96 baseline response reconstruction,True
+zero r40: class96 student LA reconstruction,True
+zero r40: class96 student response reconstruction,True
+zero r40: class96 positive/attainment counts,True
+zero r40: class97 sample count,True
+zero r40: class97 baseline LA reconstruction,True
+zero r40: class97 baseline response reconstruction,True
+zero r40: class97 student LA reconstruction,True
+zero r40: class97 student response reconstruction,True
+zero r40: class97 positive/attainment counts,True
+zero r40: class98 sample count,True
+zero r40: class98 baseline LA reconstruction,True
+zero r40: class98 baseline response reconstruction,True
+zero r40: class98 student LA reconstruction,True
+zero r40: class98 student response reconstruction,True
+zero r40: class98 positive/attainment counts,True
+zero r40: class99 sample count,True
+zero r40: class99 baseline LA reconstruction,True
+zero r40: class99 baseline response reconstruction,True
+zero r40: class99 student LA reconstruction,True
+zero r40: class99 student response reconstruction,True
+zero r40: class99 positive/attainment counts,True
+zero r40: trace contains C0/C1/C2,True
+zero r40: step0 objective components,True
+zero r40: step1 objective components,True
+zero r40: step2 objective components,True
+zero r40: saved C reconstructs regularizer,True
+zero r40: endpoint LA matches logits,True
+zero r40: endpoint response matches logits,True
+zero r40: measured responses counted before ablation,True
+zero r50: complete eligible candidates,True
+zero r50: exact top3 and normalized weights,True
+zero r50: source qualification and flags,True
+zero r50: teacher class relations in manifest,True
+zero r50: selected union and source counts,True
+zero r50: NPZ class weights,True
+zero r50: NPZ axes,True
+zero r50: independent finite donor C,True
+zero r50: identical full-pool two-view budget,True
+zero r50: client27 full original tail positions,True
+zero r50: client27 mixed-then-min-clipped response,True
+zero r50: client27 variant application,True
+zero r50: client27 baseline margin,True
+zero r50: client27 target baseline plus increment,True
+zero r50: client27 frozen competitor weights,True
+zero r50: client28 full original tail positions,True
+zero r50: client28 mixed-then-min-clipped response,True
+zero r50: client28 variant application,True
+zero r50: client28 baseline margin,True
+zero r50: client28 target baseline plus increment,True
+zero r50: client28 frozen competitor weights,True
+zero r50: client29 full original tail positions,True
+zero r50: client29 mixed-then-min-clipped response,True
+zero r50: client29 variant application,True
+zero r50: client29 baseline margin,True
+zero r50: client29 target baseline plus increment,True
+zero r50: client29 frozen competitor weights,True
+zero r50: selected 80/11 probe from logits,True
+zero r50: selected 80/6 probe from logits,True
+zero r50: selected 80/14 probe from logits,True
+zero r50: selected 81/14 probe from logits,True
+zero r50: selected 81/12 probe from logits,True
+zero r50: selected 81/1 probe from logits,True
+zero r50: selected 82/0 probe from logits,True
+zero r50: selected 82/10 probe from logits,True
+zero r50: selected 82/19 probe from logits,True
+zero r50: selected 83/19 probe from logits,True
+zero r50: selected 83/7 probe from logits,True
+zero r50: selected 83/18 probe from logits,True
+zero r50: selected 84/16 probe from logits,True
+zero r50: selected 84/2 probe from logits,True
+zero r50: selected 84/23 probe from logits,True
+zero r50: selected 85/11 probe from logits,True
+zero r50: selected 85/17 probe from logits,True
+zero r50: selected 85/16 probe from logits,True
+zero r50: selected 86/25 probe from logits,True
+zero r50: selected 86/10 probe from logits,True
+zero r50: selected 86/14 probe from logits,True
+zero r50: selected 87/25 probe from logits,True
+zero r50: selected 87/24 probe from logits,True
+zero r50: selected 87/21 probe from logits,True
+zero r50: selected 88/14 probe from logits,True
+zero r50: selected 88/24 probe from logits,True
+zero r50: selected 88/10 probe from logits,True
+zero r50: selected 89/0 probe from logits,True
+zero r50: selected 89/5 probe from logits,True
+zero r50: selected 89/14 probe from logits,True
+zero r50: selected 90/23 probe from logits,True
+zero r50: selected 90/9 probe from logits,True
+zero r50: selected 90/6 probe from logits,True
+zero r50: selected 91/4 probe from logits,True
+zero r50: selected 91/6 probe from logits,True
+zero r50: selected 91/17 probe from logits,True
+zero r50: selected 92/26 probe from logits,True
+zero r50: selected 92/13 probe from logits,True
+zero r50: selected 92/0 probe from logits,True
+zero r50: selected 93/11 probe from logits,True
+zero r50: selected 93/1 probe from logits,True
+zero r50: selected 93/3 probe from logits,True
+zero r50: selected 94/26 probe from logits,True
+zero r50: selected 94/23 probe from logits,True
+zero r50: selected 94/5 probe from logits,True
+zero r50: selected 95/11 probe from logits,True
+zero r50: selected 95/1 probe from logits,True
+zero r50: selected 95/6 probe from logits,True
+zero r50: selected 96/1 probe from logits,True
+zero r50: selected 96/12 probe from logits,True
+zero r50: selected 96/8 probe from logits,True
+zero r50: selected 97/20 probe from logits,True
+zero r50: selected 97/25 probe from logits,True
+zero r50: selected 97/16 probe from logits,True
+zero r50: selected 98/25 probe from logits,True
+zero r50: selected 98/6 probe from logits,True
+zero r50: selected 98/11 probe from logits,True
+zero r50: selected 99/18 probe from logits,True
+zero r50: selected 99/6 probe from logits,True
+zero r50: selected 99/17 probe from logits,True
+zero r50: class80 sample count,True
+zero r50: class80 baseline LA reconstruction,True
+zero r50: class80 baseline response reconstruction,True
+zero r50: class80 student LA reconstruction,True
+zero r50: class80 student response reconstruction,True
+zero r50: class80 positive/attainment counts,True
+zero r50: class81 sample count,True
+zero r50: class81 baseline LA reconstruction,True
+zero r50: class81 baseline response reconstruction,True
+zero r50: class81 student LA reconstruction,True
+zero r50: class81 student response reconstruction,True
+zero r50: class81 positive/attainment counts,True
+zero r50: class82 sample count,True
+zero r50: class82 baseline LA reconstruction,True
+zero r50: class82 baseline response reconstruction,True
+zero r50: class82 student LA reconstruction,True
+zero r50: class82 student response reconstruction,True
+zero r50: class82 positive/attainment counts,True
+zero r50: class83 sample count,True
+zero r50: class83 baseline LA reconstruction,True
+zero r50: class83 baseline response reconstruction,True
+zero r50: class83 student LA reconstruction,True
+zero r50: class83 student response reconstruction,True
+zero r50: class83 positive/attainment counts,True
+zero r50: class84 sample count,True
+zero r50: class84 baseline LA reconstruction,True
+zero r50: class84 baseline response reconstruction,True
+zero r50: class84 student LA reconstruction,True
+zero r50: class84 student response reconstruction,True
+zero r50: class84 positive/attainment counts,True
+zero r50: class85 sample count,True
+zero r50: class85 baseline LA reconstruction,True
+zero r50: class85 baseline response reconstruction,True
+zero r50: class85 student LA reconstruction,True
+zero r50: class85 student response reconstruction,True
+zero r50: class85 positive/attainment counts,True
+zero r50: class86 sample count,True
+zero r50: class86 baseline LA reconstruction,True
+zero r50: class86 baseline response reconstruction,True
+zero r50: class86 student LA reconstruction,True
+zero r50: class86 student response reconstruction,True
+zero r50: class86 positive/attainment counts,True
+zero r50: class87 sample count,True
+zero r50: class87 baseline LA reconstruction,True
+zero r50: class87 baseline response reconstruction,True
+zero r50: class87 student LA reconstruction,True
+zero r50: class87 student response reconstruction,True
+zero r50: class87 positive/attainment counts,True
+zero r50: class88 sample count,True
+zero r50: class88 baseline LA reconstruction,True
+zero r50: class88 baseline response reconstruction,True
+zero r50: class88 student LA reconstruction,True
+zero r50: class88 student response reconstruction,True
+zero r50: class88 positive/attainment counts,True
+zero r50: class89 sample count,True
+zero r50: class89 baseline LA reconstruction,True
+zero r50: class89 baseline response reconstruction,True
+zero r50: class89 student LA reconstruction,True
+zero r50: class89 student response reconstruction,True
+zero r50: class89 positive/attainment counts,True
+zero r50: class90 sample count,True
+zero r50: class90 baseline LA reconstruction,True
+zero r50: class90 baseline response reconstruction,True
+zero r50: class90 student LA reconstruction,True
+zero r50: class90 student response reconstruction,True
+zero r50: class90 positive/attainment counts,True
+zero r50: class91 sample count,True
+zero r50: class91 baseline LA reconstruction,True
+zero r50: class91 baseline response reconstruction,True
+zero r50: class91 student LA reconstruction,True
+zero r50: class91 student response reconstruction,True
+zero r50: class91 positive/attainment counts,True
+zero r50: class92 sample count,True
+zero r50: class92 baseline LA reconstruction,True
+zero r50: class92 baseline response reconstruction,True
+zero r50: class92 student LA reconstruction,True
+zero r50: class92 student response reconstruction,True
+zero r50: class92 positive/attainment counts,True
+zero r50: class93 sample count,True
+zero r50: class93 baseline LA reconstruction,True
+zero r50: class93 baseline response reconstruction,True
+zero r50: class93 student LA reconstruction,True
+zero r50: class93 student response reconstruction,True
+zero r50: class93 positive/attainment counts,True
+zero r50: class94 sample count,True
+zero r50: class94 baseline LA reconstruction,True
+zero r50: class94 baseline response reconstruction,True
+zero r50: class94 student LA reconstruction,True
+zero r50: class94 student response reconstruction,True
+zero r50: class94 positive/attainment counts,True
+zero r50: class95 sample count,True
+zero r50: class95 baseline LA reconstruction,True
+zero r50: class95 baseline response reconstruction,True
+zero r50: class95 student LA reconstruction,True
+zero r50: class95 student response reconstruction,True
+zero r50: class95 positive/attainment counts,True
+zero r50: class96 sample count,True
+zero r50: class96 baseline LA reconstruction,True
+zero r50: class96 baseline response reconstruction,True
+zero r50: class96 student LA reconstruction,True
+zero r50: class96 student response reconstruction,True
+zero r50: class96 positive/attainment counts,True
+zero r50: class97 sample count,True
+zero r50: class97 baseline LA reconstruction,True
+zero r50: class97 baseline response reconstruction,True
+zero r50: class97 student LA reconstruction,True
+zero r50: class97 student response reconstruction,True
+zero r50: class97 positive/attainment counts,True
+zero r50: class98 sample count,True
+zero r50: class98 baseline LA reconstruction,True
+zero r50: class98 baseline response reconstruction,True
+zero r50: class98 student LA reconstruction,True
+zero r50: class98 student response reconstruction,True
+zero r50: class98 positive/attainment counts,True
+zero r50: class99 sample count,True
+zero r50: class99 baseline LA reconstruction,True
+zero r50: class99 baseline response reconstruction,True
+zero r50: class99 student LA reconstruction,True
+zero r50: class99 student response reconstruction,True
+zero r50: class99 positive/attainment counts,True
+zero r50: trace contains C0/C1/C2,True
+zero r50: step0 objective components,True
+zero r50: step1 objective components,True
+zero r50: step2 objective components,True
+zero r50: saved C reconstructs regularizer,True
+zero r50: endpoint LA matches logits,True
+zero r50: endpoint response matches logits,True
+zero r50: measured responses counted before ablation,True
+zero r60: complete eligible candidates,True
+zero r60: exact top3 and normalized weights,True
+zero r60: source qualification and flags,True
+zero r60: teacher class relations in manifest,True
+zero r60: selected union and source counts,True
+zero r60: NPZ class weights,True
+zero r60: NPZ axes,True
+zero r60: independent finite donor C,True
+zero r60: identical full-pool two-view budget,True
+zero r60: client27 full original tail positions,True
+zero r60: client27 mixed-then-min-clipped response,True
+zero r60: client27 variant application,True
+zero r60: client27 baseline margin,True
+zero r60: client27 target baseline plus increment,True
+zero r60: client27 frozen competitor weights,True
+zero r60: client28 full original tail positions,True
+zero r60: client28 mixed-then-min-clipped response,True
+zero r60: client28 variant application,True
+zero r60: client28 baseline margin,True
+zero r60: client28 target baseline plus increment,True
+zero r60: client28 frozen competitor weights,True
+zero r60: client29 full original tail positions,True
+zero r60: client29 mixed-then-min-clipped response,True
+zero r60: client29 variant application,True
+zero r60: client29 baseline margin,True
+zero r60: client29 target baseline plus increment,True
+zero r60: client29 frozen competitor weights,True
+zero r60: selected 80/11 probe from logits,True
+zero r60: selected 80/6 probe from logits,True
+zero r60: selected 80/16 probe from logits,True
+zero r60: selected 81/1 probe from logits,True
+zero r60: selected 81/14 probe from logits,True
+zero r60: selected 81/12 probe from logits,True
+zero r60: selected 82/0 probe from logits,True
+zero r60: selected 82/10 probe from logits,True
+zero r60: selected 82/7 probe from logits,True
+zero r60: selected 83/19 probe from logits,True
+zero r60: selected 83/18 probe from logits,True
+zero r60: selected 83/7 probe from logits,True
+zero r60: selected 84/16 probe from logits,True
+zero r60: selected 84/5 probe from logits,True
+zero r60: selected 84/2 probe from logits,True
+zero r60: selected 85/11 probe from logits,True
+zero r60: selected 85/16 probe from logits,True
+zero r60: selected 85/21 probe from logits,True
+zero r60: selected 86/25 probe from logits,True
+zero r60: selected 86/10 probe from logits,True
+zero r60: selected 86/14 probe from logits,True
+zero r60: selected 87/25 probe from logits,True
+zero r60: selected 87/21 probe from logits,True
+zero r60: selected 87/24 probe from logits,True
+zero r60: selected 88/14 probe from logits,True
+zero r60: selected 88/24 probe from logits,True
+zero r60: selected 88/0 probe from logits,True
+zero r60: selected 89/0 probe from logits,True
+zero r60: selected 89/5 probe from logits,True
+zero r60: selected 89/14 probe from logits,True
+zero r60: selected 90/23 probe from logits,True
+zero r60: selected 90/6 probe from logits,True
+zero r60: selected 90/17 probe from logits,True
+zero r60: selected 91/6 probe from logits,True
+zero r60: selected 91/4 probe from logits,True
+zero r60: selected 91/7 probe from logits,True
+zero r60: selected 92/26 probe from logits,True
+zero r60: selected 92/0 probe from logits,True
+zero r60: selected 92/13 probe from logits,True
+zero r60: selected 93/1 probe from logits,True
+zero r60: selected 93/24 probe from logits,True
+zero r60: selected 93/26 probe from logits,True
+zero r60: selected 94/26 probe from logits,True
+zero r60: selected 94/23 probe from logits,True
+zero r60: selected 94/5 probe from logits,True
+zero r60: selected 95/1 probe from logits,True
+zero r60: selected 95/11 probe from logits,True
+zero r60: selected 95/19 probe from logits,True
+zero r60: selected 96/1 probe from logits,True
+zero r60: selected 96/12 probe from logits,True
+zero r60: selected 96/8 probe from logits,True
+zero r60: selected 97/20 probe from logits,True
+zero r60: selected 97/25 probe from logits,True
+zero r60: selected 97/17 probe from logits,True
+zero r60: selected 98/25 probe from logits,True
+zero r60: selected 98/6 probe from logits,True
+zero r60: selected 98/12 probe from logits,True
+zero r60: selected 99/18 probe from logits,True
+zero r60: selected 99/6 probe from logits,True
+zero r60: selected 99/17 probe from logits,True
+zero r60: class80 sample count,True
+zero r60: class80 baseline LA reconstruction,True
+zero r60: class80 baseline response reconstruction,True
+zero r60: class80 student LA reconstruction,True
+zero r60: class80 student response reconstruction,True
+zero r60: class80 positive/attainment counts,True
+zero r60: class81 sample count,True
+zero r60: class81 baseline LA reconstruction,True
+zero r60: class81 baseline response reconstruction,True
+zero r60: class81 student LA reconstruction,True
+zero r60: class81 student response reconstruction,True
+zero r60: class81 positive/attainment counts,True
+zero r60: class82 sample count,True
+zero r60: class82 baseline LA reconstruction,True
+zero r60: class82 baseline response reconstruction,True
+zero r60: class82 student LA reconstruction,True
+zero r60: class82 student response reconstruction,True
+zero r60: class82 positive/attainment counts,True
+zero r60: class83 sample count,True
+zero r60: class83 baseline LA reconstruction,True
+zero r60: class83 baseline response reconstruction,True
+zero r60: class83 student LA reconstruction,True
+zero r60: class83 student response reconstruction,True
+zero r60: class83 positive/attainment counts,True
+zero r60: class84 sample count,True
+zero r60: class84 baseline LA reconstruction,True
+zero r60: class84 baseline response reconstruction,True
+zero r60: class84 student LA reconstruction,True
+zero r60: class84 student response reconstruction,True
+zero r60: class84 positive/attainment counts,True
+zero r60: class85 sample count,True
+zero r60: class85 baseline LA reconstruction,True
+zero r60: class85 baseline response reconstruction,True
+zero r60: class85 student LA reconstruction,True
+zero r60: class85 student response reconstruction,True
+zero r60: class85 positive/attainment counts,True
+zero r60: class86 sample count,True
+zero r60: class86 baseline LA reconstruction,True
+zero r60: class86 baseline response reconstruction,True
+zero r60: class86 student LA reconstruction,True
+zero r60: class86 student response reconstruction,True
+zero r60: class86 positive/attainment counts,True
+zero r60: class87 sample count,True
+zero r60: class87 baseline LA reconstruction,True
+zero r60: class87 baseline response reconstruction,True
+zero r60: class87 student LA reconstruction,True
+zero r60: class87 student response reconstruction,True
+zero r60: class87 positive/attainment counts,True
+zero r60: class88 sample count,True
+zero r60: class88 baseline LA reconstruction,True
+zero r60: class88 baseline response reconstruction,True
+zero r60: class88 student LA reconstruction,True
+zero r60: class88 student response reconstruction,True
+zero r60: class88 positive/attainment counts,True
+zero r60: class89 sample count,True
+zero r60: class89 baseline LA reconstruction,True
+zero r60: class89 baseline response reconstruction,True
+zero r60: class89 student LA reconstruction,True
+zero r60: class89 student response reconstruction,True
+zero r60: class89 positive/attainment counts,True
+zero r60: class90 sample count,True
+zero r60: class90 baseline LA reconstruction,True
+zero r60: class90 baseline response reconstruction,True
+zero r60: class90 student LA reconstruction,True
+zero r60: class90 student response reconstruction,True
+zero r60: class90 positive/attainment counts,True
+zero r60: class91 sample count,True
+zero r60: class91 baseline LA reconstruction,True
+zero r60: class91 baseline response reconstruction,True
+zero r60: class91 student LA reconstruction,True
+zero r60: class91 student response reconstruction,True
+zero r60: class91 positive/attainment counts,True
+zero r60: class92 sample count,True
+zero r60: class92 baseline LA reconstruction,True
+zero r60: class92 baseline response reconstruction,True
+zero r60: class92 student LA reconstruction,True
+zero r60: class92 student response reconstruction,True
+zero r60: class92 positive/attainment counts,True
+zero r60: class93 sample count,True
+zero r60: class93 baseline LA reconstruction,True
+zero r60: class93 baseline response reconstruction,True
+zero r60: class93 student LA reconstruction,True
+zero r60: class93 student response reconstruction,True
+zero r60: class93 positive/attainment counts,True
+zero r60: class94 sample count,True
+zero r60: class94 baseline LA reconstruction,True
+zero r60: class94 baseline response reconstruction,True
+zero r60: class94 student LA reconstruction,True
+zero r60: class94 student response reconstruction,True
+zero r60: class94 positive/attainment counts,True
+zero r60: class95 sample count,True
+zero r60: class95 baseline LA reconstruction,True
+zero r60: class95 baseline response reconstruction,True
+zero r60: class95 student LA reconstruction,True
+zero r60: class95 student response reconstruction,True
+zero r60: class95 positive/attainment counts,True
+zero r60: class96 sample count,True
+zero r60: class96 baseline LA reconstruction,True
+zero r60: class96 baseline response reconstruction,True
+zero r60: class96 student LA reconstruction,True
+zero r60: class96 student response reconstruction,True
+zero r60: class96 positive/attainment counts,True
+zero r60: class97 sample count,True
+zero r60: class97 baseline LA reconstruction,True
+zero r60: class97 baseline response reconstruction,True
+zero r60: class97 student LA reconstruction,True
+zero r60: class97 student response reconstruction,True
+zero r60: class97 positive/attainment counts,True
+zero r60: class98 sample count,True
+zero r60: class98 baseline LA reconstruction,True
+zero r60: class98 baseline response reconstruction,True
+zero r60: class98 student LA reconstruction,True
+zero r60: class98 student response reconstruction,True
+zero r60: class98 positive/attainment counts,True
+zero r60: class99 sample count,True
+zero r60: class99 baseline LA reconstruction,True
+zero r60: class99 baseline response reconstruction,True
+zero r60: class99 student LA reconstruction,True
+zero r60: class99 student response reconstruction,True
+zero r60: class99 positive/attainment counts,True
+zero r60: trace contains C0/C1/C2,True
+zero r60: step0 objective components,True
+zero r60: step1 objective components,True
+zero r60: step2 objective components,True
+zero r60: saved C reconstructs regularizer,True
+zero r60: endpoint LA matches logits,True
+zero r60: endpoint response matches logits,True
+zero r60: measured responses counted before ablation,True
+zero r70: complete eligible candidates,True
+zero r70: exact top3 and normalized weights,True
+zero r70: source qualification and flags,True
+zero r70: teacher class relations in manifest,True
+zero r70: selected union and source counts,True
+zero r70: NPZ class weights,True
+zero r70: NPZ axes,True
+zero r70: independent finite donor C,True
+zero r70: identical full-pool two-view budget,True
+zero r70: client27 full original tail positions,True
+zero r70: client27 mixed-then-min-clipped response,True
+zero r70: client27 variant application,True
+zero r70: client27 baseline margin,True
+zero r70: client27 target baseline plus increment,True
+zero r70: client27 frozen competitor weights,True
+zero r70: client28 full original tail positions,True
+zero r70: client28 mixed-then-min-clipped response,True
+zero r70: client28 variant application,True
+zero r70: client28 baseline margin,True
+zero r70: client28 target baseline plus increment,True
+zero r70: client28 frozen competitor weights,True
+zero r70: client29 full original tail positions,True
+zero r70: client29 mixed-then-min-clipped response,True
+zero r70: client29 variant application,True
+zero r70: client29 baseline margin,True
+zero r70: client29 target baseline plus increment,True
+zero r70: client29 frozen competitor weights,True
+zero r70: selected 80/11 probe from logits,True
+zero r70: selected 80/6 probe from logits,True
+zero r70: selected 80/14 probe from logits,True
+zero r70: selected 81/1 probe from logits,True
+zero r70: selected 81/12 probe from logits,True
+zero r70: selected 81/14 probe from logits,True
+zero r70: selected 82/10 probe from logits,True
+zero r70: selected 82/0 probe from logits,True
+zero r70: selected 82/19 probe from logits,True
+zero r70: selected 83/19 probe from logits,True
+zero r70: selected 83/18 probe from logits,True
+zero r70: selected 83/7 probe from logits,True
+zero r70: selected 84/16 probe from logits,True
+zero r70: selected 84/2 probe from logits,True
+zero r70: selected 84/0 probe from logits,True
+zero r70: selected 85/11 probe from logits,True
+zero r70: selected 85/16 probe from logits,True
+zero r70: selected 85/21 probe from logits,True
+zero r70: selected 86/10 probe from logits,True
+zero r70: selected 86/25 probe from logits,True
+zero r70: selected 86/14 probe from logits,True
+zero r70: selected 87/21 probe from logits,True
+zero r70: selected 87/24 probe from logits,True
+zero r70: selected 87/25 probe from logits,True
+zero r70: selected 88/14 probe from logits,True
+zero r70: selected 88/24 probe from logits,True
+zero r70: selected 88/0 probe from logits,True
+zero r70: selected 89/5 probe from logits,True
+zero r70: selected 89/0 probe from logits,True
+zero r70: selected 89/14 probe from logits,True
+zero r70: selected 90/23 probe from logits,True
+zero r70: selected 90/6 probe from logits,True
+zero r70: selected 90/9 probe from logits,True
+zero r70: selected 91/6 probe from logits,True
+zero r70: selected 91/4 probe from logits,True
+zero r70: selected 91/7 probe from logits,True
+zero r70: selected 92/26 probe from logits,True
+zero r70: selected 92/0 probe from logits,True
+zero r70: selected 92/13 probe from logits,True
+zero r70: selected 93/11 probe from logits,True
+zero r70: selected 93/1 probe from logits,True
+zero r70: selected 93/26 probe from logits,True
+zero r70: selected 94/26 probe from logits,True
+zero r70: selected 94/25 probe from logits,True
+zero r70: selected 94/5 probe from logits,True
+zero r70: selected 95/1 probe from logits,True
+zero r70: selected 95/19 probe from logits,True
+zero r70: selected 95/11 probe from logits,True
+zero r70: selected 96/12 probe from logits,True
+zero r70: selected 96/1 probe from logits,True
+zero r70: selected 96/8 probe from logits,True
+zero r70: selected 97/20 probe from logits,True
+zero r70: selected 97/25 probe from logits,True
+zero r70: selected 97/17 probe from logits,True
+zero r70: selected 98/25 probe from logits,True
+zero r70: selected 98/6 probe from logits,True
+zero r70: selected 98/12 probe from logits,True
+zero r70: selected 99/18 probe from logits,True
+zero r70: selected 99/17 probe from logits,True
+zero r70: selected 99/6 probe from logits,True
+zero r70: class80 sample count,True
+zero r70: class80 baseline LA reconstruction,True
+zero r70: class80 baseline response reconstruction,True
+zero r70: class80 student LA reconstruction,True
+zero r70: class80 student response reconstruction,True
+zero r70: class80 positive/attainment counts,True
+zero r70: class81 sample count,True
+zero r70: class81 baseline LA reconstruction,True
+zero r70: class81 baseline response reconstruction,True
+zero r70: class81 student LA reconstruction,True
+zero r70: class81 student response reconstruction,True
+zero r70: class81 positive/attainment counts,True
+zero r70: class82 sample count,True
+zero r70: class82 baseline LA reconstruction,True
+zero r70: class82 baseline response reconstruction,True
+zero r70: class82 student LA reconstruction,True
+zero r70: class82 student response reconstruction,True
+zero r70: class82 positive/attainment counts,True
+zero r70: class83 sample count,True
+zero r70: class83 baseline LA reconstruction,True
+zero r70: class83 baseline response reconstruction,True
+zero r70: class83 student LA reconstruction,True
+zero r70: class83 student response reconstruction,True
+zero r70: class83 positive/attainment counts,True
+zero r70: class84 sample count,True
+zero r70: class84 baseline LA reconstruction,True
+zero r70: class84 baseline response reconstruction,True
+zero r70: class84 student LA reconstruction,True
+zero r70: class84 student response reconstruction,True
+zero r70: class84 positive/attainment counts,True
+zero r70: class85 sample count,True
+zero r70: class85 baseline LA reconstruction,True
+zero r70: class85 baseline response reconstruction,True
+zero r70: class85 student LA reconstruction,True
+zero r70: class85 student response reconstruction,True
+zero r70: class85 positive/attainment counts,True
+zero r70: class86 sample count,True
+zero r70: class86 baseline LA reconstruction,True
+zero r70: class86 baseline response reconstruction,True
+zero r70: class86 student LA reconstruction,True
+zero r70: class86 student response reconstruction,True
+zero r70: class86 positive/attainment counts,True
+zero r70: class87 sample count,True
+zero r70: class87 baseline LA reconstruction,True
+zero r70: class87 baseline response reconstruction,True
+zero r70: class87 student LA reconstruction,True
+zero r70: class87 student response reconstruction,True
+zero r70: class87 positive/attainment counts,True
+zero r70: class88 sample count,True
+zero r70: class88 baseline LA reconstruction,True
+zero r70: class88 baseline response reconstruction,True
+zero r70: class88 student LA reconstruction,True
+zero r70: class88 student response reconstruction,True
+zero r70: class88 positive/attainment counts,True
+zero r70: class89 sample count,True
+zero r70: class89 baseline LA reconstruction,True
+zero r70: class89 baseline response reconstruction,True
+zero r70: class89 student LA reconstruction,True
+zero r70: class89 student response reconstruction,True
+zero r70: class89 positive/attainment counts,True
+zero r70: class90 sample count,True
+zero r70: class90 baseline LA reconstruction,True
+zero r70: class90 baseline response reconstruction,True
+zero r70: class90 student LA reconstruction,True
+zero r70: class90 student response reconstruction,True
+zero r70: class90 positive/attainment counts,True
+zero r70: class91 sample count,True
+zero r70: class91 baseline LA reconstruction,True
+zero r70: class91 baseline response reconstruction,True
+zero r70: class91 student LA reconstruction,True
+zero r70: class91 student response reconstruction,True
+zero r70: class91 positive/attainment counts,True
+zero r70: class92 sample count,True
+zero r70: class92 baseline LA reconstruction,True
+zero r70: class92 baseline response reconstruction,True
+zero r70: class92 student LA reconstruction,True
+zero r70: class92 student response reconstruction,True
+zero r70: class92 positive/attainment counts,True
+zero r70: class93 sample count,True
+zero r70: class93 baseline LA reconstruction,True
+zero r70: class93 baseline response reconstruction,True
+zero r70: class93 student LA reconstruction,True
+zero r70: class93 student response reconstruction,True
+zero r70: class93 positive/attainment counts,True
+zero r70: class94 sample count,True
+zero r70: class94 baseline LA reconstruction,True
+zero r70: class94 baseline response reconstruction,True
+zero r70: class94 student LA reconstruction,True
+zero r70: class94 student response reconstruction,True
+zero r70: class94 positive/attainment counts,True
+zero r70: class95 sample count,True
+zero r70: class95 baseline LA reconstruction,True
+zero r70: class95 baseline response reconstruction,True
+zero r70: class95 student LA reconstruction,True
+zero r70: class95 student response reconstruction,True
+zero r70: class95 positive/attainment counts,True
+zero r70: class96 sample count,True
+zero r70: class96 baseline LA reconstruction,True
+zero r70: class96 baseline response reconstruction,True
+zero r70: class96 student LA reconstruction,True
+zero r70: class96 student response reconstruction,True
+zero r70: class96 positive/attainment counts,True
+zero r70: class97 sample count,True
+zero r70: class97 baseline LA reconstruction,True
+zero r70: class97 baseline response reconstruction,True
+zero r70: class97 student LA reconstruction,True
+zero r70: class97 student response reconstruction,True
+zero r70: class97 positive/attainment counts,True
+zero r70: class98 sample count,True
+zero r70: class98 baseline LA reconstruction,True
+zero r70: class98 baseline response reconstruction,True
+zero r70: class98 student LA reconstruction,True
+zero r70: class98 student response reconstruction,True
+zero r70: class98 positive/attainment counts,True
+zero r70: class99 sample count,True
+zero r70: class99 baseline LA reconstruction,True
+zero r70: class99 baseline response reconstruction,True
+zero r70: class99 student LA reconstruction,True
+zero r70: class99 student response reconstruction,True
+zero r70: class99 positive/attainment counts,True
+zero r70: trace contains C0/C1/C2,True
+zero r70: step0 objective components,True
+zero r70: step1 objective components,True
+zero r70: step2 objective components,True
+zero r70: saved C reconstructs regularizer,True
+zero r70: endpoint LA matches logits,True
+zero r70: endpoint response matches logits,True
+zero r70: measured responses counted before ablation,True
+zero r80: complete eligible candidates,True
+zero r80: exact top3 and normalized weights,True
+zero r80: source qualification and flags,True
+zero r80: teacher class relations in manifest,True
+zero r80: selected union and source counts,True
+zero r80: NPZ class weights,True
+zero r80: NPZ axes,True
+zero r80: independent finite donor C,True
+zero r80: identical full-pool two-view budget,True
+zero r80: client27 full original tail positions,True
+zero r80: client27 mixed-then-min-clipped response,True
+zero r80: client27 variant application,True
+zero r80: client27 baseline margin,True
+zero r80: client27 target baseline plus increment,True
+zero r80: client27 frozen competitor weights,True
+zero r80: client28 full original tail positions,True
+zero r80: client28 mixed-then-min-clipped response,True
+zero r80: client28 variant application,True
+zero r80: client28 baseline margin,True
+zero r80: client28 target baseline plus increment,True
+zero r80: client28 frozen competitor weights,True
+zero r80: client29 full original tail positions,True
+zero r80: client29 mixed-then-min-clipped response,True
+zero r80: client29 variant application,True
+zero r80: client29 baseline margin,True
+zero r80: client29 target baseline plus increment,True
+zero r80: client29 frozen competitor weights,True
+zero r80: selected 80/6 probe from logits,True
+zero r80: selected 80/14 probe from logits,True
+zero r80: selected 80/11 probe from logits,True
+zero r80: selected 81/1 probe from logits,True
+zero r80: selected 81/12 probe from logits,True
+zero r80: selected 81/14 probe from logits,True
+zero r80: selected 82/10 probe from logits,True
+zero r80: selected 82/0 probe from logits,True
+zero r80: selected 82/11 probe from logits,True
+zero r80: selected 83/19 probe from logits,True
+zero r80: selected 83/18 probe from logits,True
+zero r80: selected 83/7 probe from logits,True
+zero r80: selected 84/16 probe from logits,True
+zero r80: selected 84/2 probe from logits,True
+zero r80: selected 84/3 probe from logits,True
+zero r80: selected 85/17 probe from logits,True
+zero r80: selected 85/16 probe from logits,True
+zero r80: selected 85/21 probe from logits,True
+zero r80: selected 86/25 probe from logits,True
+zero r80: selected 86/10 probe from logits,True
+zero r80: selected 86/14 probe from logits,True
+zero r80: selected 87/21 probe from logits,True
+zero r80: selected 87/25 probe from logits,True
+zero r80: selected 87/24 probe from logits,True
+zero r80: selected 88/14 probe from logits,True
+zero r80: selected 88/24 probe from logits,True
+zero r80: selected 88/0 probe from logits,True
+zero r80: selected 89/5 probe from logits,True
+zero r80: selected 89/0 probe from logits,True
+zero r80: selected 89/6 probe from logits,True
+zero r80: selected 90/23 probe from logits,True
+zero r80: selected 90/6 probe from logits,True
+zero r80: selected 90/17 probe from logits,True
+zero r80: selected 91/6 probe from logits,True
+zero r80: selected 91/4 probe from logits,True
+zero r80: selected 91/7 probe from logits,True
+zero r80: selected 92/26 probe from logits,True
+zero r80: selected 92/0 probe from logits,True
+zero r80: selected 92/13 probe from logits,True
+zero r80: selected 93/11 probe from logits,True
+zero r80: selected 93/1 probe from logits,True
+zero r80: selected 93/26 probe from logits,True
+zero r80: selected 94/26 probe from logits,True
+zero r80: selected 94/25 probe from logits,True
+zero r80: selected 94/5 probe from logits,True
+zero r80: selected 95/11 probe from logits,True
+zero r80: selected 95/1 probe from logits,True
+zero r80: selected 95/19 probe from logits,True
+zero r80: selected 96/11 probe from logits,True
+zero r80: selected 96/1 probe from logits,True
+zero r80: selected 96/12 probe from logits,True
+zero r80: selected 97/20 probe from logits,True
+zero r80: selected 97/25 probe from logits,True
+zero r80: selected 97/16 probe from logits,True
+zero r80: selected 98/25 probe from logits,True
+zero r80: selected 98/6 probe from logits,True
+zero r80: selected 98/11 probe from logits,True
+zero r80: selected 99/18 probe from logits,True
+zero r80: selected 99/17 probe from logits,True
+zero r80: selected 99/6 probe from logits,True
+zero r80: class80 sample count,True
+zero r80: class80 baseline LA reconstruction,True
+zero r80: class80 baseline response reconstruction,True
+zero r80: class80 student LA reconstruction,True
+zero r80: class80 student response reconstruction,True
+zero r80: class80 positive/attainment counts,True
+zero r80: class81 sample count,True
+zero r80: class81 baseline LA reconstruction,True
+zero r80: class81 baseline response reconstruction,True
+zero r80: class81 student LA reconstruction,True
+zero r80: class81 student response reconstruction,True
+zero r80: class81 positive/attainment counts,True
+zero r80: class82 sample count,True
+zero r80: class82 baseline LA reconstruction,True
+zero r80: class82 baseline response reconstruction,True
+zero r80: class82 student LA reconstruction,True
+zero r80: class82 student response reconstruction,True
+zero r80: class82 positive/attainment counts,True
+zero r80: class83 sample count,True
+zero r80: class83 baseline LA reconstruction,True
+zero r80: class83 baseline response reconstruction,True
+zero r80: class83 student LA reconstruction,True
+zero r80: class83 student response reconstruction,True
+zero r80: class83 positive/attainment counts,True
+zero r80: class84 sample count,True
+zero r80: class84 baseline LA reconstruction,True
+zero r80: class84 baseline response reconstruction,True
+zero r80: class84 student LA reconstruction,True
+zero r80: class84 student response reconstruction,True
+zero r80: class84 positive/attainment counts,True
+zero r80: class85 sample count,True
+zero r80: class85 baseline LA reconstruction,True
+zero r80: class85 baseline response reconstruction,True
+zero r80: class85 student LA reconstruction,True
+zero r80: class85 student response reconstruction,True
+zero r80: class85 positive/attainment counts,True
+zero r80: class86 sample count,True
+zero r80: class86 baseline LA reconstruction,True
+zero r80: class86 baseline response reconstruction,True
+zero r80: class86 student LA reconstruction,True
+zero r80: class86 student response reconstruction,True
+zero r80: class86 positive/attainment counts,True
+zero r80: class87 sample count,True
+zero r80: class87 baseline LA reconstruction,True
+zero r80: class87 baseline response reconstruction,True
+zero r80: class87 student LA reconstruction,True
+zero r80: class87 student response reconstruction,True
+zero r80: class87 positive/attainment counts,True
+zero r80: class88 sample count,True
+zero r80: class88 baseline LA reconstruction,True
+zero r80: class88 baseline response reconstruction,True
+zero r80: class88 student LA reconstruction,True
+zero r80: class88 student response reconstruction,True
+zero r80: class88 positive/attainment counts,True
+zero r80: class89 sample count,True
+zero r80: class89 baseline LA reconstruction,True
+zero r80: class89 baseline response reconstruction,True
+zero r80: class89 student LA reconstruction,True
+zero r80: class89 student response reconstruction,True
+zero r80: class89 positive/attainment counts,True
+zero r80: class90 sample count,True
+zero r80: class90 baseline LA reconstruction,True
+zero r80: class90 baseline response reconstruction,True
+zero r80: class90 student LA reconstruction,True
+zero r80: class90 student response reconstruction,True
+zero r80: class90 positive/attainment counts,True
+zero r80: class91 sample count,True
+zero r80: class91 baseline LA reconstruction,True
+zero r80: class91 baseline response reconstruction,True
+zero r80: class91 student LA reconstruction,True
+zero r80: class91 student response reconstruction,True
+zero r80: class91 positive/attainment counts,True
+zero r80: class92 sample count,True
+zero r80: class92 baseline LA reconstruction,True
+zero r80: class92 baseline response reconstruction,True
+zero r80: class92 student LA reconstruction,True
+zero r80: class92 student response reconstruction,True
+zero r80: class92 positive/attainment counts,True
+zero r80: class93 sample count,True
+zero r80: class93 baseline LA reconstruction,True
+zero r80: class93 baseline response reconstruction,True
+zero r80: class93 student LA reconstruction,True
+zero r80: class93 student response reconstruction,True
+zero r80: class93 positive/attainment counts,True
+zero r80: class94 sample count,True
+zero r80: class94 baseline LA reconstruction,True
+zero r80: class94 baseline response reconstruction,True
+zero r80: class94 student LA reconstruction,True
+zero r80: class94 student response reconstruction,True
+zero r80: class94 positive/attainment counts,True
+zero r80: class95 sample count,True
+zero r80: class95 baseline LA reconstruction,True
+zero r80: class95 baseline response reconstruction,True
+zero r80: class95 student LA reconstruction,True
+zero r80: class95 student response reconstruction,True
+zero r80: class95 positive/attainment counts,True
+zero r80: class96 sample count,True
+zero r80: class96 baseline LA reconstruction,True
+zero r80: class96 baseline response reconstruction,True
+zero r80: class96 student LA reconstruction,True
+zero r80: class96 student response reconstruction,True
+zero r80: class96 positive/attainment counts,True
+zero r80: class97 sample count,True
+zero r80: class97 baseline LA reconstruction,True
+zero r80: class97 baseline response reconstruction,True
+zero r80: class97 student LA reconstruction,True
+zero r80: class97 student response reconstruction,True
+zero r80: class97 positive/attainment counts,True
+zero r80: class98 sample count,True
+zero r80: class98 baseline LA reconstruction,True
+zero r80: class98 baseline response reconstruction,True
+zero r80: class98 student LA reconstruction,True
+zero r80: class98 student response reconstruction,True
+zero r80: class98 positive/attainment counts,True
+zero r80: class99 sample count,True
+zero r80: class99 baseline LA reconstruction,True
+zero r80: class99 baseline response reconstruction,True
+zero r80: class99 student LA reconstruction,True
+zero r80: class99 student response reconstruction,True
+zero r80: class99 positive/attainment counts,True
+zero r80: trace contains C0/C1/C2,True
+zero r80: step0 objective components,True
+zero r80: step1 objective components,True
+zero r80: step2 objective components,True
+zero r80: saved C reconstructs regularizer,True
+zero r80: endpoint LA matches logits,True
+zero r80: endpoint response matches logits,True
+zero r80: measured responses counted before ablation,True
+zero r90: complete eligible candidates,True
+zero r90: exact top3 and normalized weights,True
+zero r90: source qualification and flags,True
+zero r90: teacher class relations in manifest,True
+zero r90: selected union and source counts,True
+zero r90: NPZ class weights,True
+zero r90: NPZ axes,True
+zero r90: independent finite donor C,True
+zero r90: identical full-pool two-view budget,True
+zero r90: client27 full original tail positions,True
+zero r90: client27 mixed-then-min-clipped response,True
+zero r90: client27 variant application,True
+zero r90: client27 baseline margin,True
+zero r90: client27 target baseline plus increment,True
+zero r90: client27 frozen competitor weights,True
+zero r90: client28 full original tail positions,True
+zero r90: client28 mixed-then-min-clipped response,True
+zero r90: client28 variant application,True
+zero r90: client28 baseline margin,True
+zero r90: client28 target baseline plus increment,True
+zero r90: client28 frozen competitor weights,True
+zero r90: client29 full original tail positions,True
+zero r90: client29 mixed-then-min-clipped response,True
+zero r90: client29 variant application,True
+zero r90: client29 baseline margin,True
+zero r90: client29 target baseline plus increment,True
+zero r90: client29 frozen competitor weights,True
+zero r90: selected 80/11 probe from logits,True
+zero r90: selected 80/6 probe from logits,True
+zero r90: selected 80/14 probe from logits,True
+zero r90: selected 81/1 probe from logits,True
+zero r90: selected 81/12 probe from logits,True
+zero r90: selected 81/14 probe from logits,True
+zero r90: selected 82/10 probe from logits,True
+zero r90: selected 82/0 probe from logits,True
+zero r90: selected 82/16 probe from logits,True
+zero r90: selected 83/19 probe from logits,True
+zero r90: selected 83/7 probe from logits,True
+zero r90: selected 83/18 probe from logits,True
+zero r90: selected 84/16 probe from logits,True
+zero r90: selected 84/3 probe from logits,True
+zero r90: selected 84/4 probe from logits,True
+zero r90: selected 85/11 probe from logits,True
+zero r90: selected 85/21 probe from logits,True
+zero r90: selected 85/13 probe from logits,True
+zero r90: selected 86/25 probe from logits,True
+zero r90: selected 86/10 probe from logits,True
+zero r90: selected 86/18 probe from logits,True
+zero r90: selected 87/21 probe from logits,True
+zero r90: selected 87/3 probe from logits,True
+zero r90: selected 87/17 probe from logits,True
+zero r90: selected 88/14 probe from logits,True
+zero r90: selected 88/24 probe from logits,True
+zero r90: selected 88/6 probe from logits,True
+zero r90: selected 89/0 probe from logits,True
+zero r90: selected 89/5 probe from logits,True
+zero r90: selected 89/14 probe from logits,True
+zero r90: selected 90/23 probe from logits,True
+zero r90: selected 90/6 probe from logits,True
+zero r90: selected 90/9 probe from logits,True
+zero r90: selected 91/6 probe from logits,True
+zero r90: selected 91/4 probe from logits,True
+zero r90: selected 91/11 probe from logits,True
+zero r90: selected 92/26 probe from logits,True
+zero r90: selected 92/25 probe from logits,True
+zero r90: selected 92/0 probe from logits,True
+zero r90: selected 93/11 probe from logits,True
+zero r90: selected 93/1 probe from logits,True
+zero r90: selected 93/26 probe from logits,True
+zero r90: selected 94/26 probe from logits,True
+zero r90: selected 94/25 probe from logits,True
+zero r90: selected 94/5 probe from logits,True
+zero r90: selected 95/1 probe from logits,True
+zero r90: selected 95/19 probe from logits,True
+zero r90: selected 95/11 probe from logits,True
+zero r90: selected 96/1 probe from logits,True
+zero r90: selected 96/12 probe from logits,True
+zero r90: selected 96/7 probe from logits,True
+zero r90: selected 97/20 probe from logits,True
+zero r90: selected 97/25 probe from logits,True
+zero r90: selected 97/16 probe from logits,True
+zero r90: selected 98/25 probe from logits,True
+zero r90: selected 98/6 probe from logits,True
+zero r90: selected 98/9 probe from logits,True
+zero r90: selected 99/17 probe from logits,True
+zero r90: selected 99/18 probe from logits,True
+zero r90: selected 99/6 probe from logits,True
+zero r90: class80 sample count,True
+zero r90: class80 baseline LA reconstruction,True
+zero r90: class80 baseline response reconstruction,True
+zero r90: class80 student LA reconstruction,True
+zero r90: class80 student response reconstruction,True
+zero r90: class80 positive/attainment counts,True
+zero r90: class81 sample count,True
+zero r90: class81 baseline LA reconstruction,True
+zero r90: class81 baseline response reconstruction,True
+zero r90: class81 student LA reconstruction,True
+zero r90: class81 student response reconstruction,True
+zero r90: class81 positive/attainment counts,True
+zero r90: class82 sample count,True
+zero r90: class82 baseline LA reconstruction,True
+zero r90: class82 baseline response reconstruction,True
+zero r90: class82 student LA reconstruction,True
+zero r90: class82 student response reconstruction,True
+zero r90: class82 positive/attainment counts,True
+zero r90: class83 sample count,True
+zero r90: class83 baseline LA reconstruction,True
+zero r90: class83 baseline response reconstruction,True
+zero r90: class83 student LA reconstruction,True
+zero r90: class83 student response reconstruction,True
+zero r90: class83 positive/attainment counts,True
+zero r90: class84 sample count,True
+zero r90: class84 baseline LA reconstruction,True
+zero r90: class84 baseline response reconstruction,True
+zero r90: class84 student LA reconstruction,True
+zero r90: class84 student response reconstruction,True
+zero r90: class84 positive/attainment counts,True
+zero r90: class85 sample count,True
+zero r90: class85 baseline LA reconstruction,True
+zero r90: class85 baseline response reconstruction,True
+zero r90: class85 student LA reconstruction,True
+zero r90: class85 student response reconstruction,True
+zero r90: class85 positive/attainment counts,True
+zero r90: class86 sample count,True
+zero r90: class86 baseline LA reconstruction,True
+zero r90: class86 baseline response reconstruction,True
+zero r90: class86 student LA reconstruction,True
+zero r90: class86 student response reconstruction,True
+zero r90: class86 positive/attainment counts,True
+zero r90: class87 sample count,True
+zero r90: class87 baseline LA reconstruction,True
+zero r90: class87 baseline response reconstruction,True
+zero r90: class87 student LA reconstruction,True
+zero r90: class87 student response reconstruction,True
+zero r90: class87 positive/attainment counts,True
+zero r90: class88 sample count,True
+zero r90: class88 baseline LA reconstruction,True
+zero r90: class88 baseline response reconstruction,True
+zero r90: class88 student LA reconstruction,True
+zero r90: class88 student response reconstruction,True
+zero r90: class88 positive/attainment counts,True
+zero r90: class89 sample count,True
+zero r90: class89 baseline LA reconstruction,True
+zero r90: class89 baseline response reconstruction,True
+zero r90: class89 student LA reconstruction,True
+zero r90: class89 student response reconstruction,True
+zero r90: class89 positive/attainment counts,True
+zero r90: class90 sample count,True
+zero r90: class90 baseline LA reconstruction,True
+zero r90: class90 baseline response reconstruction,True
+zero r90: class90 student LA reconstruction,True
+zero r90: class90 student response reconstruction,True
+zero r90: class90 positive/attainment counts,True
+zero r90: class91 sample count,True
+zero r90: class91 baseline LA reconstruction,True
+zero r90: class91 baseline response reconstruction,True
+zero r90: class91 student LA reconstruction,True
+zero r90: class91 student response reconstruction,True
+zero r90: class91 positive/attainment counts,True
+zero r90: class92 sample count,True
+zero r90: class92 baseline LA reconstruction,True
+zero r90: class92 baseline response reconstruction,True
+zero r90: class92 student LA reconstruction,True
+zero r90: class92 student response reconstruction,True
+zero r90: class92 positive/attainment counts,True
+zero r90: class93 sample count,True
+zero r90: class93 baseline LA reconstruction,True
+zero r90: class93 baseline response reconstruction,True
+zero r90: class93 student LA reconstruction,True
+zero r90: class93 student response reconstruction,True
+zero r90: class93 positive/attainment counts,True
+zero r90: class94 sample count,True
+zero r90: class94 baseline LA reconstruction,True
+zero r90: class94 baseline response reconstruction,True
+zero r90: class94 student LA reconstruction,True
+zero r90: class94 student response reconstruction,True
+zero r90: class94 positive/attainment counts,True
+zero r90: class95 sample count,True
+zero r90: class95 baseline LA reconstruction,True
+zero r90: class95 baseline response reconstruction,True
+zero r90: class95 student LA reconstruction,True
+zero r90: class95 student response reconstruction,True
+zero r90: class95 positive/attainment counts,True
+zero r90: class96 sample count,True
+zero r90: class96 baseline LA reconstruction,True
+zero r90: class96 baseline response reconstruction,True
+zero r90: class96 student LA reconstruction,True
+zero r90: class96 student response reconstruction,True
+zero r90: class96 positive/attainment counts,True
+zero r90: class97 sample count,True
+zero r90: class97 baseline LA reconstruction,True
+zero r90: class97 baseline response reconstruction,True
+zero r90: class97 student LA reconstruction,True
+zero r90: class97 student response reconstruction,True
+zero r90: class97 positive/attainment counts,True
+zero r90: class98 sample count,True
+zero r90: class98 baseline LA reconstruction,True
+zero r90: class98 baseline response reconstruction,True
+zero r90: class98 student LA reconstruction,True
+zero r90: class98 student response reconstruction,True
+zero r90: class98 positive/attainment counts,True
+zero r90: class99 sample count,True
+zero r90: class99 baseline LA reconstruction,True
+zero r90: class99 baseline response reconstruction,True
+zero r90: class99 student LA reconstruction,True
+zero r90: class99 student response reconstruction,True
+zero r90: class99 positive/attainment counts,True
+zero r90: trace contains C0/C1/C2,True
+zero r90: step0 objective components,True
+zero r90: step1 objective components,True
+zero r90: step2 objective components,True
+zero r90: saved C reconstructs regularizer,True
+zero r90: endpoint LA matches logits,True
+zero r90: endpoint response matches logits,True
+zero r90: measured responses counted before ablation,True
+zero r100: complete eligible candidates,True
+zero r100: exact top3 and normalized weights,True
+zero r100: source qualification and flags,True
+zero r100: teacher class relations in manifest,True
+zero r100: selected union and source counts,True
+zero r100: NPZ class weights,True
+zero r100: NPZ axes,True
+zero r100: independent finite donor C,True
+zero r100: identical full-pool two-view budget,True
+zero r100: client27 full original tail positions,True
+zero r100: client27 mixed-then-min-clipped response,True
+zero r100: client27 variant application,True
+zero r100: client27 baseline margin,True
+zero r100: client27 target baseline plus increment,True
+zero r100: client27 frozen competitor weights,True
+zero r100: client28 full original tail positions,True
+zero r100: client28 mixed-then-min-clipped response,True
+zero r100: client28 variant application,True
+zero r100: client28 baseline margin,True
+zero r100: client28 target baseline plus increment,True
+zero r100: client28 frozen competitor weights,True
+zero r100: client29 full original tail positions,True
+zero r100: client29 mixed-then-min-clipped response,True
+zero r100: client29 variant application,True
+zero r100: client29 baseline margin,True
+zero r100: client29 target baseline plus increment,True
+zero r100: client29 frozen competitor weights,True
+zero r100: selected 80/11 probe from logits,True
+zero r100: selected 80/6 probe from logits,True
+zero r100: selected 80/14 probe from logits,True
+zero r100: selected 81/1 probe from logits,True
+zero r100: selected 81/12 probe from logits,True
+zero r100: selected 81/14 probe from logits,True
+zero r100: selected 82/10 probe from logits,True
+zero r100: selected 82/11 probe from logits,True
+zero r100: selected 82/0 probe from logits,True
+zero r100: selected 83/19 probe from logits,True
+zero r100: selected 83/18 probe from logits,True
+zero r100: selected 83/7 probe from logits,True
+zero r100: selected 84/16 probe from logits,True
+zero r100: selected 84/4 probe from logits,True
+zero r100: selected 84/2 probe from logits,True
+zero r100: selected 85/11 probe from logits,True
+zero r100: selected 85/21 probe from logits,True
+zero r100: selected 85/13 probe from logits,True
+zero r100: selected 86/25 probe from logits,True
+zero r100: selected 86/10 probe from logits,True
+zero r100: selected 86/18 probe from logits,True
+zero r100: selected 87/21 probe from logits,True
+zero r100: selected 87/3 probe from logits,True
+zero r100: selected 87/24 probe from logits,True
+zero r100: selected 88/14 probe from logits,True
+zero r100: selected 88/24 probe from logits,True
+zero r100: selected 88/6 probe from logits,True
+zero r100: selected 89/0 probe from logits,True
+zero r100: selected 89/5 probe from logits,True
+zero r100: selected 89/14 probe from logits,True
+zero r100: selected 90/23 probe from logits,True
+zero r100: selected 90/9 probe from logits,True
+zero r100: selected 90/17 probe from logits,True
+zero r100: selected 91/4 probe from logits,True
+zero r100: selected 91/6 probe from logits,True
+zero r100: selected 91/7 probe from logits,True
+zero r100: selected 92/26 probe from logits,True
+zero r100: selected 92/25 probe from logits,True
+zero r100: selected 92/23 probe from logits,True
+zero r100: selected 93/11 probe from logits,True
+zero r100: selected 93/1 probe from logits,True
+zero r100: selected 93/26 probe from logits,True
+zero r100: selected 94/26 probe from logits,True
+zero r100: selected 94/25 probe from logits,True
+zero r100: selected 94/5 probe from logits,True
+zero r100: selected 95/1 probe from logits,True
+zero r100: selected 95/19 probe from logits,True
+zero r100: selected 95/11 probe from logits,True
+zero r100: selected 96/1 probe from logits,True
+zero r100: selected 96/12 probe from logits,True
+zero r100: selected 96/8 probe from logits,True
+zero r100: selected 97/20 probe from logits,True
+zero r100: selected 97/25 probe from logits,True
+zero r100: selected 97/17 probe from logits,True
+zero r100: selected 98/25 probe from logits,True
+zero r100: selected 98/6 probe from logits,True
+zero r100: selected 98/9 probe from logits,True
+zero r100: selected 99/18 probe from logits,True
+zero r100: selected 99/17 probe from logits,True
+zero r100: selected 99/3 probe from logits,True
+zero r100: class80 sample count,True
+zero r100: class80 baseline LA reconstruction,True
+zero r100: class80 baseline response reconstruction,True
+zero r100: class80 student LA reconstruction,True
+zero r100: class80 student response reconstruction,True
+zero r100: class80 positive/attainment counts,True
+zero r100: class81 sample count,True
+zero r100: class81 baseline LA reconstruction,True
+zero r100: class81 baseline response reconstruction,True
+zero r100: class81 student LA reconstruction,True
+zero r100: class81 student response reconstruction,True
+zero r100: class81 positive/attainment counts,True
+zero r100: class82 sample count,True
+zero r100: class82 baseline LA reconstruction,True
+zero r100: class82 baseline response reconstruction,True
+zero r100: class82 student LA reconstruction,True
+zero r100: class82 student response reconstruction,True
+zero r100: class82 positive/attainment counts,True
+zero r100: class83 sample count,True
+zero r100: class83 baseline LA reconstruction,True
+zero r100: class83 baseline response reconstruction,True
+zero r100: class83 student LA reconstruction,True
+zero r100: class83 student response reconstruction,True
+zero r100: class83 positive/attainment counts,True
+zero r100: class84 sample count,True
+zero r100: class84 baseline LA reconstruction,True
+zero r100: class84 baseline response reconstruction,True
+zero r100: class84 student LA reconstruction,True
+zero r100: class84 student response reconstruction,True
+zero r100: class84 positive/attainment counts,True
+zero r100: class85 sample count,True
+zero r100: class85 baseline LA reconstruction,True
+zero r100: class85 baseline response reconstruction,True
+zero r100: class85 student LA reconstruction,True
+zero r100: class85 student response reconstruction,True
+zero r100: class85 positive/attainment counts,True
+zero r100: class86 sample count,True
+zero r100: class86 baseline LA reconstruction,True
+zero r100: class86 baseline response reconstruction,True
+zero r100: class86 student LA reconstruction,True
+zero r100: class86 student response reconstruction,True
+zero r100: class86 positive/attainment counts,True
+zero r100: class87 sample count,True
+zero r100: class87 baseline LA reconstruction,True
+zero r100: class87 baseline response reconstruction,True
+zero r100: class87 student LA reconstruction,True
+zero r100: class87 student response reconstruction,True
+zero r100: class87 positive/attainment counts,True
+zero r100: class88 sample count,True
+zero r100: class88 baseline LA reconstruction,True
+zero r100: class88 baseline response reconstruction,True
+zero r100: class88 student LA reconstruction,True
+zero r100: class88 student response reconstruction,True
+zero r100: class88 positive/attainment counts,True
+zero r100: class89 sample count,True
+zero r100: class89 baseline LA reconstruction,True
+zero r100: class89 baseline response reconstruction,True
+zero r100: class89 student LA reconstruction,True
+zero r100: class89 student response reconstruction,True
+zero r100: class89 positive/attainment counts,True
+zero r100: class90 sample count,True
+zero r100: class90 baseline LA reconstruction,True
+zero r100: class90 baseline response reconstruction,True
+zero r100: class90 student LA reconstruction,True
+zero r100: class90 student response reconstruction,True
+zero r100: class90 positive/attainment counts,True
+zero r100: class91 sample count,True
+zero r100: class91 baseline LA reconstruction,True
+zero r100: class91 baseline response reconstruction,True
+zero r100: class91 student LA reconstruction,True
+zero r100: class91 student response reconstruction,True
+zero r100: class91 positive/attainment counts,True
+zero r100: class92 sample count,True
+zero r100: class92 baseline LA reconstruction,True
+zero r100: class92 baseline response reconstruction,True
+zero r100: class92 student LA reconstruction,True
+zero r100: class92 student response reconstruction,True
+zero r100: class92 positive/attainment counts,True
+zero r100: class93 sample count,True
+zero r100: class93 baseline LA reconstruction,True
+zero r100: class93 baseline response reconstruction,True
+zero r100: class93 student LA reconstruction,True
+zero r100: class93 student response reconstruction,True
+zero r100: class93 positive/attainment counts,True
+zero r100: class94 sample count,True
+zero r100: class94 baseline LA reconstruction,True
+zero r100: class94 baseline response reconstruction,True
+zero r100: class94 student LA reconstruction,True
+zero r100: class94 student response reconstruction,True
+zero r100: class94 positive/attainment counts,True
+zero r100: class95 sample count,True
+zero r100: class95 baseline LA reconstruction,True
+zero r100: class95 baseline response reconstruction,True
+zero r100: class95 student LA reconstruction,True
+zero r100: class95 student response reconstruction,True
+zero r100: class95 positive/attainment counts,True
+zero r100: class96 sample count,True
+zero r100: class96 baseline LA reconstruction,True
+zero r100: class96 baseline response reconstruction,True
+zero r100: class96 student LA reconstruction,True
+zero r100: class96 student response reconstruction,True
+zero r100: class96 positive/attainment counts,True
+zero r100: class97 sample count,True
+zero r100: class97 baseline LA reconstruction,True
+zero r100: class97 baseline response reconstruction,True
+zero r100: class97 student LA reconstruction,True
+zero r100: class97 student response reconstruction,True
+zero r100: class97 positive/attainment counts,True
+zero r100: class98 sample count,True
+zero r100: class98 baseline LA reconstruction,True
+zero r100: class98 baseline response reconstruction,True
+zero r100: class98 student LA reconstruction,True
+zero r100: class98 student response reconstruction,True
+zero r100: class98 positive/attainment counts,True
+zero r100: class99 sample count,True
+zero r100: class99 baseline LA reconstruction,True
+zero r100: class99 baseline response reconstruction,True
+zero r100: class99 student LA reconstruction,True
+zero r100: class99 student response reconstruction,True
+zero r100: class99 positive/attainment counts,True
+zero r100: trace contains C0/C1/C2,True
+zero r100: step0 objective components,True
+zero r100: step1 objective components,True
+zero r100: step2 objective components,True
+zero r100: saved C reconstructs regularizer,True
+zero r100: endpoint LA matches logits,True
+zero r100: endpoint response matches logits,True
+zero r100: measured responses counted before ablation,True
