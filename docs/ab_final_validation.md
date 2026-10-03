@@ -115,15 +115,23 @@ CUDA_VISIBLE_DEVICES=2 python -u scripts/run_ab_validation.py --stage train --ar
 
 ## 5. 汇总与打包
 
+使用独立的离线汇总入口 `scripts/collect_ab_validation.py`。2026-10-03 已修复真实 `round_metrics.csv` 同时包含 `seed`、`partition` 时的重复字典参数错误。为了兼容已经启动的实验，本次只新增入口，保留纳入训练指纹的旧文件不变；同步这个新脚本即可。原 `run_ab_validation.py --stage summary/pack` 仍是冻结的旧入口，请改用下面的命令。
+
 ```bash
-python -u scripts/run_ab_validation.py --stage summary
-python -u scripts/run_ab_validation.py --stage pack
+python -u scripts/collect_ab_validation.py --stage summary
+python -u scripts/collect_ab_validation.py --stage pack
 ```
 
 使用非默认根目录时加相同的 `--output-root`：
 
 ```bash
-python -u scripts/run_ab_validation.py --stage pack --output-root output/cifar100_LT/ab_validation_dirichlet
+python -u scripts/collect_ab_validation.py --stage pack --output-root output/cifar100_LT/ab_validation_dirichlet
+```
+
+本轮 seed42、0、3407 的结果目录使用：
+
+```bash
+python -u scripts/collect_ab_validation.py --stage pack --output-root output/cifar100_LT/ab_decision_42_0_3407
 ```
 
 默认报告为 `output/cifar100_LT/ab_validation/analysis/report.md`，默认压缩包为 `output/cifar100_LT/ab_validation_analysis.tar.gz`。包内保存分析、配置、CSV、JSON、NPZ 等证据，不包含大型 `.pt` 模型，不可用于恢复训练。
@@ -151,10 +159,12 @@ python -u scripts/run_ab_validation.py --stage pack --output-root output/cifar10
 需要同步新增文件：
 
 - `scripts/run_ab_validation.py`
+- `scripts/collect_ab_validation.py`（离线汇总修复；已在训练的服务器只需补这个文件）
 - `tools/sfra/ab_validation.py`
 - `tools/sfra/calibration_reference.py`
 - `utils/cliplora_b_calibration.py`
 - `tests/test_sfra_ab_validation.py`
+- `tests/test_sfra_ab_collection.py`
 - 本说明文档。
 
 需要同步修改文件：`federated_main.py`、`scripts/run_cliplora_sfra.py`、`utils/cliplora_sfra.py`、`tools/sfra/summary.py`。其余现有代码也应与本地仓库版本一致。原共享 B 的采样、筛选、C 优化实现保持原样；新增对照由独立参数显式启用。
