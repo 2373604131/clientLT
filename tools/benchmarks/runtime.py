@@ -133,6 +133,12 @@ def build_data(job, cfg, meta):
 
 
 def build_model(job, cfg, meta, device):
+    # Match federated_main.py: initialize Dassl's eager trainer registry before
+    # importing a concrete trainer. Otherwise cliplora/capt -> engine.trainer
+    # -> engine.__init__ -> engine.build imports the still-initializing trainer.
+    # Keep this lazy so analysis/summary commands do not need model dependencies.
+    import Dassl.dassl.engine  # noqa: F401
+
     torch.manual_seed(42)
     torch.cuda.manual_seed_all(42)
     if job['method'] == 'capt':

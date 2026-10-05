@@ -2,20 +2,30 @@
 
 第二轮共享因子基线已接入独立入口，见 [factor_benchmarks_seed42.md](factor_benchmarks_seed42.md)。第一批默认方法与 A/AB 方法配置保持原样。
 
-## 启动时 `build_transform` 的 AssertionError 修复
+## 启动错误修复与重新运行
 
 历史参考文件的 `resolved_config` 来自 `str(CfgNode)`：`INPUT.TRANSFORMS` 和 `INPUT.SIZE` 的元组会在 YAML 读取后变成字符串。旧入口逐字符检查转换名称，因而在训练前失败。`tools/benchmarks/runtime.py` 现使用 `ast.literal_eval` 安全还原元组；保持原始预处理、数据分配和方法参数。
 
-将修复后的 `tools/benchmarks/runtime.py` 同步到服务器。失败任务已登记旧代码指纹，重新启动时给第一批四条训练命令统一追加 `--output-root output/cifar100_LT/paper_benchmarks_seed42_v2`。原日志保留，失败位置没有产生已提交的训练轮次；无需 `--resume`。不要只删除断言或修改参考配置来绕过错误。
+随后模型加载的 `partially initialized module 'trainers.cliplora'` 是另一处入口问题：直接导入具体训练器会触发 `cliplora → engine.trainer → engine.build → cliplora` 的循环。`build_model` 现与原 `federated_main.py` 一样先初始化 `Dassl.dassl.engine`，再加载具体模型；CAPT 和两批 LoRA 对照共用这个修复。模型、损失函数、超参数及原 A/AB 文件没有因此改动。
+
+将修复后的 `tools/benchmarks/runtime.py` 同步到服务器。失败任务已登记旧代码指纹，重新启动时给第一批四条训练命令统一追加 `--output-root output/cifar100_LT/paper_benchmarks_seed42_v3`。原日志保留，上述失败位置没有产生已提交的训练轮次；无需 `--resume`。不要只删除断言或修改参考配置来绕过错误。
+
+先运行四个方法的短程检查（依次执行，每个方法两轮、每轮两客户端、每客户端一个训练批次；仍执行完整测试集评估）。结果独立放在新目录的 `smoke/` 下，不进入正式结果表：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python -u scripts/run_paper_benchmarks.py --stage smoke --methods fedavg-lora capt fedpurel fedntd --seed 42 --reference-run references/full10_clientlt --data-root DATA --output-root output/cifar100_LT/paper_benchmarks_seed42_v3
+```
+
+四个短程检查完成后，再使用 `--stage train` 在各自 GPU 启动正式实验，并保持相同的新输出目录。
 
 使用新目录后，查询和打包也要指定该目录：
 
 ```bash
-python -u scripts/collect_paper_benchmarks.py --status --output-root output/cifar100_LT/paper_benchmarks_seed42_v2
-python -u scripts/collect_paper_benchmarks.py --pack --output-root output/cifar100_LT/paper_benchmarks_seed42_v2
+python -u scripts/collect_paper_benchmarks.py --status --output-root output/cifar100_LT/paper_benchmarks_seed42_v3
+python -u scripts/collect_paper_benchmarks.py --pack --output-root output/cifar100_LT/paper_benchmarks_seed42_v3
 ```
 
-同一修复适用于第二轮入口；若第二轮也已经登记旧版本任务，给第二轮命令追加独立的新输出目录 `--output-root output/cifar100_LT/factor_benchmarks_seed42_v2`。
+同一修复适用于第二轮入口；若第二轮也已经登记旧版本且在模型初始化前失败，给第二轮命令追加独立的新输出目录 `--output-root output/cifar100_LT/factor_benchmarks_seed42_v3`。
 
 实现日期：2026-10-05。本批只使用训练 seed42、协议 seed42。
 
@@ -138,6 +148,7 @@ python -u scripts/collect_paper_benchmarks.py --pack
 
 ## 本地验收
 
+- `tests/test_benchmark_model_startup.py` 在四个独立 Python 进程中验证真实训练器导入、注册表、随机小型 CLIP 检查点加载、适配器构建、一次前向/反向/更新及评估，同时检查主干和教师冻结。它不下载预训练权重，不代表服务器 GPU 验证；模型依赖缺失时会显式跳过。
 - 官方 FedNTD 损失/梯度、FedPuReL 温度匹配/实际投影更新、CAPT 损失/梯度及聚合数值对照通过。
 - CPU 小模型的真实本地更新、教师冻结、客户端优化器隔离和“连续训练＝断点恢复”检查通过。
 - 固定种子、输入协议、重复样本、错误结果排除、短程与正式结果隔离检查通过。
