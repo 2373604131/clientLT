@@ -1,0 +1,20 @@
+{
+  "repository": "https://github.com/seanie12/fed-svd",
+  "commit": "e73398ba34b6b269c3bf76ed9d74906761fc1a4d",
+  "archive_sha256": "bc89603682ff4d43e53e93b428f0f034019532b3ab89fed1ba545fb9543c2629",
+  "files": {
+    "README.md": "7fb1105cc96e9b856fda256892805d32b3d73a396519189785805d809de28566",
+    "fedmm/fedavg/client.py": "e9d0e66d64403cd3d4acda5711acb22ffe15fee49e0c318f8aede9fef6cf50eb",
+    "fedmm/fedavg/server.py": "0455ac5835c278830522e201b8271468f3c3efefd9f0e0db17d96302016d2812",
+    "misc/forked_pdb.py": "85d2f3a03e39554c4bed9ebd20ffc87afd633b69896c601e4a21f44c4980836e",
+    "misc/utils.py": "379634916c13bcdd1917c65a91c0cc77af2da4db3d4ff626ecdc196fda276167",
+    "modules/early_stopping.py": "8a10fcfcfb97446ed8d83ce9025b44d1c99d564cd13107c8358a5c615d776ef1",
+    "modules/federated.py": "e087a48c9c15135dc29f100b7b658217cfa9ca06c067f19a9242484f97a11e0f",
+    "modules/logger.py": "65520ad630e0fa368925e6529fb219d416b1a6395587b3630f1a7dd26ea7c8cd",
+    "modules/multiprocs.py": "e838c17fa0a67fa53fcf643018e2ba5d518ba198faca39ef1a2151cbeba655e1",
+    "parser.py": "4e189ad6504e17b70dcac1300c31bde612995fd73c539ed900f488a3c7ea3b06",
+    "requirements.txt": "7aa8b145e91be4b7a604db3f0e5ff37424ecd849b54fe9437bc89ba07ced5d93",
+    "scripts/run_dp.sh": "3875111e8df67c47a69bfd3f5bd48184b52a7fa03883080f87a2d8b7f82a5e96",
+    "scripts/run_non_dp.sh": "a41f60f141a2973f3dcf5e40a55174d14aeaf7af9a9551998f5518099da5de8d"
+  }
+}

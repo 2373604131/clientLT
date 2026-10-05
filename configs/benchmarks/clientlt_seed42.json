@@ -1,0 +1,21 @@
+{
+  "schema": "paper_benchmarks_seed42_v1",
+  "seed": 42,
+  "protocol_seed": 42,
+  "rounds": 100,
+  "clients": 30,
+  "local_epochs": 3,
+  "batch_size": 32,
+  "test_batch_size": 64,
+  "lr": 0.001,
+  "momentum": 0.9,
+  "weight_decay": 0.0005,
+  "precision": "fp32",
+  "primary": "committed rounds 81..100 fixed Tail20 mean",
+  "head_ids": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19],
+  "middle_ids": [20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79],
+  "tail_ids": [80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99],
+  "fedntd": {"temperature": 3.0, "beta": 1.0},
+  "fedpurel": {"projection_weight": 1.0, "teacher": "zero-shot CLIP", "scope": "global stage only, matched rank4 top3 q/v LoRA"},
+  "capt": {"clusters": 4, "temperature": 0.1, "global_aggregation_frequency": 1, "optimizer_reset_per_client": true, "test_feedback": false}
+}

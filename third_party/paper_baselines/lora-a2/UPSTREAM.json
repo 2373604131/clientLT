@@ -1,0 +1,10 @@
+{
+  "kind": "paper_based_reimplementation",
+  "paper": "Towards Robust and Efficient Federated Low-Rank Adaptation with Heterogeneous Clients",
+  "venue": "ACL 2025",
+  "url": "https://aclanthology.org/2025.acl-long.19/",
+  "algorithm_reference": "Sections 4.1-4.2, equations 4-6, Algorithms 1-2, Appendix B",
+  "official_repository_verified": false,
+  "files": {},
+  "adaptation": "Preserves alternating freeze, global top-ranked slot selection, one-epoch training-data probe and eta_B/eta_A=5. Global rank4 and per-client average rank budget2 are explicit capacity choices. Probe state and optimizer reset before three masked SGD epochs. Unselected delta slots remain zero even with weight decay/momentum. Common CLIP, initialization and scaling replace native RoBERTa/AdamW protocol."
+}

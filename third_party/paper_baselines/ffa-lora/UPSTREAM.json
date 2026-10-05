@@ -1,0 +1,10 @@
+{
+  "kind": "paper_based_reimplementation",
+  "paper": "Improving LoRA in Privacy-preserving Federated Learning",
+  "venue": "ICLR 2024",
+  "url": "https://arxiv.org/abs/2403.12313",
+  "algorithm_reference": "Section 4, equations 3-4",
+  "official_repository_verified": false,
+  "files": {},
+  "adaptation": "Non-DP CLIP-LoRA; common protocol Kaiming A instead of paper Gaussian A; A remains fixed for the entire run; shared B uses sample-weighted aggregation. Common SGD and alpha/sqrt(r) scaling retained."
+}

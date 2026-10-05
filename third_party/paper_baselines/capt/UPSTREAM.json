@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/shihaohou/CAPT",
+  "commit": "840b7cab26c04fc9e65540a980b6ce020d62d618",
+  "archive_sha256": "a58a98b0dbf7faf5fcaedb22b68efe472df105262f0a96a51e3e16fbfdb412bb",
+  "files": {
+    "README.md": "18cd58c77f7f2e6e62e716fdbf600e453d4df52e9421b2f73336bccb440cec95",
+    "clip/model.py": "3871da92a2eaae13fb2a7f0f10cfce5c2377560faf45d245b2559689f76f0242",
+    "configs/trainers/CAPT/vit_b16.yaml": "08cb70997c4ecf32624ce3485a9695b6f47aee8ebdcf9a6964e2580e70dee810",
+    "federated_main.py": "875f0f898ab2a908b344c3b986493cff83e5856689bc2a2c1d182b3cf877f223",
+    "loss/prompt_loss.py": "3d80f1376da0f326873a51292ce0adda474055af789685fb90d0cf52cb31baa1",
+    "scripts/capt.sh": "acdac32f6b273f343b1cef1894582b4375ee03c6c532d405dc491f29118aa4b4",
+    "trainers/capt.py": "1ad0fef789317f7a02f04a5805510a4e95109da07d986684f931deab0459465c"
+  }
+}

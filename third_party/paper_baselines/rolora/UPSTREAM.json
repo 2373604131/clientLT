@@ -1,0 +1,10 @@
+{
+  "kind": "paper_based_reimplementation",
+  "paper": "Robust Federated Finetuning of LLMs via Alternating Optimization of LoRA",
+  "venue": "NeurIPS 2025",
+  "url": "https://proceedings.neurips.cc/paper_files/paper/2025/file/adf17e7346b6be4c2f2bb40de572e5bc-Paper-Conference.pdf",
+  "algorithm_reference": "Section 3, equations 3-4, Appendix Algorithm 1",
+  "official_repository_verified": false,
+  "files": {},
+  "adaptation": "Shared CLIP-LoRA with delta_W=scaling*B@A; odd communication rounds train initially-zero B, even rounds train A. One paper outer iteration corresponds to TWO communication rounds. Uses common initialization, SGD and sample weighting instead of uniform client averaging. The quantization RoLoRA repository is a different paper."
+}

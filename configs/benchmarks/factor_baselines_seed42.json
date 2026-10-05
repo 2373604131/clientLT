@@ -1,0 +1,11 @@
+{
+  "schema": "shared_factor_baselines_v1",
+  "implementation": "paper equations adapted to the common CLIP-LoRA protocol",
+  "initialization": "common seed42 Kaiming A, zero B; repository alpha/sqrt(rank) scaling",
+  "aggregation": "sample-weighted active-factor deltas",
+  "privacy": "non-DP",
+  "ffa-lora": {"freeze": "A for all rounds"},
+  "rolora": {"first_active": "B", "switch_every_round": true},
+  "fedsvd": {"reparameterize_every_round": true, "A": "right singular vectors", "B": "U times singular values"},
+  "lora-a2": {"global_rank": 4, "local_rank_budget": 2, "selection_epochs": 1, "b_lr_multiplier": 5.0, "probe_reset": true, "selection": "global top rank slots by outer-product delta Frobenius norm"}
+}
