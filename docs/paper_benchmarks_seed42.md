@@ -2,6 +2,21 @@
 
 第二轮共享因子基线已接入独立入口，见 [factor_benchmarks_seed42.md](factor_benchmarks_seed42.md)。第一批默认方法与 A/AB 方法配置保持原样。
 
+## 启动时 `build_transform` 的 AssertionError 修复
+
+历史参考文件的 `resolved_config` 来自 `str(CfgNode)`：`INPUT.TRANSFORMS` 和 `INPUT.SIZE` 的元组会在 YAML 读取后变成字符串。旧入口逐字符检查转换名称，因而在训练前失败。`tools/benchmarks/runtime.py` 现使用 `ast.literal_eval` 安全还原元组；保持原始预处理、数据分配和方法参数。
+
+将修复后的 `tools/benchmarks/runtime.py` 同步到服务器。失败任务已登记旧代码指纹，重新启动时给第一批四条训练命令统一追加 `--output-root output/cifar100_LT/paper_benchmarks_seed42_v2`。原日志保留，失败位置没有产生已提交的训练轮次；无需 `--resume`。不要只删除断言或修改参考配置来绕过错误。
+
+使用新目录后，查询和打包也要指定该目录：
+
+```bash
+python -u scripts/collect_paper_benchmarks.py --status --output-root output/cifar100_LT/paper_benchmarks_seed42_v2
+python -u scripts/collect_paper_benchmarks.py --pack --output-root output/cifar100_LT/paper_benchmarks_seed42_v2
+```
+
+同一修复适用于第二轮入口；若第二轮也已经登记旧版本任务，给第二轮命令追加独立的新输出目录 `--output-root output/cifar100_LT/factor_benchmarks_seed42_v2`。
+
 实现日期：2026-10-05。本批只使用训练 seed42、协议 seed42。
 
 ## 目录安排

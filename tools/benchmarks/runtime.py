@@ -5,6 +5,7 @@ checkpoint commits one complete round; interrupted clients are replayed from
 the last committed server state with fresh client optimizers.
 """
 import copy
+import ast
 import hashlib
 import math
 import os
@@ -23,10 +24,37 @@ from tools.benchmarks.common import (FACTOR_METHODS, METRICS, REPO, digest, job_
 from trainers.baselines.common import load_trainable, trainable_state, weighted_average
 
 
-def build_config(job, meta):
+def parse_reference_config(text):
+    """Restore tuple values from the historical str(CfgNode) metadata.
+
+    str(CfgNode) writes tuples as Python literals, not YAML sequences. A bare
+    yaml.safe_load therefore leaves e.g. INPUT.SIZE and INPUT.TRANSFORMS as
+    strings. Decode only tuple literals with literal_eval; never execute config
+    text or change ordinary strings such as prompts, paths, or model names.
+    """
     import yaml
+    def restore(value):
+        if isinstance(value, dict):
+            return {key: restore(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return type(value)(restore(item) for item in value)
+        if isinstance(value, str) and value.strip().startswith('(') and value.strip().endswith(')'):
+            try:
+                decoded = ast.literal_eval(value)
+            except (ValueError, SyntaxError):
+                return value
+            if isinstance(decoded, tuple):
+                return restore(decoded)
+        return value
+    config = restore(yaml.safe_load(text))
+    if not isinstance(config, dict):
+        raise ValueError('Reference resolved_config must be a configuration mapping')
+    return config
+
+
+def build_config(job, meta):
     from yacs.config import CfgNode as CN
-    cfg = CN(yaml.safe_load(meta['resolved_config']))
+    cfg = CN(parse_reference_config(meta['resolved_config']))
     cfg.defrost()
     cfg.SEED = 42
     cfg.DATASET.ROOT = job['data_root']
