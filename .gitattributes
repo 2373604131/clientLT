@@ -1,0 +1,3 @@
+# Vendored snapshots are checked against the original upstream byte hashes.
+# Do not let core.autocrlf or text=auto change their line endings in Git.
+/third_party/paper_baselines/** -text

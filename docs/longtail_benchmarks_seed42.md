@@ -15,6 +15,8 @@
 
 官方文件放在 `third_party/paper_baselines/{fedlf,fedyoyo,fedrela}/`，保持原始内容，并保存 commit、下载包 SHA256 和逐文件 SHA256。`trainers/baselines/upstream.py` 在核验哈希后只加载指定函数/类定义，不执行官方启动脚本中的命令行解析、重新划分数据或下载数据。服务器同步源码目录即可，不需要重新从 GitHub 下载。
 
+Git 同步须保留根目录 `.gitattributes` 中的 `/third_party/paper_baselines/** -text`。FedReLa 有 19 个官方文件原本使用 CRLF；此前 Git 提交将它们转为 LF，导致 Linux 检出后触发 `Official reference file changed`。本规则保留官方原始字节及其哈希，不放宽源码校验。首次修复时，须将 `.gitattributes` 与 Git 显示变化的这 19 个官方文件一起提交，才能修复已存入 Git 的 LF 副本。`python -m unittest tests.test_baseline_source_checkout -v` 使用真实 Git 暂存、归档和两种换行配置检出，检查全部官方文件逐字节一致。
+
 FedLF 官方启动脚本调用了未定义的 `update_feature_syn`，并残留写死的特征/类别维度，所以不能原样启动。本批重用其本地训练计算，并沿用已有可靠的全局训练、聚合和评估入口。
 
 **计算与适配细节**
