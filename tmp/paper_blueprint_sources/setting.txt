@@ -1,0 +1,10 @@
+客户端长尾日常讨论​
+上面两张描述 λT：它控制尾部证据是否从普通客户端转移到 specialist clients。Specialist mass 看
+“有多少尾部证据到了 specialist”，Specialist purity 看“specialist 到底有多专”。​
+下面两张描述 αT：它控制已经进入 specialist group 的尾部证据在内部有多集中。Top-2 mass 越高说
+明越集中在少数 specialist，Neff 越高说明有更多 specialist 真正在共同支撑该尾类。​
+问题：​
+1. motivation用Prompt tuning证明的结果是不是不能直接用来支撑lora/adapter微调的方法​
+2. 如何自然的引出方法？还是找到有效的方法之后再编织故事衔接的主线。（故事+trick or trick+故
+   事）​
+

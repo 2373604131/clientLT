@@ -1,0 +1,19 @@
+{
+  "ready": true,
+  "mode": "full",
+  "jobs": [
+    {
+      "run": "G:\\桌面\\CAPT\\tmp\\b_routes_preflight\\runs\\P\\seed42",
+      "spec_digest": "4d0638e323d8539ab2cfaa260f6d9637d35d1b3a032443ba3411cf5fb9c4e740"
+    },
+    {
+      "run": "G:\\桌面\\CAPT\\tmp\\b_routes_preflight\\runs\\C\\seed42",
+      "spec_digest": "5026f53601fe1b60a04ba0c99158da85e2f95e93d75aa133e611f0a2930b0235"
+    },
+    {
+      "run": "G:\\桌面\\CAPT\\tmp\\b_routes_preflight\\runs\\F\\seed42",
+      "spec_digest": "1ee0873e332d8d96317a198ceaa00ade304e9859cf321f71e7c7569c68e8f974"
+    }
+  ],
+  "gpu_execution_tested": false
+}

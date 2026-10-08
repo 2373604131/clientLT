@@ -1,0 +1,700 @@
+              Fine-Tuning Impairs the Balancedness of Foundation Models in
+                      Long-tailed Personalized Federated Learning
+
+       Shihao Hou1              Chikai Shang1   Zhiheng Yang1    Jiacheng Yang1                                       Xinyi Shang2
+                                              1                3
+                                   Junlong Gao     Yiqun Zhang      Yang Lu1 *
+   1 Key Laboratory of Multimedia Trusted Perception and Efficient Computing, Ministry of Education of China, Xiamen University, Xiamen, China
+
+                             2 Department of Statistical Science, University College London, London, United Kingdom
+
+                      3 School of Computer Science and Technology, Guangdong University of Technology, Guangzhou, China
+
+                                    houshihao@stu.xmu.edu.cn                    luyang@xmu.edu.cn
+
+
+
+                           Abstract                                          Existing Method                (a) Global Model Imbalance
+
+   Personalized federated learning (PFL) with foundation                                                          Zero-Shot
+                                                                               Prompt   Prompt
+models has emerged as a promising paradigm enabling
+clients to adapt to heterogeneous data distributions. How-
+                                                                                  Pretrained
+ever, real-world scenarios often face the co-occurrence of                          Weight
+non-IID data and long-tailed class distributions, present-
+ing unique challenges that remain underexplored in PFL.                                               (b) Personalized Models Yielding Biased
+In this paper, we investigate this long-tailed personalized
+                                                                                                                   Zero-Shot
+federated learning and observe that current methods suffer
+from two limitations: (i) Fine-tuning degrades performance
+below zero-shot baselines due to the erosion of inherent
+class balance in foundation models; (ii) Conventional per-                     Feature Fusion
+
+sonalization techniques further transfer this bias to local
+models through parameter or feature-level fusion. To ad-                   Figure 1. Imbalanced Global Model Compromises Personal-
+dress these challenges, we propose Federated Learning via                  ization. We use the Balancedness metric [19] to measure per-
+                                                                           formance distribution across classes (detailed in Sec. 3.2). Under
+Gradient Purification and Residual Learning (FedPuReL),
+                                                                           Fed-LT scenario, we observe that (a) aggregating global parame-
+which preserves balanced knowledge in the global model                     ters damages the foundation model’s balanced knowledge, degrad-
+while enabling unbiased personalization. Specifically, we                  ing below zero-shot baselines, while (b) feature fusion transfers
+purify local gradients using zero-shot predictions to main-                this imbalance to personalized models, yielding similarly biased
+tain a class-balanced global model, and model personaliza-                 predictions. Even Logit Adjustment (LA) [32], which leverages
+tion as residual corrections atop the frozen global model.                 class priors, fails to restore zero-shot balancedness.
+Extensive experiments demonstrate that FedPuReL consis-
+tently outperforms state-of-the-art methods, achieving su-                 it viable to adapt these powerful models in federated set-
+perior performance on both global and personalized models                  tings, which updates a limited number of parameters while
+across diverse long-tailed scenarios. The code is available                keeping the remaining ones frozen [3, 24, 47]. Recent
+at https://github.com/shihaohou/FedPuReL.                                  work [8, 13, 22, 33] has demonstrated the effectiveness of
+                                                                           this paradigm through personalized parameter mechanisms
+                                                                           that construct separate global and local trainable parame-
+1. Introduction                                                            ters, leveraging aggregated global knowledge as a bridge to
+Personalized federated learning (PFL) has emerged as a                     enhance client-specific adaptation.
+promising solution to address data heterogeneity in col-                       However, existing PEFT-based PFL methods have pri-
+laborative learning while preserving privacy. Recently,                    marily focused on statistical heterogeneity under the as-
+with the rise of pre-trained foundation models such as                     sumption of balanced data distributions. In reality, feder-
+CLIP [35], parameter-efficient fine-tuning (PEFT) has made                 ated learning scenarios often encounter non-IID data and
+                                                                           long-tailed class distributions, termed federated long-tailed
+  * Corresponding author: Yang Lu (luyang@xmu.edu.cn).                     learning (Fed-LT) [17, 23, 45], where scarce tail-class sam-
+ ples are dispersed across heterogeneous clients. This co-         ❷ We propose FedPuReL, a balance-preserving personal-
+ occurrence causes aggregated global models to become                ization framework that constrains local gradients via zero-
+ heavily biased toward head classes, hindering effective             shot guidance to maintain a class-balanced global model
+ learning of tail-class representations [16, 38]. While current      while enabling residual learning for unbiased client-
+ PEFT-based PFL methods [13, 22] demonstrate effective-              specific adaptations.
+ ness in handling heterogeneity, they fail to preserve the bal-    ❸ We demonstrate superior and consistent performance im-
+ anced knowledge inherent in pre-trained foundation models           provements over strong baselines across multiple datasets
+ when facing such long-tailed distributions.                         with varying imbalance factors, surpassing even long-
+     Conversely, existing Fed-LT methods [9, 16, 36, 39] pri-        tailed strategies that leverage class priors.
+ marily focus on learning a single balanced global model
+ through techniques such as loss re-balancing or knowledge
+                                                                    2. Related Work
+ distillation, but overlook client-specific variations. Notably,    2.1. Federated Long-Tailed Learning
+ local data distributions can diverge significantly from the
+                                                                    Federated long-tailed learning addresses class imbalance in
+ global long-tailed pattern, with clients potentially having
+                                                                    FL environments, where the global long-tailed distribution
+ different tail classes or varying degrees of imbalance.
+                                                                    intensifies statistical heterogeneity and biases global mod-
+     Motivated by these limitations, our work investigates
+                                                                    els toward head classes [15, 25, 30, 50]. Recent studies
+ how to better leverage foundation models for long-tailed
+                                                                    have mainly pursued the following directions: (1) Loss-
+ personalized federated learning. Through empirical anal-
+                                                                    based rebalancing methods work by modifying loss func-
+ ysis, as illustrated in Fig. 1, we identify two critical chal-
+                                                                    tions to down-weight frequent classes [9, 36]; (2) Classi-
+ lenges that recent approaches fail to address. For the
+                                                                    fier decoupling approaches separate representation learning
+ global model, naive fine-tuning significantly degrades its
+                                                                    from classifier training to achieve balanced optimization on
+ balancedness, leaving it even less balanced than the orig-
+                                                                    the server [38]; (3) Gradient-based balancing techniques
+ inal zero-shot model in severely long-tailed scenarios. This
+                                                                    employ self-adjusting mechanisms or client grouping strate-
+ raises our first question: I) Balancedness: How can we
+                                                                    gies to achieve class-wise equilibrium through accumulated
+ learn more balanced global models in Fed-LT by lever-
+                                                                    gradient analysis [44, 49]. However, these methods focus
+ aging rather than losing the original balanced knowledge
+                                                                    solely on learning a single balanced global model, over-
+ of foundation models? For personalized models, exist-
+                                                                    looking the diverse needs of individual clients. In practice,
+ ing methods achieve personalization through parameter or
+                                                                    local data distributions can diverge significantly from the
+ feature-level fusion, which inevitably propagates the imbal-
+                                                                    global long-tailed pattern. Clients may have different tail
+ ance of the global to personalized models, yielding simi-
+                                                                    classes or varying imbalance degrees, necessitating person-
+ larly biased predictions. Thus, this motivates our second
+                                                                    alized adaptations beyond the global model.
+ question: II) Personalization: How can we enable effec-
+ tive client personalization without inheriting global bias?        2.2. Personalized Federated Learning
+     To address these questions, we develop two key insights.       Personalized federated learning extends traditional FL
+ For I), we leverage the balanced characteristics of zero-          by developing client-specific models that adapt to lo-
+ shot CLIP predictions to constrain local updates, regulariz-       cal data distributions while benefiting from collaborative
+ ing them toward the pre-trained model’s equilibrium. This          global knowledge [1, 18, 42]. This approach effectively
+ enables clients to adapt to downstream tasks without in-           addresses data heterogeneity through various strategies:
+ troducing head-class bias. In response to II), we recon-           regularization-based methods balance local adaptation with
+ ceptualize personalization as residual learning in the out-        global consistency via proximal terms [26, 41], while model
+ put space, where client-specific adaptations become addi-          decomposition approaches separate shared representations
+ tive logit corrections applied to a frozen global model. This      from personalized components [2, 11, 37]. However, these
+ decouples personalization from global parameters, allowing         methods implicitly assume balanced datasets and fail to
+ local residual branches to capture client-specific deviations      address the compounded challenges when both non-IID
+ while preserving the global model’s balanced representa-           and class imbalance coexist. While recent work like Fed-
+ tions. Building on these insights, we propose Federated            LoGe [45] attempts to integrate personalization with long-
+ Learning via Gradient Purification and Residual Learning           tailed learning through neural collapse, existing approaches
+ (FedPuReL), which preserves balanced knowledge in the              have yet to leverage the balanced knowledge inherent in
+ global model while enabling unbiased personalization. Our          foundation models to tackle this dual challenge.
+ principal contributions are summarized as follows:
+❶ We reveal that fine-tuning in Fed-LT inevitably erodes            2.3. Federated Learning with Foundation models
+  their inherent balanced knowledge, leading to significant         Leveraging foundation models in federated learning has
+  bias and diminished tail-class performance.                       emerged as a promising direction to enhance performance
+                                                                                                 KL Divergence and Balancedness                                                                                                                                                                                                                       Head and Tail Class Accuracy
+and efficiency by fine-tuning large pre-trained models
+                                                                                                        KL Divergence                                                               Balancedness                                                                   25                                         90                                                           Head Accuracy                                                                 Tail Accuracy
+rather than training from scratch. This paradigm shift                                0.6
+                                                                                                                                                                                                                                                                                                              80
+
+
+
+
+                                                                                                                                                                                                                                                                        Balancedness(%)
+                                                                                                                                                                                                                                                                   24
+
+
+
+
+                                                                      KL Divergence
+addresses communication bottlenecks through parameter-
+
+
+
+
+                                                                                                                                                                                                                                                                          Accuracy(%)
+                                                                                      0.5                                                                                                                                                                                                                     70
+efficient fine-tuning (PEFT) techniques that transmit and                                                                                                                                                                                                          23
+                                                                                                                                                                                                                                                                                                              60
+                                                                                      0.4                                                                                                                                                                          22
+update only small parameter subsets. Prompt-based meth-                                                                                                                                                                                                                                                       50
+
+ods represent a major thread in this area [14], enabling                                                                                                                                                                                                           21                                         40
+                                                                                      0.3
+                                                                                                                                                                                                                                                                                                              30
+clients to learn lightweight prompt parameters with subse-                                   0        20                    40                                     60                                     80                                  100                                                                               0                                    20                                     40                                      60        80         100
+                                                                                                      Communication Rounds                                                                                                                                                                                                                                           Communication Rounds
+quent work incorporating personalization strategies [13, 33]
+and other techniques [8, 22, 29] to handle client hetero-                                                                          (a)                                                                                                                                                                                                                                                                (b)
+geneity. Adapter and low-rank adaptation strategies offer              Figure 2. Balance degradation during federated fine-tuning.
+complementary approaches through fine-tuning lightweight               (a) TKL divergence and balancedness exhibit strong negative cor-
+                                                                       relation, indicating that diverging from zero-shot predictions de-
+adapter modules or selectively aggregating low-rank matri-
+                                                                       grades model balance. (b) Head-class accuracy increases while
+ces [12, 28]. Despite these advances in addressing data het-           tail-class accuracy degrades, revealing amplified head-class bias.
+erogeneity and parameter efficiency, existing foundation-
+model-based FL methods do not explicitly tackle class                  tural distributional shift between fine-tuned and zero-shot
+imbalance arising from long-tailed federated distributions.            predictions while neutralizing differences in prediction con-
+This gap motivates our work to integrate the representa-               fidence. Standard KL divergence captures all distributional
+tional strengths of pre-trained models with targeted mecha-            deviations without distinguishing their nature; for instance,
+nisms for long-tail balancing and personalization.                     fine-tuning on balanced data also shifts predictions, but this
+                                                                       shift reflects improved confidence rather than bias. Our
+3. Methodology                                                         temperature-aligned metric normalizes logit scales to iso-
+                                                                       late structural bias across classes.
+3.1. Preliminaries
+                                                                          For a sample x with fine-tuned logits l ∈ RC and zero-
+Federated Learning with Long-Tailed Data. We consider                  shot logits z ∈ RC , we define the temperature-softmax
+a FL framework with K clients coordinated by a central                 as στ (a) = softmax(a/τ ) and the entropy function as
+                                                                                    PC
+server. Each client k ∈ {1, 2, . . . , K} holds a local dataset        H(p) = − c=1 pc log pc . We align     both distributions to
+Dk = {(xi , yi )}ni=1k
+                         . At each communication round t, a            a common target entropy H ⋆ = 12 H(σ1 (l)) + H(σ1 (z))
+subset St ⊆ {1, 2, . . . , K} of clients is selected to participate    by computing the aligned temperatures:
+in training. For non-IID distributions, heterogeneity among
+clients is modeled using a Dirichlet distribution, where a                                    \tau _{a} = H_{a}^{-1}(H^\star ), \quad \text {where} \quad H_{a}(\tau ) = H(\sigma _\tau (\mathbf {a})).                                                                                                                                                                                                                                                                  (1)
+smaller αdir indicates higher client heterogeneity, demon-
+strating greater divergence between local and global dis-              The temperature-aligned KL divergence is then defined as:
+      SK For long-tailed distributions, the global dataset
+tributions.
+D = k=1 Dk follows a class-imbalanced distribution with                                                        \begin {aligned} \mathrm {TKL}(\mathbf {x}) &= D_{\mathrm {KL}}\!\left (\sigma _{\tau _{f}}(\mathbf {f}) \,\middle \Vert \, \sigma _{\tau _{z}}(\mathbf {z})\right ) \\ &= \sum _{c=1}^{C} \sigma _{\tau _{f}}(\mathbf {f})_c \log \frac {\sigma _{\tau _{f}}(\mathbf {l})_c}{\sigma _{\tau _{z}}(\mathbf {z})_c}. \end {aligned} 
+class Pfrequencies sorted as n1 ≥ n2 ≥ . . . ≥ nC , where                                                                                                                                                                                                                                                                                                                                                                                                                (2)
+         K
+nc = k=1 nkc denotes the total number of samples in class
+c. The degree of imbalance is defined as IF = n1 /nC .
+CLIP and Parameter-Efficient Fine-Tuning. We build                     This metric neutralizes global confidence differences, pre-
+upon CLIP [35], which performs zero-shot classification by             serving focus on class bias.
+computing cosine similarity between image and text em-                 Balancedness Metric. We adopt a balancedness metric,
+beddings of class prompts. To adapt CLIP to downstream                 introduced in [19], aiming to measure how balanced the
+tasks while preserving its zero-shot generalization, we em-            model is by computing performance equity across classes:
+ploy PEFT methods that introduce learnable parameters ϕ
+while freezing the pre-trained parameters W .
+                                                                                                             \beta (V) = \frac {1}{C^2} \sum _{i,j} \exp \left (-\frac {|a_i - a_j|^2}{\sigma }\right ),                                                                                                                                                                                                                                                                 (3)
+3.2. A Closer Look at the Zero-Shot Model
+To investigate the role of zero-shot foundation models in              where ai denotes the accuracy of class i and σ is a fixed
+federated long-tailed learning, we conduct a preliminary               scaling parameter. This metric reaches its maximum value
+analysis examining how fine-tuning affects the model’s pre-            of 1 when all classes achieve equal accuracy, directly quan-
+dictions and class balance. We employ two key metrics to               tifying cross-class performance equity.
+characterize this evolution.                                               Using these two metrics, we analyze the fine-tuning dy-
+Temperature-Aligned KL Divergence. We introduce                        namics of CLIP on federated long-tailed scenarios. Specif-
+temperature-aligned KL divergence to quantify the struc-               ically, we track both TKL divergence and balancedness
+        Global Balanced Training                   Server Aggregation                                                                                                               Personalized Residual Learning
+
+                         Prompt                                                                                                                                                                                                                             Prompt                                                                                                                  Prompt
+                                                               Server
+
+    Pretrained         Pretrained                                                                                                                                                                                                                 Pretrained                                                                                                             Pretrained                                                                                                 LoRA
+                                       LoRA                                                                                                       LoRA
+      Weight             Weight       Modules                                                                                                    Modules                                                                                            Weight                                                                                                                 Weight                                                                                                  Modules
+                                                               Shared
+
+                       Linear/MLP                                                                                                                                                                                                               Linear/MLP                                                                                                         Linear/MLP
+
+                                                    Client 1             Client 1
+
+                                                               Private
+                                                                                                                                                               Global                                                                                                                                                                                                                                                                                            Personalized
+                                                                                                                                                             Knowledge                                                                                                                                                                                                                                                                                            Knowledge
+     Temperature Alignment
+                                                        Trainable   Frozen
+
+
+                                                          PEFT
+                                                                     Logits
+                                                        parameter
+                                     Gradient                                                                                                                  Adaptation
+                                    Purification                                                                                                                            Eq. 9
+                                                         Encoder Probability
+
+
+
+Figure 3. Overview of FedPuReL framework. (Left) Global Balanced Training: Clients train shared PEFT parameters (e.g., LoRA
+modules) using zero-shot guided gradient alignment. Temperature-aligned predictions enable gradient purification via projection. (Center)
+Server Aggregation: Shared parameters are aggregated; personalized parameters remain private. (Right) Personalized Residual Learning:
+Personalization stage learns client-specific residuals over the frozen global parameters through dual-branch additive fusion.
+
+β(V ) across training rounds to examine how fine-tuning af-                   balance during collaborative training, and residual learning
+fects the model’s predictions and class balance. Our analy-                   to achieve unbiased client-specific adaptation. This ensures
+sis reveals two critical patterns:                                            task adaptation without amplifying class imbalances.
+Observation 1: Negative correlation between divergence                        3.3.1. Balancedness: Gradient Purification
+and balance. As shown in Fig. 2(a), TKL divergence and
+balancedness β(V ) exhibit a strong negative correlation                      As demonstrated in Section 3.2, naive fine-tuning inevitably
+across training rounds. As fine-tuning progresses, predic-                    shifts the model away from balanced zero-shot representa-
+tions increasingly deviate from the zero-shot model, while                    tions, causing performance degradation on tail classes. To
+class balance concurrently deteriorates. This reveals that                    address this, we constrain local gradient updates to direc-
+adapting to long-tailed downstream tasks gradually erodes                     tions that do not deviate from the zero-shot model, thereby
+the balanced knowledge inherent in the pre-trained model.                     preserving its balanced knowledge while adapting to down-
+                                                                              stream tasks. Specifically, we encourage the fine-tuned
+Observation 2: Amplified head-class bias. Fig. 2(b)
+                                                                              model to remain aligned with the balanced distribution of
+shows that fine-tuning disproportionately benefits head
+                                                                              the zero-shot model through TKL divergence:
+classes while degrading tail-class performance, signifi-
+cantly widening the performance gap. This asymmetric                                           \mathcal {L}_{\text {align}} = D_{\text {TKL}} \left ( \sigma _{\tau _{zs}} (\mathbf {z}(\mathbf {x})) \,\Big \|\, \sigma _{\tau _{ft}} (\mathbf {f}(\mathbf {x}; \boldsymbol {W}, \boldsymbol {\phi }_g)) \right ),                                                                                                                                                                          (4)
+adaptation actively amplifies distributional bias, directly
+contributing to the declining balancedness.                                   where z and f denote the zero-shot and fine-tuned logits,
+    These observations reveal that fine-tuning foundation                     respectively, and τzs , τf t are temperature parameters con-
+models on long-tailed data creates a fundamental trade-off                    trolling the smoothness of the softmax distributions. The
+between task adaptation and preserving the balanced knowl-                    gradient galign = ∇ϕg Lalign points toward preserving the
+edge inherent in zero-shot predictions. Pre-trained CLIP                      balanced knowledge encoded in the zero-shot model.
+models possess robust cross-class equilibrium from large-                        To preserve this balanced knowledge, we project the gra-
+scale diverse training, but this equilibrium deteriorates as                  dient onto the subspace orthogonal:
+they adapt to imbalanced downstream distributions.
+
+3.3. Proposed Method                                                            \tilde {\mathbf {g}}_{\text {task}} = \begin {cases} \mathbf {g}_{\text {task}}, & \text {if } \langle \mathbf {g}_{\text {task}}, \mathbf {g}_{\text {align}}\rangle \geq 0 \\[6pt] \mathbf {g}_{\text {task}} - \dfrac {\langle \mathbf {g}_{\text {task}}, \mathbf {g}_{\text {align}}\rangle }{\|\mathbf {g}_{\text {align}}\|^2} \mathbf {g}_{\text {align}}, & \text {otherwise.} \end {cases} 
+We propose FedPuReL to learn PEFT parameters that adapt
+foundation models to downstream tasks while preserv-                                                                                      (5)
+ing their inherent balanced representations, as depicted in                   where gtask = ∇ϕg CE(y, σ(f (x; W , ϕg ))). When the task
+Fig. 3. We employs gradient purification to maintain global                   gradient conflicts with galign , naively applying it would push
+the model away from the pre-trained anchor. This projec-                                                                                                                                                                                                                                                                                                                          During local training, we optimize a composite loss:
+tion removes any component of gtask that opposes galign ,
+ensuring that every update preserves balanced knowledge                                                                                                                                                                                                                                                                                                                                      \mathcal {L}_{\text {fusion}}^k &= \operatorname {CE}\!\bigl (y,\, \sigma (\mathbf {f}_{\mathrm {G}}(\mathbf {x})+\mathbf {f}_{\mathrm {P}}^k(\mathbf {x}))\bigr ),\\ \mathcal {L}_{\text {personal}}^k &= \operatorname {CE}\!\bigl (y,\, \sigma (\mathbf {f}_{\mathrm {P}}^k(\mathbf {x}))\bigr ),\\ \mathcal {L}_{\text {total}}^k &= (1-\lambda )\,\mathcal {L}_{\text {fusion}}^k + \lambda \,\mathcal {L}_{\text {personal}}^k. \label {fusion loss}
+while adapting to downstream tasks.
+   After local training with the purified gradient, clients up-
+load parameters to the server for aggregation:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            (12)
+
+                                                                                                                                                                                                                                                                                                                                                                               where λ controls the trade-off. The fusion loss Lkfusion main-
+                                                            \boldsymbol {\phi }_g^{(t+1)} \leftarrow \sum _{k \in \mathcal {S}_t} \frac {n_k}{\sum _{j \in \mathcal {S}_t} n_j} \boldsymbol {\phi }_g^{k,(t)},                                                                                                                                                           (6)
+                                                                                                                                                                                                                                                                                                                                                                               tains stability by optimizing the combined prediction, while
+                                                                                                                                                                                                                                                                                                                                                                               the personalization loss Lkpersonal drives parameter special-
+where ϕk,(t)  is obtained through local updates using g̃task .                                                                                                                                                                                                                                                                                                                 ization to capture local patterns. Gradients flow solely
+        g
+                                                                                                                                                                                                                                                                                                                                                                               through ϕk , safeguarding global balance.
+The resulting global model (W , ϕ(t+1)
+                                    g   ) achieves balanced,
+                                                                                                                                                                                                                                                                                                                                                                                   During inference, global model only uses the global
+task-adapted representations across clients, providing a sta-
+                                                                                                                                                                                                                                                                                                                                                                               branch p(y|x) = σ(f (x; W , ϕg )). For personalized infer-
+ble foundation for client-specific personalization.
+                                                                                                                                                                                                                                                                                                                                                                               ence, we fuse both branches: pk (y|x) = σ(f (x; W , ϕg ) +
+3.3.2. Personalization: Learning Clients Residuals                                                                                                                                                                                                                                                                                                                             f (x; W , ϕk )). This fusion combines the robust global
+To achieve personalization, recent methods fuse global and                                                                                                                                                                                                                                                                                                                     model with client-specific corrections, achieving superior
+local information at the feature or parameter level to con-                                                                                                                                                                                                                                                                                                                    accuracy on local distributions while maintaining the sta-
+struct personalized models [22, 26, 33]. However, such                                                                                                                                                                                                                                                                                                                         bility inherited from balanced global training.
+fusion strategies inevitably transfer class imbalances to lo-
+cal models, which limits their personalization effectiveness.                                                                                                                                                                                                                                                                                                                  4. Experiments
+Instead, we model personalization as learning corrective                                                                                                                                                                                                                                                                                                                       4.1. Experimental Setup
+residuals that build upon the balanced global foundation.
+Specifically, these residuals capture client-specific patterns                                                                                                                                                                                                                                                                                                                 Datasets. We conduct experiments on Food101-LT [4],
+as additive corrections atop the global model’s balanced,                                                                                                                                                                                                                                                                                                                      DTD-LT [7], FGVC-Aricraft-LT [31], Stanford Dogs-
+task-adapted knowledge. We realize this through a dual-                                                                                                                                                                                                                                                                                                                        LT [20], OxfordPets-LT [34], and CIFAR-100-LT [21],
+branch architecture with two parallel pathways:                                                                                                                                                                                                                                                                                                                                ImageNet-LT [10], Places-LT [51] datasets. For the first six
+Global Branch. This branch produces baseline predictions:                                                                                                                                                                                                                                                                                                                      datasets, we follow [6] to create long-tailed versions using
+                                                                                                                                                                                                                                                                                                                                                                               exponential decay with imbalance factor. For ImageNet-LT
+                                                                                                  \mathbf {l}_{\text {G}}(\mathbf {x}) = f(\mathbf {x}; \boldsymbol {W}, \boldsymbol {\phi }_g),                                                                                                                                                                         (7)   and Places-LT, we use the standard version from [27].
+                                                                                                                                                                                                                                                                                                                                                                               Evaluation Protocol. To evaluate global model (GM) per-
+where f (·) denotes the forward pass through the global                                                                                                                                                                                                                                                                                                                        formance, we calculate test accuracy using a globally bal-
+model. Critically, ϕg remains frozen throughout the per-                                                                                                                                                                                                                                                                                                                       anced dataset and report accuracy across many (>100 sam-
+sonalization stage, serving as an immutable anchor that pre-                                                                                                                                                                                                                                                                                                                   ples), medium (20-100 samples), and few (<100 samples)
+serves the balanced, task-adapted knowledge.                                                                                                                                                                                                                                                                                                                                   classes. For personalized model (PM) evaluation, we em-
+Personalized Branch. In parallel, each client k learns                                                                                                                                                                                                                                                                                                                         ploy local test accuracy, where each local test set is sampled
+client-specific parameters ϕk that capture local patterns:                                                                                                                                                                                                                                                                                                                     from the global test set to maintain an identical distribution
+                                                                                                                                                                                                                                                                                                                                                                               to its corresponding local training set. The PM accuracy
+                                                                                                  \mathbf {l}_{\text {P}}^k(\mathbf {x}) = f(\mathbf {x}; \boldsymbol {W}, \boldsymbol {\phi }_k).                                                                                                                                                                       (8)   is computed as the arithmetic mean of local test accuracies
+                                                                                                                                                                                                                                                                                                                                                                               across all clients. Detailed categorization criteria for these
+The personalized parameters ψ k can be flexibly instantiated
+                                                                                                                                                                                                                                                                                                                                                                               class groups are provided in the Appendix.
+as an independent classification head, additional adapter
+                                                                                                                                                                                                                                                                                                                                                                               Baselines. We compare FedPuReL against three represen-
+layers, learnable prompts, or LoRA modules.
+                                                                                                                                                                                                                                                                                                                                                                               tative PEFT categories: ❶ Prompt-based , ❷ LoRA-based,
+Additive Fusion. The final prediction combines both
+                                                                                                                                                                                                                                                                                                                                                                               and ❸ Adapter-based, including: PromptFL [14], Prompt-
+branches additively:
+                                                                                                                                                                                                                                                                                                                                                                               Folio [33], FedOTP [22], FedPGP [8], CLIPLoRA [48],
+                                                                                                                                                                                                                                                                                                                                                                               FedSA-LoRA [12] and FedClip [28].
+        \mathbf {l}_{\text {final}}^k(\mathbf {x}) = \underbrace {\tcbhighmath [colback=distbg]{f(\mathbf {x}; \boldsymbol {W}, \boldsymbol {\phi }_g)}}_{\text {\color {distfg}{\textbf {Global Part}}}} \;+\; \underbrace {\tcbhighmath [colback=magbg]{f(\mathbf {x}; \boldsymbol {W}, \boldsymbol {\phi }_k)}}_{\text {\color {magfg}{\textbf {Personal Part}}}}.    (9)       To demonstrate FedPuReL’s advantages over meth-
+                                                                                                                                                                                                                                                                                                                                                                               ods that explicitly address class imbalance, we ad-
+                                                                                                                                                                                                                                                                                                                                                                               ditionally include Fed-GraB [46], which uses gradi-
+   The personalized model inherently stands on the shoul-                                                                                                                                                                                                                                                                                                                      ent norm-based reweighting to mitigate head-class bias,
+ders of giants, benefiting from the global model’s balanced                                                                                                                                                                                                                                                                                                                    combined with strong baselines (PromptFolio+Fed-GraB,
+knowledge while adapting to local specifics. Even under lo-                                                                                                                                                                                                                                                                                                                    CLIPLoRA+Fed-GraB, FedClip+Fed-GraB).
+cal overfitting or shifts, the global branch offers a reliable                                                                                                                                                                                                                                                                                                                 Implementation Details. For a fair comparison, we follow
+anchor, averting severe degradation.                                                                                                                                                                                                                                                                                                                                           the experimental settings used in prior work [14, 22, 28,
+Table 1. Comparison with state-of-the-art methods on ImageNet-LT and Places-LT for global models (GM) and personalized models
+(PM) across all classes and shot categories (Many, Med., Few). Best in bold, second-best underlined.
+
+                                                  ImageNet-LT                                                        Places-LT
+                  Method               GM                          PM                                GM                                 PM
+                              All   Many Med.     Few     All   Many Med.       Few         All   Many Med.          Few      All    Many Med.          Few
+                 Zero-shot 67.05 67.88 66.49 66.65 66.68 67.71 66.07            65.97     35.55 33.39 35.21 40.31 35.33 33.59 35.21 40.63
+Prompt-based
+            PromptFL [14]    67.76 76.20 63.71 58.36 67.51 75.48 63.69          58.82     38.90 51.07 32.86 29.64 36.49 48.00 31.37 27.42
+          PromptFolio [33]   69.64 80.26 66.37 47.02 67.65 77.23 64.89          45.99     40.55 52.57 36.99 31.58 37.95 47.73 34.52 28.32
+              FedOTP [22]    57.03 69.57 59.58 43.74 50.49 66.32 42.60          34.14     36.07 48.18 32.23 22.66 32.56 43.28 29.26 21.11
+               FedPGP [8]    67.05 76.99 62.99 53.60 66.44 76.59 62.32          52.97     38.92 50.82 32.89 30.27 37.36 48.21 32.04 28.90
+PromptFolio+Fed-Grab [46]    69.53 79.90 66.16 52.83 68.14 77.32 65.09          52.11     41.99 52.82 38.43 30.82 39.14 47.82 36.04 30.76
+         FedPuReL (ours)     72.96 77.32 68.41 66.70 70.12 76.34 67.68          66.62     43.88 55.44 40.94 39.06 39.68 49.85 35.55 32.72
+                             ↑ 3.32 ↓ 2.94 ↑ 2.04 ↑ 8.34 ↑ 1.98 ↓ 0.98 ↑ 2.59   ↑ 7.80    ↑ 1.89 ↑ 2.62 ↑ 2.51 ↑ 7.48 ↑ 0.54 ↑ 1.64 ↓ 0.49 ↑ 1.96
+LoRA-based
+          CLIPLoRA [48]      70.18 80.91 65.84 52.90 66.07 77.82 61.77 48.86 41.61 54.51 36.49 29.79 37.21 49.10 33.14 25.30
+        FedSA-LoRA [12]      69.44 80.07 66.84 58.83 61.73 71.74 57.52 48.46 40.90 53.85 35.81 28.81 37.46 49.33 33.27 25.89
+  CLIPLoRA+Fed-Grab [46]     70.24 79.43 66.75 57.09 68.94 77.14 65.56 55.56 42.00 53.56 37.69 30.92 38.31 49.17 34.77 27.16
+        FedPuReL (ours)      71.43 78.89 67.69 66.31 70.55 76.09 67.63 66.98 44.41 60.72 43.08 35.79 41.13 52.58 35.42 32.83
+                             ↑ 1.19 ↓ 2.02 ↑ 0.85 ↑ 7.48 ↑ 4.48 ↓ 1.73 ↑ 2.07 ↑ 11.42 ↑ 2.41 ↑ 6.21 ↑ 5.39 ↑ 4.87 ↑ 2.82 ↑ 3.25 ↑ 0.65 ↑ 5.67
+Adapter-based
+              FedClip [28] 68.97 74.59 65.67 59.47 68.63 75.19 65.43            59.02     39.28 47.40 34.75 34.66 38.59 47.13 33.78 33.74
+     FedClip+Fed-Grab [46] 69.25 75.68 66.23 61.85 67.50 72.33 65.07            62.81     39.43 46.52 35.34 35.68 38.95 45.95 34.81 35.56
+         FedPuReL (ours) 70.51 73.52 69.79 67.49 70.19 74.24 69.27              67.52     41.99 51.51 39.00 38.89 40.12 45.48 37.06 36.39
+                           ↑ 1.26 ↓ 2.16 ↑ 3.56 ↑ 5.64 ↑ 1.56 ↓ 0.95 ↑ 3.84     ↑ 4.71    ↑ 2.56 ↑ 4.11 ↑ 3.66 ↑ 3.21 ↑ 1.17 ↓ 1.65 ↑ 2.25 ↑ 0.83
+
+
+33]. We employ CLIP with ViT-B/16 as the backbone. For                    Table 2. Comparison with state-of-the-art methods on CIFAR-
+prompt-based methods, the prompt length is set to 4, while                100-LT under varying imbalance factors for global models (GM)
+for LoRA-based methods, the LoRA rank is set to 8. In our                 and personalized models (PM).
+federated learning setup, we deploy 20 clients with non-IID                              CIFAR-100-LT     IF=500         IF=200        IF=100        IF=50
+data distribution controlled by Dirichlet parameter α = 1                                     Method     GM PM          GM PM         GM PM         GM PM
+and IF = 100 by default. Training is conducted over 100                                      Zero-shot   64.82 64.79 64.82 64.79 64.82 64.79 64.82 64.79
+                                                                            Prompt-based
+communication rounds using SGD optimizer, with 40% of                                   PromptFL [14]    56.12 67.50 61.21 71.90 61.98 70.52 64.50 72.51
+clients randomly selected to participate in each round.                               PromptFolio [33]   57.36 63.80 60.58 69.74 64.10 70.54 67.15 72.69
+                                                                                          FedOTP [22]    52.59 58.43 51.33 65.09 58.02 65.23 61.30 68.64
+                                                                                           FedPGP [8]    55.88 62.69 59.48 67.47 62.96 67.83 65.55 71.23
+4.2. Comparison with State-of-the-Art                                       PromptFolio+Fed-GraB [46]    58.98 65.28 62.18 71.00 65.14 71.79 68.49 73.60
+                                                                                     FedPuReL (ours)     67.20 72.70 68.01 74.67 69.77 73.37 70.40 74.68
+Performance on Large-Scale Benchmarks. Table 1 com-                                                      ↑ 9.84 ↑ 5.20 ↑ 5.83 ↑ 2.77 ↑ 4.63 ↑ 1.58 ↑ 1.91 ↑ 1.08
+                                                                            LoRA-based
+pares FedPuReL on ImageNet-LT and Places-LT. Fed-                                     CLIPLoRA [48]      69.37 73.68 71.71 76.63 75.02 77.80 76.85 79.52
+PuReL consistently outperforms all baselines in both GM                             FedSA-LoRA [12]      66.51 74.26 71.66 76.50 74.48 81.68 72.86 78.61
+                                                                             CLIPLoRA+Fed-GraB [46]      70.32 74.17 72.58 77.43 76.35 77.91 77.47 80.83
+and PM settings, particularly on few classes, even exceed-                          FedPuReL (ours)      72.91 77.73 74.26 80.04 77.56 84.62 78.12 81.85
+ing Fed-GraB-enhanced variants. This performance pattern                                                 ↑ 2.59 ↑ 3.47 ↑ 1.68 ↑ 2.61 ↑ 1.21 ↑ 2.94 ↑ 0.65 ↑ 1.02
+                                                                            Adapter-based
+aligns with our design principle: gradient purification main-                            FedClip [28] 61.49 65.77 62.68 68.61 64.09 66.87 65.59 68.68
+tains zero-shot balance by preventing the global model from                     FedClip+Fed-GraB [46] 62.51 67.14 63.86 69.48 65.40 67.20 66.60 69.99
+                                                                                     FedPuReL (ours) 66.52 68.44 66.55 69.84 67.54 68.42 67.13 69.89
+overfitting to head classes, instead reallocating optimiza-                                           ↑ 4.01 ↑ 1.30 ↑ 2.69 ↑ 0.36 ↑ 2.14 ↑ 1.22 ↑ 0.53 ↓ 0.10
+tion capacity toward under-represented categories. As ev-
+idenced by Fig. 4 and the analysis in Sec. 4.5, this mech-                narios. Fed-GraB’s limited gains validate that relying solely
+anism yields substantially improved tail performance and                  on prior estimation is insufficient under severe long-tail sce-
+higher balancedness compared to baseline. Table 3 demon-                  narios, whereas our gradient purification naturally main-
+strates robustness across five additional datasets spanning               tains balance by anchoring to zero-shot predictions.
+fine-grained recognition, textures, and scenes.
+Performance Under Varying Imbalance Factors. Table 2
+                                                                          4.3. Ablation Study
+evaluates FedPuReL on CIFAR-100-LT across varying im-                     To thoroughly assess our approach, we conduct ablation
+balance factors. FedPuReL maintains superior performance                  studies investigating the efficacy of each component under
+as imbalance intensifies, with advantages growing propor-                 long-tailed scenarios. We perform ablation experiments on
+tionally, demonstrating effectiveness in severe long-tail sce-            CIFAR-100-LT and Places-LT datasets.
+       Table 3. Comparison with state-of-the-art methods on Food101-LT, DTD-LT, Aircraft-LT, Dogs-LT, and Pets-LT datasets.
+                                     Food101-LT               DTD-LT             Aircraft-LT            Dogs-LT               Pets-LT
+                      Method
+                                    GM       PM             GM      PM          GM         PM         GM       PM           GM       PM
+                    Zero-shot       85.39      85.53        48.41    41.46     21.54      29.38      66.43      60.19      90.41      86.03
+ Prompt-based
+              PromptFL [14]        82.74      88.06      46.22      63.49      26.59      28.51      62.57      67.61      86.80      91.98
+            PromptFolio [33]       81.49      87.09      54.97      70.02      29.26      34.68      64.94      70.30      85.15      91.08
+                FedOTP [22]        74.61      84.52      48.70      68.63      22.50      24.55      64.76      65.17      67.46      83.73
+                 FedPGP [8]        81.43      85.91      48.47      64.96      24.81      26.70      62.44      65.85      84.85      92.00
+ PromptFolio+Fed-GraB [46]         83.59      88.03      56.21      70.21      29.91      35.12      63.52      61.03      87.73      91.96
+           FedPuReL (ours)       86.71↑3.12 89.26↑1.20 57.75↑1.54 70.46↑0.25 32.81↑2.90 34.15↓0.97 67.06↑2.12 72.48↑2.18 92.13↑4.40 94.53↑2.57
+ LoRA-based
+             CLIPLoRA [48]         82.27      87.43      51.76      66.83      30.02      33.61      67.49      71.28      88.77      93.56
+          FedSA-LoRA [12]          83.40      86.50      44.53      68.60      26.31      31.23      66.10      67.08      88.05      93.71
+  CLIPLoRA+Fed-GraB [46]           84.84      87.69      54.00      69.07      31.62      33.35      68.29      69.63      89.29      93.91
+           FedPuReL (ours)       86.63↑1.78 89.32↑1.63 54.45↑0.45 69.56↑0.49 32.68↑1.06 37.02↑3.41 69.25↑0.96 73.54↑2.26 91.98↑2.69 94.60↑0.69
+ Adapter-based
+                FedClip [28]       83.75      85.76      46.01      50.47      22.83      22.66      63.74      61.10      89.24      90.55
+     FedClip+Fed-GraB [46]         84.35      86.14      44.60      49.33      22.59      22.78      63.52      61.03      90.01      91.63
+           FedPuReL (ours)       85.76↑1.41 87.08↑0.94 48.15↑2.14 51.52↑1.05 24.78↑1.95 24.16↑1.38 66.01↑2.27 62.10↑1.00 90.98↑0.97 92.76↑1.13
+
+Table 4. Comparison on CIFAR100 and Places-LT under Global (G) and Personalized (P) settings. Best in bold, second-best underlined.
+                                                   CIFAR-100-LT                                      Places-LT
+ Method                       G P           GM                      PM                      GM                      PM
+                                   All Many Med. Few All Many Med. Few All Many Med. Few All Many Med. Few
+ Baseline                     ✗ ✗ 61.98 80.23 61.12 42.32 70.52 82.53 62.15 48.67 38.90 51.07 32.86 29.64 36.49 48.00 31.37 27.42
+ + Gradient Purification      ✓ ✗ 69.77 78.63 67.08 64.74 72.06 81.91 63.64 57.46 43.88 55.44 40.94 39.06 38.14 48.34 35.27 32.72
+   v1. LS-KD [40]             ✓ ✗ 66.43 80.77 64.29 52.58 71.56 81.59 63.32 55.26 40.42 50.58 34.34 35.49 37.47 48.22 33.95 32.89
+   v2. WiSE-FT [43]           ✓ ✗ 63.64 78.86 62.03 49.42 69.94 80.92 62.48 50.11 38.95 48.67 33.72 39.14 37.04 44.81 32.52 32.90
+ + Residual                   ✗ ✓ 68.43 78.80 65.82 59.58 72.25 82.28 63.30 55.89 42.27 49.84 37.25 39.64 39.34 48.75 33.88 32.35
+   v1. PromptFolio [33]       ✗ ✓ 65.90 83.74 66.82 44.74 69.91 84.93 62.66 46.49 41.30 52.90 36.47 31.01 37.14 47.69 34.20 28.58
+   v2. FedOTP [22]            ✗ ✓ 62.96 84.03 63.72 41.68 66.53 83.36 58.3 35.49 36.37 48.73 32.27 23.07 34.25 46.03 30.41 22.12
+ Ours                         ✓ ✓ 69.77 78.63 67.08 64.74 73.37 82.67 65.69 58.25 43.88 55.44 40.94 39.06 39.68 49.85 34.55 35.56
+v1/v2: Contender for initialization and regularization components.
+
+
+Balancing Strategies for Global Training. Starting from                         Integrating gradient purification with residual learning
+a baseline without balancing mechanisms, we compare our                      yields gains exceeding those of individual components,
+method against alternative zero-shot guidance approaches:                    demonstrating their synergy. The combination achieves the
+• LS-KD [40]: Apply Z-score standardization to logits be-                    best results across both datasets. These findings confirm our
+  fore computing softmax and KL divergence.                                  thesis that jointly addressing balancedness and personaliza-
+• WiSE-FT [43]: Ensemble zero-shot and fine-tuned mod-                       tion is essential for effective federated long-tailed learning.
+  els in weight space by linearly interpolating with mixing
+  coefficient α ∈ [0, 1] to improve OOD robustness.                          4.4. More Supporting Experiments
+As shown in Table 4, our Gradient Purification achieves                      Due to the page limitation, we report additional results and
+superior performance, demonstrating that projecting task                     ablation studies in Appendix D, including 1) different client
+gradients orthogonal to alignment gradients effectively pre-                 heterogeneities; 2) ablation hyper-parameter λ in Eq. 12; 3)
+serves CLIP’s balanced knowledge during task adaptation.                     analysis of gradient angles; 4) model convergence.
+Personalization Strategies. We evaluate our residual
+learning against existing personalized fusion approaches:                    4.5. Analysis of FedPuReL
+• PromptFolio [33]: Employ portfolio-based prompt selec-                     Analysis 1: FedPuReL effectively maintains class bal-
+  tion via feature-level interpolation.                                      ance. To assess whether FedPuReL preserves balance,
+• FedOTP [22]: Employ unbalanced optimal transport to                        we track the balancedness metric β(V ) throughout train-
+  align local visual features with global and local prompts.                 ing (Fig. 4). Global models trained with standard FL meth-
+Our Residual Learning, even without gradient purification,                   ods exhibit significant balance degradation over time. In
+surpasses both alternatives. This demonstrates that output-                  contrast, FedPuReL maintains close to the initial zero-shot
+space residuals effectively mitigate bias inheritance.                       level, demonstrating effective balance preservation through
+                   28                                                                                                                                                                                                                       3.5
+                                                                                             30                                                                                       Imbalance                                                       Imbalance
+                                                                                                                                                                            0.6       Balance                                                         Balance
+                                                                                             28
+Balancedness (%)
+
+
+
+
+                                                                          Balancedness (%)
+                   26                                                                                                                                                                 Ours                                                  3.0       Ours
+
+
+
+
+                                                                                                                                                            KL Divergence
+
+
+
+
+                                                                                                                                                                                                                            KL Divergence
+                                                                                             26                                                                             0.5
+                   24                                                                                                                                                                                                                       2.5
+                               Zero-shot CLIP                                                24            Zero-shot CLIP                                                   0.4
+                               PromptFL                                                                    PromptFL
+                   22          PromptFolio                                                   22            PromptFolio                                                      0.3                                                             2.0
+                               FedOTP                                                                      FedOTP
+                               FedPGP                                                        20            FedPGP
+                   20          PromptFolio+FedGrab                                                         PromptFolio+FedGrab                                              0.2                                                             1.5
+                               Ours                                                          18            Ours
+                                                                                                                                                                            0.1
+                         0         20       40       60   80        100                               0        20        40         60     80         100                         0      20        40     60     80   100                         0      20        40      60    80   100
+                                   Communication Rounds                                                        Communication Rounds                                                           Communication Rounds                                            Communication Rounds
+                                 (a) Global Model                                                         (b) Personalized models                                                 (a) Temperature-aligned KL                                                      (b) KL
+   Figure 4. Comparison of Balancedness of SOTA prompt-based                                                                                                 Figure 6. Comparison of different KL divergence metrics
+   methods on global and personalized models for CIFAR-100-LT.                                                                                               across imbalanced and balanced CIFAR-100 datasets.
+
+                   0.8                                         Ours                                         Global Branch Contribution                       drift than PromptFL with minimal variance. In contrast,
+                                                               PromptFL                          80         Personal Branch Contribution
+                   0.7
+                                                                                                                                                             PromptFL shows volatile spikes, suggesting episodic severe
+                                                                              Contribution (%)
+
+
+
+
+                   0.6                                                                           60
+                                                                                                                                                             divergence where some clients’ updates conflict sharply
+Client Drift
+
+
+
+
+                   0.5
+                   0.4                                                                           40                                                          with the global model. These results demonstrate that gra-
+                   0.3                                                                                                                                       dient purification maintains cross-client consistency with
+                                                                                                 20
+                   0.2
+                                                                                                                                                             the global model, enabling faster convergence through im-
+                   0.1                                                                            0
+                         0         20        40      60   80        100                                     Many                 Med.           Few          proved aggregation quality.
+                                    Communication Rounds                                                   Classes (sorted by sample count)
+                             (a) Client drift evolution                                                   (b) Branch contribution                            Analysis 4: Global and personalized branches exhibit
+                                                                                                                                                             complementary contributions. Our design separates bal-
+   Figure 5. Client drift and branch contribution analysis. (a)                                                                                              anced global knowledge from personalized local adapta-
+   Client drift measured as the L2 distance between local and global                                                                                         tion, which should lead to different contribution patterns
+   model. (b) Percentage contribution of global versus personalized                                                                                          across class types. Specifically, head classes with abun-
+   branches to correct predictions, decomposed across classes sorted.                                                                                        dant samples should rely more on global knowledge, while
+   Both analyses are conducted on CIFAR-100-LT.
+                                                                                                                                                             tail classes with scarce data should require stronger person-
+                                                                                                                                                             alized corrections. To evaluate this, we decompose each
+   gradient purification. For personalized models, standard
+                                                                                                                                                             correct prediction to identify the dominant contributor be-
+   approaches inherit and propagate global bias, resulting in
+                                                                                                                                                             tween the global and personalized branches. As illustrated
+   poor balancedness. FedPuReL substantially improves bal-
+                                                                                                                                                             in Fig. 5b, as class frequency decreases from head to tail,
+   ancedness, validating that residual learning enables client-
+                                                                                                                                                             the personalized branch contribution increases, while the
+   specific personalization without bias propagation. The min-
+                                                                                                                                                             global branch contribution decreases correspondingly. No-
+   imal gap between global and personalized balancedness in
+                                                                                                                                                             tably, even for tail classes where personalization dominates,
+   FedPuReL, demonstrates that our approach uniformly ben-
+                                                                                                                                                             the global branch maintains a substantial 20-25% contribu-
+   efits all clients across diverse data distributions, rather than
+                                                                                                                                                             tion. These results confirm our design principle: the global
+   trading global fairness for personalization gains.
+                                                                                                                                                             branch provides consistent balanced knowledge across all
+   Analysis 2: TKL metric quantifies divergence from                                                                                                         classes, while the personalized branch dynamically adjusts
+   zero-shot knowledge. We employ our TKL metric, which                                                                                                      its contribution to compensate for data scarcity.
+   neutralizes confidence variations to isolate true distribu-
+   tional changes (Fig. 6). Standard KL divergence exhibits
+                                                                                                                                                             5. Conclusion
+   large values even on balanced data due to confidence shifts,
+   obscuring genuine bias. In contrast, TKL distinguishes                                                                                                    In this work, we explored the long-tail problem in personal-
+   balanced adaptation from biased divergence. Compar-                                                                                                       ized federated learning based on PEFT fine-tuning of foun-
+   ing results across datasets reveals that TKL divergence is                                                                                                dation models. We observe that conventional approaches
+   higher on long-tailed data, quantifying how class imbalance                                                                                               erode the pre-trained model’s inherent class balance and
+   systematically drives models away from CLIP’s balanced                                                                                                    propagate bias to client-specific adaptations. We introduced
+   knowledge. The strong negative correlation between TKL                                                                                                    FedPuReL, a framework that maintains global balance via
+   and β(V ) (Fig. 2) confirms this relationship.                                                                                                            zero-shot-guided gradient purification and supports unbi-
+   Analysis 3: FedPuReL effectively reduces client drift.                                                                                                    ased personalization through residual learning in the output
+   Intuitively, when different clients purify their gradients to-                                                                                            space. Extensive experiments on diverse datasets and im-
+   ward the same zero-shot anchor, this shared reference point                                                                                               balance factors showed that FedPuReL outperforms base-
+   should improve cross-client consistency. To evaluate this,                                                                                                lines for both global and personalized models, even without
+   we measure client drift as the L2 distance between local                                                                                                  class priors. These results highlight how pre-trained knowl-
+                                  (t)     (t)    (t)
+   and global parameters: driftk = ∥θk − θglobal ∥2 . As illus-                                                                                              edge can alleviate class imbalances in federated settings,
+   trated in Fig. 5a, FedPuReL maintains substantially lower                                                                                                 fostering more equitable collaborative learning.
+Acknowledgements                                                    [14] Tao Guo, Song Guo, Junxiao Wang, Xueyang Tang, and
+                                                                         Wenchao Xu. Promptfl: Let federated participants cooper-
+This study was supported in part by the National Natu-                   atively learn prompts instead of models–federated learning
+ral Science Foundation of China under Grants 62431004,                   in age of foundation model. IEEE TMC, 23(5):5179–5194,
+62376233, 62502402 and 62476063; in part by the Nat-                     2023. 3, 5, 6, 7
+ural Science Foundation of Fujian Province under Grant              [15] Feng Hong, Jiangchao Yao, Yifei Shen, Dongsheng Li, Ya
+2024J09001; in part by the Natural Science Foundation of                 Zhang, and Yanfeng Wang. Improving diffusion models for
+Guangdong Province under Grant 2025A1515011293; and                      class-imbalanced training data via capacity manipulation. In
+in part by Xiaomi Young Talents Program.                                 ICLR, 2026. 2
+                                                                    [16] Shihao Hou, Xinyi Shang, Shreyank N Gowda, Yang Lu,
+References                                                               Chao Wu, Yan Yan, and Hanzi Wang. Capt: Class-aware
+                                                                         prompt tuning for federated long-tailed learning with vision-
+ [1] Durmus Alp Emre Acar, Yue Zhao, Ramon Matas Navarro,                language model. arXiv preprint arXiv:2503.06993, 2025. 2
+     Matthew Mattina, Paul N Whatmough, and Venkatesh               [17] Wenke Huang, Yuxia Liu, Mang Ye, Jun Chen, and Bo Du.
+     Saligrama. Federated learning based on dynamic regular-             Federated learning with long-tailed data via representation
+     ization. In ICLR, 2021. 2                                           unification and classifier rectification. IEEE TIFS, 2024. 1,
+ [2] Manoj Ghuhan Arivazhagan, Vinay Aggarwal, Aaditya Ku-               3
+     mar Singh, and Sunav Choudhary. Federated learning with        [18] Peter Kairouz, H Brendan McMahan, Brendan Avent,
+     personalization layers. arXiv preprint arXiv:1912.00818,            Aurélien Bellet, Mehdi Bennis, Arjun Nitin Bhagoji, Kallista
+     2019. 2                                                             Bonawitz, Zachary Charles, Graham Cormode, Rachel Cum-
+ [3] Sikai Bai, Jie Zhang, Song Guo, Shuaicheng Li, Jingcai Guo,         mings, et al. Advances and open problems in federated learn-
+     Jun Hou, Tao Han, and Xiaocheng Lu. Diprompt: Disentan-             ing. Found. Trends Mach. Learn., 14(1–2):1–210, 2021. 2
+     gled prompt tuning for multiple latent domain generalization   [19] Bingyi Kang, Yu Li, Sa Xie, Zehuan Yuan, and Jiashi Feng.
+     in federated learning. In CVPR, pages 27284–27293, 2024.            Exploring balanced feature spaces for representation learn-
+     1                                                                   ing. In ICLR, 2020. 1, 3
+ [4] Lukas Bossard, Matthieu Guillaumin, and Luc Van Gool.          [20] Aditya Khosla, Nityananda Jayadevaprakash, Bangpeng
+     Food-101–mining discriminative components with random               Yao, and Fei-Fei Li. Novel dataset for fine-grained image
+     forests. In ECCV, pages 446–461. Springer, 2014. 5                  categorization: Stanford dogs. In CVPRW, 2011. 5
+ [5] Tony Cai, Jianqing Fan, and Tiefeng Jiang. Distributions of    [21] Alex Krizhevsky and Geoffrey Hinton. Learning multiple
+     angles in random packing on spheres. J. Mach. Learn. Res.,          layers of features from tiny images, 2009. 5
+     14(1):1837–1864, 2013. 2                                       [22] Hongxia Li, Wei Huang, Jingya Wang, and Ye Shi. Global
+ [6] Kaidi Cao, Colin Wei, Adrien Gaidon, Nikos Arechiga,                and local prompts cooperation via optimal transport for fed-
+     and Tengyu Ma. Learning imbalanced datasets with label-             erated learning. In CVPR, pages 12151–12161, 2024. 1, 2,
+     distribution-aware margin loss. NeurIPS, 32, 2019. 5                3, 5, 6, 7
+ [7] Mircea Cimpoi, Subhransu Maji, Iasonas Kokkinos, Sammy         [23] Kan Li, Yang Li, Ji Zhang, Xin Liu, and Zhichao Ma. Feder-
+     Mohamed, and Andrea Vedaldi. Describing textures in the             ated deep long-tailed learning: A survey. Neurocomputing,
+     wild. In CVPR, pages 3606–3613, 2014. 5                             595:127906, 2024. 1
+ [8] Tianyu Cui, Hongxia Li, Jingya Wang, and Ye Shi. Har-          [24] Qinbin Li, Bingsheng He, and Dawn Song.               Model-
+     monizing generalization and personalization in federated            contrastive federated learning. In CVPR, pages 10713–
+     prompt learning. In ICML, 2024. 1, 3, 5, 6, 7                       10722, 2021. 1
+ [9] Yutong Dai, Zeyuan Chen, Junnan Li, Shelby Heinecke,           [25] Tian Li, Anit Kumar Sahu, Ameet Talwalkar, and Virginia
+     Lichao Sun, and Ran Xu. Tackling data heterogeneity in fed-         Smith. Federated learning: Challenges, methods, and future
+     erated learning with class prototypes. In AAAI, pages 7314–         directions. IEEE Signal Process. Mag., 37(3):50–60, 2020.
+     7322, 2023. 2                                                       2
+[10] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li,         [26] Tian Li, Shengyuan Hu, Ahmad Beirami, and Virginia
+     and Li Fei-Fei. Imagenet: A large-scale hierarchical image          Smith. Ditto: Fair and robust federated learning through per-
+     database. In CVPR, pages 248–255. IEEE, 2009. 5                     sonalization. In ICML, pages 6357–6368. PMLR, 2021. 2,
+[11] Yuyang Deng, Mohammad Mahdi Kamani, and Mehrdad                     5
+     Mahdavi. Adaptive personalized federated learning. In          [27] Ziwei Liu, Zhongqi Miao, Xiaohang Zhan, Jiayun Wang,
+     ICLR, 2021. 2                                                       Boqing Gong, and Stella X Yu. Large-scale long-tailed
+[12] Pengxin Guo, Shuang Zeng, Yanran Wang, Huijie Fan, Feifei           recognition in an open world. In CVPR, pages 2537–2546,
+     Wang, and Liangqiong Qu. Selective aggregation for low-             2019. 5
+     rank adaptation in federated learning. In ICLR, 2025. 3, 5,    [28] Wang Lu, Xixu Hu, Jindong Wang, and Xing Xie. Fedclip:
+     6, 7                                                                Fast generalization and personalization for clip in federated
+[13] Tao Guo, Song Guo, and Junxiao Wang. Pfedprompt: Learn-             learning. In ICLR, 2023. 3, 5, 6, 7
+     ing personalized prompt for vision-language models in fed-     [29] Jun Luo, Chen Chen, and Shandong Wu. Mixture of experts
+     erated learning. In WWW, pages 1364–1374, 2023. 1, 2,               made personalized: Federated prompt learning for vision-
+     3                                                                   language models. In ICLR2025, 2025. 3
+[30] Jiaan Luo, Feng Hong, Qiang Hu, Xiaofeng Cao, Feng Liu,           [45] Zikai Xiao, Zihan Chen, Liyinglan Liu, YANG FENG,
+     and Jiangchao Yao. Long-tailed recognition with model re-              Joey Tianyi Zhou, Jian Wu, Wanlu Liu, Howard Hao Yang,
+     balancing. NeurIPS, 2025. 2                                            and Zuozhu Liu. Fedloge: Joint local and generic federated
+[31] Subhransu Maji, Esa Rahtu, Juho Kannala, Matthew                       learning under long-tailed data. In ICLR, 2024. 1, 2
+     Blaschko, and Andrea Vedaldi. Fine-grained visual classi-         [46] Zikai Xiao, Zihan Chen, Songshang Liu, Hualiang Wang,
+     fication of aircraft. arXiv preprint arXiv:1306.5151, 2013.            Yang Feng, Jin Hao, Joey Tianyi Zhou, Jian Wu, Howard
+     5                                                                      Yang, and Zuozhu Liu. Fed-grab: Federated long-tailed
+[32] Aditya Krishna Menon, Sadeep Jayasumana, Ankit Singh                   learning with self-adjusting gradient balancer. In NeurIPS,
+     Rawat, Himanshu Jain, Andreas Veit, and Sanjiv Kumar.                  2024. 5, 6, 7, 3
+     Long-tail learning via logit adjustment. In ICLR, 2021. 1         [47] Yihao Yang, Wenke Huang, Guancheng Wan, Bin Yang, and
+[33] Bikang Pan, Wei Huang, and Ye Shi. Federated learning                  Mang Ye. Federated disentangled tuning with textual prior
+     from vision-language foundation models: Theoretical analy-             decoupling and visual dynamic adaptation. In ICML, 2025.
+     sis and method. In NeurIPS, pages 30590–30623, 2024. 1,                1
+     3, 5, 6, 7                                                        [48] Maxime Zanella and Ismail Ben Ayed. Low-rank few-
+[34] Adam Paszke, Sam Gross, Francisco Massa, Adam Lerer,                   shot adaptation of vision-language models. In CVPR, pages
+     James Bradbury, Gregory Chanan, Trevor Killeen, Zem-                   1593–1603, 2024. 5, 6, 7, 3
+     ing Lin, Natalia Gimelshein, Luca Antiga, et al. Pytorch:         [49] Yaopei Zeng, Lei Liu, Li Liu, Li Shen, Shaoguo Liu, and
+     An imperative style, high-performance deep learning library.           Baoyuan Wu. Global balanced experts for federated long-
+     NeurIPS, 32, 2019. 5                                                   tailed learning. In ICCV, pages 4815–4825, 2023. 2
+[35] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya                [50] Tianjiao Zhang, Huangjie Zheng, Jiangchao Yao, Xiangfeng
+     Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry,                  Wang, Mingyuan Zhou, Ya Zhang, and Yanfeng Wang.
+     Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learn-               Long-tailed diffusion models with oriented calibration. In
+     ing transferable visual models from natural language super-            ICLR, 2024. 2
+     vision. In ICML, pages 8748–8763, 2021. 1, 3                      [51] Bolei Zhou, Agata Lapedriza, Aditya Khosla, Aude Oliva,
+[36] Dipankar Sarkar, Ankur Narang, and Sumit Rai. Fed-focal                and Antonio Torralba. Places: A 10 million image database
+     loss for imbalanced data classification in federated learning.         for scene recognition. IEEE TPAMI, 40(6):1452–1464, 2017.
+     arXiv preprint arXiv:2011.06283, 2020. 2                               5
+[37] Aviv Shamsian, Aviv Navon, Ethan Fetaya, and Gal Chechik.
+     Personalized federated learning using hypernetworks. In
+     ICML, pages 9489–9502. PMLR, 2021. 2
+[38] Xinyi Shang, Yang Lu, Gang Huang, and Hanzi Wang. Fed-
+     erated learning on heterogeneous and long-tailed data via
+     classifier re-training with federated features. In IJCAI, pages
+     2218–2224, 2022. 2
+[39] Jiangming Shi, Shanshan Zheng, Xiangbo Yin, Yang Lu,
+     Yuan Xie, and Yanyun Qu. Clip-guided federated learning on
+     heterogeneity and long-tailed data. In AAAI, pages 14955–
+     14963, 2024. 2
+[40] Shangquan Sun, Wenqi Ren, Jingzhi Li, Rui Wang, and Xi-
+     aochun Cao. Logit standardization in knowledge distillation.
+     In CVPR, pages 15731–15740, 2024. 7
+[41] Canh T Dinh, Nguyen Tran, and Josh Nguyen. Personal-
+     ized federated learning with moreau envelopes. In NeurIPS,
+     pages 21394–21405, 2020. 2
+[42] Alysa Ziying Tan, Han Yu, Lizhen Cui, and Qiang Yang.
+     Towards personalized federated learning. IEEE TNNLS, 34
+     (12):9587–9603, 2022. 2
+[43] Mitchell Wortsman, Gabriel Ilharco, Jong Wook Kim,
+     Mike Li, Simon Kornblith, Rebecca Roelofs, Raphael Gon-
+     tijo Lopes, Hannaneh Hajishirzi, Ali Farhadi, Hongseok
+     Namkoong, et al. Robust fine-tuning of zero-shot models.
+     In CVPR, pages 7959–7971, 2022. 7
+[44] Zikai Xiao, Zihan Chen, Songshang Liu, Hualiang Wang,
+     Yang Feng, Jin Hao, Joey Tianyi Zhou, Jian Wu, Howard
+     Yang, and Zuozhu Liu. Fed-grab: Federated long-tailed
+     learning with self-adjusting gradient balancer. In NeurIPS,
+     pages 77745–77757, 2023. 2
+
