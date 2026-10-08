@@ -1,0 +1,20 @@
+{
+  "zh": {
+    "measurement": "TikZ label south-west and north-east anchors in TeX points",
+    "labels_measured": 78,
+    "text_overlaps": [],
+    "labels_outside_canvas": [],
+    "smallest_body_font_pt": 8.3,
+    "embedded_math_subscripts": "Smaller script sizes are intentional; inspect actual output.",
+    "overfull": false
+  },
+  "en": {
+    "measurement": "TikZ label south-west and north-east anchors in TeX points",
+    "labels_measured": 78,
+    "text_overlaps": [],
+    "labels_outside_canvas": [],
+    "smallest_body_font_pt": 8.3,
+    "embedded_math_subscripts": "Smaller script sizes are intentional; inspect actual output.",
+    "overfull": false
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "palette": "custom",
+  "style": "clean_open",
+  "language": "zh",
+  "output_format": "pdf",
+  "palette_custom": [
+    "#1479E0",
+    "#F28E2B",
+    "#159B75",
+    "#202D3D"
+  ],
+  "title": "Method A overview",
+  "palette_reason": "User's bright-color preference and reference"
+}

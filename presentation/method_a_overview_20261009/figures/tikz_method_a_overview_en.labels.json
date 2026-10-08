@@ -1,0 +1,704 @@
+[
+  {
+    "id": "label0",
+    "text": "A",
+    "font_pt": 10.5,
+    "center_cm": [
+      0.25,
+      0.39
+    ]
+  },
+  {
+    "id": "label1",
+    "text": "Local Training \\& Feedback",
+    "font_pt": 9.3,
+    "center_cm": [
+      2.65,
+      0.39
+    ]
+  },
+  {
+    "id": "label2",
+    "text": "B",
+    "font_pt": 10.5,
+    "center_cm": [
+      5.7,
+      0.39
+    ]
+  },
+  {
+    "id": "label3",
+    "text": "Update Effects \\& Targets",
+    "font_pt": 9.3,
+    "center_cm": [
+      8.6,
+      0.39
+    ]
+  },
+  {
+    "id": "label4",
+    "text": "C",
+    "font_pt": 10.5,
+    "center_cm": [
+      12.15,
+      0.39
+    ]
+  },
+  {
+    "id": "label5",
+    "text": "History \\& Global Correction",
+    "font_pt": 9.3,
+    "center_cm": [
+      15.049999999999999,
+      0.39
+    ]
+  },
+  {
+    "id": "label6",
+    "text": "Local training images",
+    "font_pt": 8.6,
+    "center_cm": [
+      2.55,
+      0.92
+    ]
+  },
+  {
+    "id": "label7",
+    "text": "Client $1$",
+    "font_pt": 8.8,
+    "center_cm": [
+      1.0,
+      2.18
+    ]
+  },
+  {
+    "id": "label8",
+    "text": "CLIP",
+    "font_pt": 8.3,
+    "center_cm": [
+      0.95,
+      2.51
+    ]
+  },
+  {
+    "id": "label9",
+    "text": "$A$",
+    "font_pt": 8.5,
+    "center_cm": [
+      0.71,
+      2.875
+    ]
+  },
+  {
+    "id": "label10",
+    "text": "$B$",
+    "font_pt": 8.5,
+    "center_cm": [
+      1.3,
+      2.875
+    ]
+  },
+  {
+    "id": "label11",
+    "text": "$\\Delta A_{1}$",
+    "font_pt": 9.2,
+    "center_cm": [
+      1.0,
+      4.1
+    ]
+  },
+  {
+    "id": "label12",
+    "text": "Client $2$",
+    "font_pt": 8.8,
+    "center_cm": [
+      2.55,
+      2.18
+    ]
+  },
+  {
+    "id": "label13",
+    "text": "CLIP",
+    "font_pt": 8.3,
+    "center_cm": [
+      2.5,
+      2.51
+    ]
+  },
+  {
+    "id": "label14",
+    "text": "$A$",
+    "font_pt": 8.5,
+    "center_cm": [
+      2.26,
+      2.875
+    ]
+  },
+  {
+    "id": "label15",
+    "text": "$B$",
+    "font_pt": 8.5,
+    "center_cm": [
+      2.8499999999999996,
+      2.875
+    ]
+  },
+  {
+    "id": "label16",
+    "text": "$\\Delta A_{2}$",
+    "font_pt": 9.2,
+    "center_cm": [
+      2.55,
+      4.1
+    ]
+  },
+  {
+    "id": "label17",
+    "text": "Client $K$",
+    "font_pt": 8.8,
+    "center_cm": [
+      4.1,
+      2.18
+    ]
+  },
+  {
+    "id": "label18",
+    "text": "CLIP",
+    "font_pt": 8.3,
+    "center_cm": [
+      4.05,
+      2.51
+    ]
+  },
+  {
+    "id": "label19",
+    "text": "$A$",
+    "font_pt": 8.5,
+    "center_cm": [
+      3.8099999999999996,
+      2.875
+    ]
+  },
+  {
+    "id": "label20",
+    "text": "$B$",
+    "font_pt": 8.5,
+    "center_cm": [
+      4.3999999999999995,
+      2.875
+    ]
+  },
+  {
+    "id": "label21",
+    "text": "$\\Delta A_{K}$",
+    "font_pt": 9.2,
+    "center_cm": [
+      4.1,
+      4.1
+    ]
+  },
+  {
+    "id": "label22",
+    "text": "Local class feedback",
+    "font_pt": 9.4,
+    "center_cm": [
+      2.55,
+      5.23
+    ]
+  },
+  {
+    "id": "label23",
+    "text": "Fixed images per $q=(k,c)$: $\\leq8$",
+    "font_pt": 8.6,
+    "center_cm": [
+      2.55,
+      5.61
+    ]
+  },
+  {
+    "id": "label24",
+    "text": "True class",
+    "font_pt": 8.3,
+    "center_cm": [
+      3.22,
+      5.98
+    ]
+  },
+  {
+    "id": "label25",
+    "text": "Strongest rival",
+    "font_pt": 8.3,
+    "center_cm": [
+      3.22,
+      6.51
+    ]
+  },
+  {
+    "id": "label26",
+    "text": "Margin",
+    "font_pt": 8.3,
+    "center_cm": [
+      3.94,
+      7.2
+    ]
+  },
+  {
+    "id": "label27",
+    "text": "$F_{qv}=\\operatorname{mean}(s_c-\\max_{c'\\ne c}s_{c'})$",
+    "font_pt": 8.5,
+    "center_cm": [
+      2.55,
+      7.55
+    ]
+  },
+  {
+    "id": "label28",
+    "text": "$g_{qv}=\\nabla_A F_{qv}(A_t,\\bar B_t)$",
+    "font_pt": 9.0,
+    "center_cm": [
+      2.55,
+      7.93
+    ]
+  },
+  {
+    "id": "label29",
+    "text": "Original + horizontal flip",
+    "font_pt": 8.3,
+    "center_cm": [
+      2.55,
+      8.32
+    ]
+  },
+  {
+    "id": "label30",
+    "text": "Sample-weighted aggregation",
+    "font_pt": 9.3,
+    "center_cm": [
+      8.515,
+      1.13
+    ]
+  },
+  {
+    "id": "label31",
+    "text": "$A^{\\mathrm{ord}}=A_t+\\sum_j p_j\\Delta A_j$",
+    "font_pt": 10,
+    "center_cm": [
+      8.515,
+      1.58
+    ]
+  },
+  {
+    "id": "label32",
+    "text": "Class-wise update effects",
+    "font_pt": 9.2,
+    "center_cm": [
+      8.5,
+      2.31
+    ]
+  },
+  {
+    "id": "label33",
+    "text": "$r_{qvj}=\\langle g_{qv},\\Delta A_j\\rangle$",
+    "font_pt": 10,
+    "center_cm": [
+      8.515,
+      2.99
+    ]
+  },
+  {
+    "id": "label34",
+    "text": "$j=1$",
+    "font_pt": 8.3,
+    "center_cm": [
+      7.04,
+      3.46
+    ]
+  },
+  {
+    "id": "label35",
+    "text": "$j=2$",
+    "font_pt": 8.3,
+    "center_cm": [
+      7.83,
+      3.46
+    ]
+  },
+  {
+    "id": "label36",
+    "text": "$\\cdots$",
+    "font_pt": 8.3,
+    "center_cm": [
+      8.620000000000001,
+      3.46
+    ]
+  },
+  {
+    "id": "label37",
+    "text": "$j=K$",
+    "font_pt": 8.3,
+    "center_cm": [
+      9.41,
+      3.46
+    ]
+  },
+  {
+    "id": "label38",
+    "text": "$q_1$",
+    "font_pt": 8.5,
+    "center_cm": [
+      6.35,
+      3.87
+    ]
+  },
+  {
+    "id": "label39",
+    "text": "+",
+    "font_pt": 9,
+    "center_cm": [
+      7.04,
+      3.855
+    ]
+  },
+  {
+    "id": "label40",
+    "text": "+",
+    "font_pt": 9,
+    "center_cm": [
+      7.83,
+      3.855
+    ]
+  },
+  {
+    "id": "label41",
+    "text": "$\\cdots$",
+    "font_pt": 9,
+    "center_cm": [
+      8.620000000000001,
+      3.855
+    ]
+  },
+  {
+    "id": "label42",
+    "text": "$-$",
+    "font_pt": 9,
+    "center_cm": [
+      9.41,
+      3.855
+    ]
+  },
+  {
+    "id": "label43",
+    "text": "$q_2$",
+    "font_pt": 8.5,
+    "center_cm": [
+      6.35,
+      4.23
+    ]
+  },
+  {
+    "id": "label44",
+    "text": "$-$",
+    "font_pt": 9,
+    "center_cm": [
+      7.04,
+      4.215
+    ]
+  },
+  {
+    "id": "label45",
+    "text": "+",
+    "font_pt": 9,
+    "center_cm": [
+      7.83,
+      4.215
+    ]
+  },
+  {
+    "id": "label46",
+    "text": "$\\cdots$",
+    "font_pt": 9,
+    "center_cm": [
+      8.620000000000001,
+      4.215
+    ]
+  },
+  {
+    "id": "label47",
+    "text": "$-$",
+    "font_pt": 9,
+    "center_cm": [
+      9.41,
+      4.215
+    ]
+  },
+  {
+    "id": "label48",
+    "text": "Example",
+    "font_pt": 8.3,
+    "center_cm": [
+      10.49,
+      3.99
+    ]
+  },
+  {
+    "id": "label49",
+    "text": "Positive in both views",
+    "font_pt": 8.6,
+    "center_cm": [
+      8.515,
+      4.81
+    ]
+  },
+  {
+    "id": "label50",
+    "text": "Current target",
+    "font_pt": 9.0,
+    "center_cm": [
+      8.875,
+      5.45
+    ]
+  },
+  {
+    "id": "label51",
+    "text": "$T^{\\mathrm{cur}}_{qv}=\\min(2,F^0_{qv}+0.5u_q)$",
+    "font_pt": 9.1,
+    "center_cm": [
+      8.875,
+      5.85
+    ]
+  },
+  {
+    "id": "label52",
+    "text": "$u_q$: mean positive effect",
+    "font_pt": 8.4,
+    "center_cm": [
+      8.875,
+      6.48
+    ]
+  },
+  {
+    "id": "label53",
+    "text": "Retention weights",
+    "font_pt": 9.0,
+    "center_cm": [
+      8.875,
+      6.99
+    ]
+  },
+  {
+    "id": "label54",
+    "text": "$\\omega_q\\propto 1/N_q^{\\mathrm{eff}}$",
+    "font_pt": 10.5,
+    "center_cm": [
+      8.875,
+      7.49
+    ]
+  },
+  {
+    "id": "label55",
+    "text": "$N_q^{\\mathrm{eff}}$: effective positive client count",
+    "font_pt": 8.3,
+    "center_cm": [
+      8.875,
+      8.03
+    ]
+  },
+  {
+    "id": "label56",
+    "text": "$q=(k,c),\\quad v\\in\\{1,2\\},\\quad p_j=n_j/\\sum_i n_i$",
+    "font_pt": 8.7,
+    "center_cm": [
+      8.5,
+      8.61
+    ]
+  },
+  {
+    "id": "label57",
+    "text": "Correction region",
+    "font_pt": 9.3,
+    "center_cm": [
+      14.96,
+      1.12
+    ]
+  },
+  {
+    "id": "label58",
+    "text": "$A(z)=A^{\\mathrm{ord}}+Rz,\\quad \\|z\\|_2\\leq1$",
+    "font_pt": 9.4,
+    "center_cm": [
+      14.96,
+      1.58
+    ]
+  },
+  {
+    "id": "label59",
+    "text": "Historical target $H_q$",
+    "font_pt": 9.6,
+    "center_cm": [
+      14.96,
+      2.9
+    ]
+  },
+  {
+    "id": "label60",
+    "text": "1",
+    "font_pt": 8.5,
+    "center_cm": [
+      13.42,
+      3.41
+    ]
+  },
+  {
+    "id": "label61",
+    "text": "2",
+    "font_pt": 8.5,
+    "center_cm": [
+      14.18,
+      3.41
+    ]
+  },
+  {
+    "id": "label62",
+    "text": "3",
+    "font_pt": 8.5,
+    "center_cm": [
+      14.94,
+      3.41
+    ]
+  },
+  {
+    "id": "label63",
+    "text": "4",
+    "font_pt": 8.5,
+    "center_cm": [
+      15.7,
+      3.41
+    ]
+  },
+  {
+    "id": "label64",
+    "text": "5",
+    "font_pt": 8.5,
+    "center_cm": [
+      16.46,
+      3.41
+    ]
+  },
+  {
+    "id": "label65",
+    "text": "Block minimum, both views",
+    "font_pt": 8.4,
+    "center_cm": [
+      14.96,
+      3.92
+    ]
+  },
+  {
+    "id": "label66",
+    "text": "New history applies next round",
+    "font_pt": 8.3,
+    "center_cm": [
+      14.96,
+      4.3
+    ]
+  },
+  {
+    "id": "label67",
+    "text": "Combined target",
+    "font_pt": 8.7,
+    "center_cm": [
+      14.96,
+      5.45
+    ]
+  },
+  {
+    "id": "label68",
+    "text": "$T_{qv}=\\max(T^{\\mathrm{cur}}_{qv},H_q)$",
+    "font_pt": 10,
+    "center_cm": [
+      14.96,
+      5.86
+    ]
+  },
+  {
+    "id": "label69",
+    "text": "Global correction",
+    "font_pt": 9.3,
+    "center_cm": [
+      14.96,
+      6.94
+    ]
+  },
+  {
+    "id": "label70",
+    "text": "$\\frac12\\|z\\|^2+10\\mathcal L_{\\rm ret}+\\mathcal L_{\\rm cls}$",
+    "font_pt": 10.0,
+    "center_cm": [
+      14.96,
+      7.3
+    ]
+  },
+  {
+    "id": "label71",
+    "text": "Proximity / retention / LA loss",
+    "font_pt": 8.3,
+    "center_cm": [
+      14.96,
+      7.65
+    ]
+  },
+  {
+    "id": "label72",
+    "text": "$\\omega_q$",
+    "font_pt": 9,
+    "center_cm": [
+      11.93,
+      7.1
+    ]
+  },
+  {
+    "id": "label73",
+    "text": "3 projected gradient steps",
+    "font_pt": 8.3,
+    "center_cm": [
+      14.96,
+      8.17
+    ]
+  },
+  {
+    "id": "label74",
+    "text": "Global model $(A_{t+1},\\bar B_t)$",
+    "font_pt": 8.8,
+    "center_cm": [
+      14.96,
+      8.64
+    ]
+  },
+  {
+    "id": "label75",
+    "text": "Past committed global models",
+    "font_pt": 8.3,
+    "center_cm": [
+      14.96,
+      2.25
+    ]
+  },
+  {
+    "id": "label76",
+    "text": "Common model $(A_t,\\bar B_t)$",
+    "font_pt": 8.3,
+    "center_cm": [
+      2.55,
+      8.78
+    ]
+  },
+  {
+    "id": "label77",
+    "text": "Train: LoRA $A$ \\qquad Freeze: $B$ and CLIP \\qquad Dashed: history feedback",
+    "font_pt": 8.5,
+    "center_cm": [
+      8.9,
+      9.23
+    ]
+  }
+]
