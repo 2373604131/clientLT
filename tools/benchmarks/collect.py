@@ -148,6 +148,24 @@ def completed_result(root, job):
     if selection_epochs:
         result['selection_optimizer_steps'] = sum(int(x['selection_optimizer_steps']) for x in costs)
         result['selection_forward_images'] = sum(int(x['selection_forward_images']) for x in costs)
+    if job['method'] in ('fedlf', 'fedyoyo', 'fedrela'):
+        for key in ('auxiliary_forward_images', 'statistics_upload_bytes', 'statistics_download_bytes',
+                    'selected_distillation_images', 'relabeled_training_images'):
+            result[key] = sum(int(x[key]) for x in costs)
+        audits = [read_json(run / 'method_audits' / f'r{rnd:03d}.json') for rnd in range(1, expected_rounds + 1)]
+        if any(x.get('round') != rnd or x.get('method') != job['method'] for rnd, x in enumerate(audits, 1)):
+            raise ValueError('Missing/mismatched long-tail method audits')
+        if job['method'] == 'fedyoyo':
+            for audit in audits:
+                prior = audit['estimated_prior']
+                if len(prior) != 100 or any(not math.isfinite(v) or v <= 0 for v in prior) or not math.isclose(sum(prior), 1., abs_tol=1e-5):
+                    raise ValueError('Invalid FedYoYo estimated global prior')
+        if job['method'] == 'fedrela':
+            relabel_round = 2 if job['smoke'] else job['config']['longtail_baselines']['fedrela']['relabel_after_round'] + 1
+            events = [x for x in audits if 'relabel_clients' in x]
+            if len(events) != 1 or events[0]['round'] != relabel_round:
+                raise ValueError('Expected exactly one FedReLa relabel event at its declared round')
+            result['relabeled_samples'] = sum(x['changed'] for x in events[0]['relabel_clients'])
     classes = {c: statistics.mean(class_values[r][c] for r in window) for c in range(100)}
     return result, classes, curve
 
@@ -166,7 +184,7 @@ def status(root):
         elif (run / 'progress.json').exists():
             progress = read_json(run / 'progress.json')
             record.update(status='partial', completed_round=progress.get('completed_round', progress.get('completed_rounds', 0)),
-                          detail=str({k: v for k, v in progress.items() if k in ('active_round', 'client_position', 'clients_this_round', 'client_id')}))
+                          detail=str({k: v for k, v in progress.items() if k in ('phase', 'active_round', 'client_position', 'clients_this_round', 'client_id')}))
         elif run.exists():
             record['status'] = 'initializing_or_interrupted'
         result.append(record)
@@ -218,10 +236,12 @@ def collect(root):
             lines.append('| ' + r['label'] + ' | ' + ' | '.join(f"{r['last20_' + m]:.4f}" for m in METRICS[:4]) + ' |')
         lines += ['', 'CAPT uses fixed aggregation, without test-controlled MAB. FedPuReL is its global stage on matched LoRA, not the personalized full method.',
             'FedNTD uses a frozen round-start teacher. FedPuReL uses frozen zero-shot CLIP. FedAvg jointly trains both LoRA factors.',
-            'All methods use the current repository CIFAR transform, not their native published input pipeline.',
+            'All methods share the reference CIFAR100 base normalization/resize. FedLF retains crop/flip; FedYoYo adds its official weak/strong training views.',
             'Three local epochs for external methods do not equal A/AB total computation; report extra costs separately.',
             'LoRA-A2 adds one TRAINING-data selection epoch before three masked training epochs; selection costs are included.',
             'FFA-LoRA/RoLoRA/FedSVD/LoRA-A2 use shared factors and the matched initialization/scaling/SGD protocol. These are CLIP adaptations, not native-paper reproductions.',
+            'FedLF/FedYoYo are CLIP-LoRA adaptations. FedYoYo includes feature-based prior estimation; extra statistic passes/communication are counted.',
+            'FedReLa is the official relabel module on a FedAvg-LoRA CE host, with a declared late learning-rate reduction; labels and model state resume together.',
             'Incomplete/invalid/smoke runs are excluded, never filled with zero. See status.csv.',
             'B donor screening and its added value over direct calibration remain separate claims; this table does not prove them.']
         (out / 'report.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')

@@ -1,0 +1,50 @@
+[
+  {
+    "IF": 10,
+    "lambda_T": 0.0,
+    "alpha_T": 0.5,
+    "q_T": 0.1,
+    "rho": 3.0,
+    "seed": 42,
+    "source_type": "constructed_labels_only_no_training",
+    "samples": 19573,
+    "tail_samples": 1249,
+    "tail_share_clients_27_29": 0.100080064051241
+  },
+  {
+    "IF": 10,
+    "lambda_T": 0.75,
+    "alpha_T": 0.5,
+    "q_T": 0.1,
+    "rho": 3.0,
+    "seed": 42,
+    "source_type": "constructed_labels_only_no_training",
+    "samples": 19573,
+    "tail_samples": 1249,
+    "tail_share_clients_27_29": 0.7750200160128102
+  },
+  {
+    "IF": 100,
+    "lambda_T": 0.0,
+    "alpha_T": 0.5,
+    "q_T": 0.1,
+    "rho": 3.0,
+    "seed": 42,
+    "source_type": "constructed_labels_only_no_training",
+    "samples": 10847,
+    "tail_samples": 153,
+    "tail_share_clients_27_29": 0.09803921568627451
+  },
+  {
+    "IF": 100,
+    "lambda_T": 0.75,
+    "alpha_T": 0.5,
+    "q_T": 0.1,
+    "rho": 3.0,
+    "seed": 42,
+    "source_type": "constructed_labels_only_no_training",
+    "samples": 10847,
+    "tail_samples": 153,
+    "tail_share_clients_27_29": 0.7777777777777778
+  }
+]

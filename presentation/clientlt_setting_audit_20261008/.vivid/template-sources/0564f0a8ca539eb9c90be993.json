@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "candidate": "figures/intro_heatmaps.py",
+  "baseline": ".vivid/template-sources/0564f0a8ca539eb9c90be993.py",
+  "source": {
+    "id": "competition.spatiotemporal_heatmap",
+    "variant": "main",
+    "codeSha256": "16467570c97d0e50e280789d5fc54ab32206bf60e987363c7f44b8b0df35d407",
+    "contentSha256": "04aacf9c46e9299f292ce62b4a297b37d76bbe28a8aefcbf742776503efb3ac9",
+    "file": "figure_recipes_competition.md",
+    "blocks": [
+      0
+    ],
+    "requiredInputs": []
+  }
+}

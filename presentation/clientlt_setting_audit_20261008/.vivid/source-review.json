@@ -1,0 +1,1134 @@
+{
+  "reports": [
+    {
+      "findings": [
+        {
+          "kind": "operation_not_found",
+          "method": "annotate",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            41
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "operation_not_found",
+          "method": "axhspan",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            18
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "operation_not_found",
+          "method": "fill_between",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            28
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "parameter_added",
+          "method": "plot",
+          "parameter": "linestyle",
+          "after": [
+            "styles[i]",
+            "styles[i]"
+          ],
+          "message": "新增显式参数；核对其用途。",
+          "source_lines": [
+            32
+          ],
+          "candidate_lines": [
+            23
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "unresolved",
+          "method": "plot",
+          "parameter": "linewidth",
+          "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+          "before": [
+            "2.5 if is_ours else 1.8"
+          ],
+          "after": [
+            "1.6 if is_focus else 1.3",
+            "1.6 if is_focus else 1.3"
+          ],
+          "source_lines": [
+            32
+          ],
+          "candidate_lines": [
+            23
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "parameter_added",
+          "method": "plot",
+          "parameter": "marker",
+          "after": [
+            "markers[i]",
+            "markers[i]"
+          ],
+          "message": "新增显式参数；核对其用途。",
+          "source_lines": [
+            32
+          ],
+          "candidate_lines": [
+            23
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "style_changed",
+          "method": "plot",
+          "parameter": "markeredgewidth",
+          "before": [
+            1.2
+          ],
+          "after": [
+            0.55,
+            0.55
+          ],
+          "message": "按源码出现/可展开循环顺序比较；结合卡片核对用途，不自动判错。",
+          "source_lines": [
+            32
+          ],
+          "candidate_lines": [
+            23
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "unresolved",
+          "method": "plot",
+          "parameter": "markersize",
+          "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+          "before": [
+            "7 if is_ours else 5"
+          ],
+          "after": [
+            "3.7",
+            "3.7"
+          ],
+          "source_lines": [
+            32
+          ],
+          "candidate_lines": [
+            23
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "style_changed",
+          "method": "scatter",
+          "parameter": "linewidth",
+          "before": [
+            2
+          ],
+          "after": [
+            0.6,
+            0.6
+          ],
+          "message": "按源码出现/可展开循环顺序比较；结合卡片核对用途，不自动判错。",
+          "source_lines": [
+            38
+          ],
+          "candidate_lines": [
+            28
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "parameter_added",
+          "method": "subplots",
+          "parameter": "arg0",
+          "after": [
+            1
+          ],
+          "message": "新增显式参数；核对其用途。",
+          "source_lines": [
+            15
+          ],
+          "candidate_lines": [
+            10
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "parameter_added",
+          "method": "subplots",
+          "parameter": "arg1",
+          "after": [
+            3
+          ],
+          "message": "新增显式参数；核对其用途。",
+          "source_lines": [
+            15
+          ],
+          "candidate_lines": [
+            10
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "layout_changed",
+          "method": "subplots",
+          "parameter": "figsize",
+          "before": [
+            [
+              8,
+              5
+            ]
+          ],
+          "after": [
+            [
+              7.2,
+              3.8
+            ]
+          ],
+          "message": "按源码出现/可展开循环顺序比较；结合卡片核对用途，不自动判错。",
+          "source_lines": [
+            15
+          ],
+          "candidate_lines": [
+            10
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "parameter_added",
+          "method": "subplots",
+          "parameter": "sharex",
+          "after": [
+            true
+          ],
+          "message": "新增显式参数；核对其用途。",
+          "source_lines": [
+            15
+          ],
+          "candidate_lines": [
+            10
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "parameter_added",
+          "method": "subplots",
+          "parameter": "sharey",
+          "after": [
+            true
+          ],
+          "message": "新增显式参数；核对其用途。",
+          "source_lines": [
+            15
+          ],
+          "candidate_lines": [
+            10
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "call_added",
+          "method": "subplots_adjust",
+          "candidate_lines": [
+            11
+          ],
+          "message": "新增调用；核对数据依据及布局用途，必要适配允许保留。",
+          "source_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "call_added",
+          "method": "text",
+          "candidate_lines": [
+            31,
+            45,
+            47,
+            48
+          ],
+          "message": "新增调用；核对数据依据及布局用途，必要适配允许保留。",
+          "source_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "operation_not_found",
+          "method": "tight_layout",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            56
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "repetition_changed",
+          "methods": [
+            "plot",
+            "scatter"
+          ],
+          "message": "样式值及其周期内顺序相同，重复次数不同；可能来自组数或循环组织变化。若重复用于叠加透明图层，仍需核对层数。",
+          "severity": "advisory"
+        }
+      ],
+      "baseline_calls": 9,
+      "candidate_calls": 11,
+      "verdict": "仅提供源码差异线索，不判定视觉通过或失败。即使无提示，仍需按现有流程对照实图。",
+      "limits": "不执行代码、不判断分支实际运行、不跨辅助文件追踪，不验证坐标语义或最终层次是否可见。",
+      "template_id": "basic.line",
+      "baseline": ".vivid\\template-sources\\1027bda6956674cdc12788be.py",
+      "candidate": "figures\\plot_retention.py",
+      "checkpoints": [
+        {
+          "feature": "三层色带的外缘可见性",
+          "preserve": "区间由外向内收窄，alpha 按 0.15→0.08→0.03 对应外、中、内层。保留宽度与透明度的对应关系，不能仅因三层都存在就认定保真。",
+          "allowed_adaptation": "以真实 SD/SE/CI 或明确的范围替换模拟宽度；区间含义、宽度和坐标可变。数据不支持区间时不造数，并说明省略。",
+          "evidence": [
+            {
+              "line": 24,
+              "end_line": 29,
+              "code": "    noise = stds[name]\n\n    # 渐变填充置信带\n    for layer, alpha in enumerate([0.15, 0.08, 0.03]):\n        ax.fill_between(x, y - noise * (1 - layer * 0.2), y + noise * (1 - layer * 0.2),\n                        alpha=alpha, color=PALETTE[i], linewidth=0)",
+              "href": "sources/basic.line/original.html#L24"
+            }
+          ]
+        },
+        {
+          "feature": "主次折线、白边点和极值",
+          "preserve": "保留主次线宽、不同点形、白色点边及有数据依据的极值标记；换色不应覆盖这些设置。",
+          "allowed_adaptation": "主序列身份、点数、极值方向和标注位置按任务变化；没有主序列时不虚构主次。",
+          "evidence": [
+            {
+              "line": 31,
+              "end_line": 46,
+              "code": "    # 主折线\n    ax.plot(x, y, f'{markers[i]}-', color=PALETTE[i],\n            linewidth=2.5 if is_ours else 1.8, markersize=7 if is_ours else 5,\n            markeredgecolor='white', markeredgewidth=1.2, label=name, zorder=3)\n\n    # 极值标注（最大值）\n    max_idx = np.argmax(y)\n    ax.scatter(x[max_idx], y[max_idx], s=120 if is_ours else 80, color=PALETTE[i],\n               edgecolor='white', linewidth=2, zorder=4, marker='*')\n    if is_ours:\n        ax.annotate(f'★ {y[max_idx]:.1f}',\n                    xy=(x[max_idx], y[max_idx]),\n                    xytext=(x[max_idx] - 1.5, y[max_idx] + 3),\n                    fontsize=9, fontweight='bold', color=PALETTE[i],\n                    arrowprops=dict(arrowstyle='->', color=PALETTE[i], lw=1.2),\n                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white',",
+              "href": "sources/basic.line/original.html#L31"
+            }
+          ]
+        }
+      ],
+      "source_diff": "--- template\n+++ adapted\n@@ -1,57 +1,49 @@\n+\"\"\"Adapted from Vivid basic.line; actual single-run curves, no invented bands.\"\"\"\n import numpy as np\n+import pandas as pd\n import matplotlib.pyplot as plt\n-from _utils.plot_utils import setup_style, save_fig, PALETTE, COLORS, _lighten\n-setup_style()\n+from figure_common import HERE, setup, save, pu\n \n-x = np.arange(2015, 2025)\n-series = {\n-    '本文方法': np.array([72, 75, 78, 80, 83, 85, 87, 89, 91, 92]),\n-    '方法B':    np.array([70, 73, 76, 79, 81, 82, 84, 86, 88, 89]),\n-    '方法C':    np.array([68, 70, 72, 75, 77, 79, 80, 82, 83, 84]),\n-}\n-markers = ['o', 's', '^']\n-stds = {k: np.random.uniform(1.5, 3.0, len(v)) for k, v in series.items()}\n-\n-fig, ax = plt.subplots(figsize=(8, 5))\n-\n-# 淡色背景渐变\n-ax.axhspan(min(min(v) for v in series.values()) - 5,\n-           max(max(v) for v in series.values()) + 5,\n-           alpha=0.02, color=PALETTE[0], zorder=0)\n-\n-for i, (name, y) in enumerate(series.items()):\n-    is_ours = '本文' in name\n-    noise = stds[name]\n-\n-    # 渐变填充置信带\n-    for layer, alpha in enumerate([0.15, 0.08, 0.03]):\n-        ax.fill_between(x, y - noise * (1 - layer * 0.2), y + noise * (1 - layer * 0.2),\n-                        alpha=alpha, color=PALETTE[i], linewidth=0)\n-\n-    # 主折线\n-    ax.plot(x, y, f'{markers[i]}-', color=PALETTE[i],\n-            linewidth=2.5 if is_ours else 1.8, markersize=7 if is_ours else 5,\n-            markeredgecolor='white', markeredgewidth=1.2, label=name, zorder=3)\n-\n-    # 极值标注（最大值）\n-    max_idx = np.argmax(y)\n-    ax.scatter(x[max_idx], y[max_idx], s=120 if is_ours else 80, color=PALETTE[i],\n-               edgecolor='white', linewidth=2, zorder=4, marker='*')\n-    if is_ours:\n-        ax.annotate(f'★ {y[max_idx]:.1f}',\n-                    xy=(x[max_idx], y[max_idx]),\n-                    xytext=(x[max_idx] - 1.5, y[max_idx] + 3),\n-                    fontsize=9, fontweight='bold', color=PALETTE[i],\n-                    arrowprops=dict(arrowstyle='->', color=PALETTE[i], lw=1.2),\n-                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white',\n-                              edgecolor=PALETTE[i], alpha=0.9))\n-\n-ax.set_xlabel('年份', fontsize=11)\n-ax.set_ylabel('准确率 (%)', fontsize=11)\n-ax.legend(frameon=False, labelspacing=0.35, handlelength=1.6, fontsize=9, loc='best')\n-ax.set_xticks(x)\n-ax.grid(alpha=0.12, linestyle='--', color=COLORS['grid'])\n-ax.spines['top'].set_visible(False)\n-ax.spines['right'].set_visible(False)\n-fig.tight_layout()\n-save_fig(fig, 'figures/fig_line.pdf')\n+setup()\n+curves = pd.read_csv(HERE / 'data/training_curves.csv')\n+summary = pd.read_csv(HERE / 'data/retention_summary.csv').set_index(['partition', 'method'])\n+fig, axes = plt.subplots(1, 3, figsize=(7.2, 3.8), sharex=True, sharey=True)\n+fig.subplots_adjust(left=.085, right=.985, bottom=.31, top=.71, wspace=.16)\n+methods = [('j', '(a) J: joint A/B updates'), ('s', '(b) S: frequent A updates'),\n+           ('e3', '(c) E3: periodic A updates')]\n+partitions = [('client-longtail', 'Client-LT'), ('noniid-labeldir-fine', 'Class-wise Dirichlet')]\n+markers, styles = ['o', 's'], ['-', '--']\n+colors = [pu.PALETTE[2], pu.PALETTE[0]]\n+for ax, (method, title) in zip(axes, methods):\n+    for i, (partition, name) in enumerate(partitions):\n+        run = curves[(curves.partition == partition) & (curves.method == method)]\n+        x, y = run['round'].to_numpy(), run.bottom20_tail_acc.to_numpy()\n+        is_focus = partition == 'client-longtail'\n+        # One run per condition: template confidence bands intentionally omitted.\n+        ax.plot(x, y, linestyle=styles[i], marker=markers[i], markevery=10,\n+                color=colors[i], linewidth=1.6 if is_focus else 1.3,\n+                markersize=3.7, markeredgecolor='white', markeredgewidth=.55,\n+                label=name, zorder=3)\n+        max_idx = np.argmax(y)\n+        ax.scatter(x[max_idx], y[max_idx], s=48, color=colors[i],\n+                   edgecolor='white', linewidth=.6, zorder=4, marker='*')\n+        r = summary.loc[(partition, method)]\n+        ax.text(.03, -.47 - i * .14,\n+                f'{name}: {r.peak_to_final_pp:.2f} pp', transform=ax.transAxes,\n+                color=colors[i], fontsize=8)\n+    ax.set_title(title, loc='left', pad=8, fontsize=8)\n+    ax.set_xlabel('Communication round')\n+    ax.set_xlim(0, 100)\n+    ax.set_xticks([0, 50, 100])\n+    ax.set_ylim(58, 75)\n+    ax.set_yticks([60, 65, 70, 75])\n+    ax.grid(axis='y', alpha=.22, linestyle='--', color=pu.COLORS['grid'])\n+    ax.tick_params(length=3)\n+axes[0].set_ylabel('Tail20 accuracy (%)')\n+fig.legend(*axes[0].get_legend_handles_labels(), loc='upper center',\n+           bbox_to_anchor=(.53, .855), ncol=2, frameon=False)\n+fig.text(.085, .97, 'Tail accuracy decline depends on the update strategy', fontsize=11,\n+         fontweight='bold', va='top')\n+fig.text(.085, .91, 'Same sample pool | rank-4 LoRA + LA | split / training seed 42 | no smoothing', fontsize=8)\n+fig.text(.085, .172, 'Peak-to-final decrease (percentage points):', fontsize=8, fontweight='bold')\n+save(fig, 'retention_comparison')\n"
+    },
+    {
+      "findings": [
+        {
+          "kind": "operation_not_found",
+          "method": "GridSpec",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            28
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "call_added",
+          "method": "Rectangle",
+          "candidate_lines": [
+            32
+          ],
+          "message": "新增调用；核对数据依据及布局用途，必要适配允许保留。",
+          "source_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "call_added",
+          "method": "add_axes",
+          "candidate_lines": [
+            68
+          ],
+          "message": "新增调用；核对数据依据及布局用途，必要适配允许保留。",
+          "source_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "call_added",
+          "method": "add_gridspec",
+          "candidate_lines": [
+            80
+          ],
+          "message": "新增调用；核对数据依据及布局用途，必要适配允许保留。",
+          "source_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "call_added",
+          "method": "add_patch",
+          "candidate_lines": [
+            32
+          ],
+          "message": "新增调用；核对数据依据及布局用途，必要适配允许保留。",
+          "source_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "unresolved",
+          "method": "add_subplot",
+          "parameter": "arg0",
+          "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+          "before": [
+            "gs[1, 0]",
+            "gs[0, 0]",
+            "gs[1, 1]"
+          ],
+          "after": [
+            "inner[1, 0]",
+            "inner[0, 0]",
+            "inner[1, 1]"
+          ],
+          "source_lines": [
+            29,
+            39,
+            43
+          ],
+          "candidate_lines": [
+            18,
+            44,
+            54
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "call_added",
+          "method": "axhline",
+          "candidate_lines": [
+            27,
+            31
+          ],
+          "message": "新增调用；核对数据依据及布局用途，必要适配允许保留。",
+          "source_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "call_added",
+          "method": "axvline",
+          "candidate_lines": [
+            29,
+            30
+          ],
+          "message": "新增调用；核对数据依据及布局用途，必要适配允许保留。",
+          "source_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "call_added",
+          "method": "colorbar",
+          "candidate_lines": [
+            70,
+            91
+          ],
+          "message": "新增调用；核对数据依据及布局用途，必要适配允许保留。",
+          "source_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "layout_changed",
+          "method": "figure",
+          "parameter": "figsize",
+          "before": [
+            [
+              12,
+              6
+            ]
+          ],
+          "after": [
+            [
+              7.2,
+              4.5
+            ]
+          ],
+          "message": "按源码出现/可展开循环顺序比较；结合卡片核对用途，不自动判错。",
+          "source_lines": [
+            27
+          ],
+          "candidate_lines": [
+            79
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "parameter_not_found",
+          "method": "imshow",
+          "parameter": "vmax",
+          "message": "原模板显式参数未在此类调用中找到；核对默认值或等价实现。",
+          "source_lines": [
+            30
+          ],
+          "candidate_lines": [
+            24
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "parameter_not_found",
+          "method": "imshow",
+          "parameter": "vmin",
+          "message": "原模板显式参数未在此类调用中找到；核对默认值或等价实现。",
+          "source_lines": [
+            30
+          ],
+          "candidate_lines": [
+            24
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "operation_not_found",
+          "method": "plot",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            35,
+            36
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "operation_not_found",
+          "method": "rcParams",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            14,
+            18
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "operation_not_found",
+          "method": "subplots_adjust",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            53
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "call_sites_changed",
+          "method": "text",
+          "before": 3,
+          "after": 5,
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            52,
+            89,
+            92,
+            94
+          ],
+          "message": "独立调用位置数量变化（不是组数展开次数）；核对新增/删除图层。",
+          "severity": "advisory"
+        },
+        {
+          "kind": "style_changed",
+          "method": "text",
+          "parameter": "fontsize",
+          "before": [
+            6,
+            6,
+            7
+          ],
+          "after": [
+            8,
+            8,
+            8,
+            8,
+            11,
+            8
+          ],
+          "message": "按源码出现/可展开循环顺序比较；结合卡片核对用途，不自动判错。",
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            52,
+            89,
+            92,
+            94
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "unresolved",
+          "method": "text",
+          "parameter": "ha",
+          "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+          "before": [
+            "'center'",
+            "'center'",
+            "'right' if v > 0 else 'left'"
+          ],
+          "after": [
+            "'right'"
+          ],
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            52,
+            89,
+            92,
+            94
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "unresolved",
+          "method": "text",
+          "parameter": "text",
+          "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+          "before": [
+            "f'{v:.1f}'",
+            "f'{v:.1f}'",
+            "f'{v:.1f}'"
+          ],
+          "after": [
+            "'Samples / class'",
+            "str(int(bar_data_year[-1]))",
+            "f'Top 3 by tail count: {share:.1f}% of tail samples'",
+            "f'Top 3 by tail count: {share:.1f}% of tail samples'",
+            "'Same global sample pool; different client allocation'",
+            "'CIFAR-100-LT | IF = 100 | 30 clients | split seed 42'"
+          ],
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            52,
+            89,
+            92,
+            94
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "unresolved",
+          "method": "text",
+          "parameter": "va",
+          "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+          "before": [
+            "'center'",
+            "'bottom' if v > 0 else 'top'",
+            "'center'"
+          ],
+          "after": [
+            "'top'"
+          ],
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            52,
+            89,
+            92,
+            94
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "unresolved",
+          "method": "text",
+          "parameter": "x",
+          "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+          "before": [
+            "j",
+            "i",
+            "v - 1 if v > 0 else v + 1"
+          ],
+          "after": [
+            "0.02",
+            "99",
+            "x",
+            "x",
+            "0.08",
+            "0.08"
+          ],
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            52,
+            89,
+            92,
+            94
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "unresolved",
+          "method": "text",
+          "parameter": "y",
+          "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+          "before": [
+            "i",
+            "v + (0.2 if v > 0 else -0.8)",
+            "i"
+          ],
+          "after": [
+            "0.84",
+            "160",
+            "0.2",
+            "0.2",
+            "0.95",
+            "0.892"
+          ],
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            52,
+            89,
+            92,
+            94
+          ],
+          "severity": "advisory"
+        }
+      ],
+      "baseline_calls": 16,
+      "candidate_calls": 23,
+      "verdict": "仅提供源码差异线索，不判定视觉通过或失败。即使无提示，仍需按现有流程对照实图。",
+      "limits": "不执行代码、不判断分支实际运行、不跨辅助文件追踪，不验证坐标语义或最终层次是否可见。",
+      "template_id": "screenshot.marginal_heatmap",
+      "baseline": ".vivid\\template-sources\\6fea2fc8fa2b96f8d6b51b19.py",
+      "candidate": "figures\\plot_partition.py",
+      "checkpoints": [
+        {
+          "title": "带边际柱形的表格热图的完整视觉结构",
+          "preserve": "热图文本、白格线、上方列和、右方行和及数值；保留源码中对应的独立绘制层和视觉编码。",
+          "allowed_adaptation": "有行列标签的数值矩阵，边际求和有意义；可调整数据、标签、尺寸、视角及配色角色，但各色阶、透明度、轮廓和图例语义需对应。",
+          "evidence": [
+            {
+              "line": 30,
+              "end_line": 30,
+              "code": "ax_heatmap.imshow(data,cmap=cmap,aspect='auto',vmin=-np.max(np.abs(data)),vmax=np.max(np.abs(data)))",
+              "href": "sources/screenshot.marginal_heatmap/restored.html#L30"
+            },
+            {
+              "line": 34,
+              "end_line": 34,
+              "code": "        ax_heatmap.text(j,i,f'{v:.1f}',ha='center',va='center',fontsize=6,color=color,fontweight='bold')",
+              "href": "sources/screenshot.marginal_heatmap/restored.html#L34"
+            },
+            {
+              "line": 35,
+              "end_line": 35,
+              "code": "for i in range(data.shape[0]+1):ax_heatmap.plot([-.5,data.shape[1]-.5],[i-.5]*2,color='white',linewidth=1)",
+              "href": "sources/screenshot.marginal_heatmap/restored.html#L35"
+            },
+            {
+              "line": 40,
+              "end_line": 40,
+              "code": "ax_top.bar(np.arange(len(years)),bar_data_year,color=[palette_stops('diverging')[0] if v<0 else palette_stops('diverging')[-1] for v in bar_data_year])",
+              "href": "sources/screenshot.marginal_heatmap/restored.html#L40"
+            },
+            {
+              "line": 44,
+              "end_line": 44,
+              "code": "ax_right.barh(np.arange(len(months)),bar_data_month,color=[palette_stops('diverging')[0] if v<0 else palette_stops('diverging')[-1] for v in bar_data_month])",
+              "href": "sources/screenshot.marginal_heatmap/restored.html#L44"
+            }
+          ]
+        }
+      ],
+      "source_diff": "--- template\n+++ adapted\n@@ -1,54 +1,98 @@\n-\"\"\"带边际柱形的表格热图\n-Restored/adapted from supplied screenshots [79, 80, 81, 82, 83].\n-Source: 小明的代码美学 (as shown in supplied screenshots).\n-This is a runnable restoration, not a byte-for-byte original source file.\n-See SOURCE.md for missing inputs and documented corrections.\n+\"\"\"Adapted in-place from Vivid screenshot.marginal_heatmap.\n+Keeps the heatmap + column totals + row totals. Dense cells are not labelled;\n+selected numerical margins and structural annotations replace tiny cell text.\n+The original complete recipe is retained under .vivid/template-sources.\n \"\"\"\n-import numpy as np; from _utils.palette_maps import palette_cmap, palette_stops, contrast_text\n+import numpy as np\n import pandas as pd\n import matplotlib.pyplot as plt\n-from matplotlib.colors import LinearSegmentedColormap, Normalize, to_hex\n+from matplotlib.colors import Normalize\n from matplotlib.cm import ScalarMappable\n-from pathlib import Path\n-# Missing .mplstyle files are replaced only by explicit, portable display defaults.\n-plt.rcParams.update({'font.sans-serif':['Microsoft YaHei','DejaVu Sans'],\n- 'axes.unicode_minus':False,'figure.facecolor':'white','axes.facecolor':'white',\n- 'axes.spines.top':False,'axes.spines.right':False,'font.size':9})\n-from matplotlib.gridspec import GridSpec\n-plt.rcParams.update({'axes.edgecolor':'white','xtick.major.size':0,'ytick.major.size':0,'xtick.labelsize':7,'ytick.labelsize':7,'text.color':'#3680ae','xtick.color':'#3680ae','ytick.color':'#3680ae'})\n-cmap=LinearSegmentedColormap.from_list('custom',palette_stops('diverging',count=5),N=300)\n-years=np.arange(1985,2021)\n-months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']\n-np.random.seed(10)\n-data=np.random.uniform(-1,1,(len(months),len(years)))\n-for i in range(len(months)):data[i]+=np.linspace(-1,2,len(years))\n-data+=np.random.uniform(-1.5,1.5,data.shape)\n-bar_data_year=data.sum(axis=0);bar_data_month=data.sum(axis=1)\n-fig=plt.figure(figsize=(12,6),dpi=150)\n-gs=GridSpec(2,2,width_ratios=[10,1.5],height_ratios=[1,2],wspace=.04,hspace=.05)\n-ax_heatmap=fig.add_subplot(gs[1,0])\n-ax_heatmap.imshow(data,cmap=cmap,aspect='auto',vmin=-np.max(np.abs(data)),vmax=np.max(np.abs(data)))\n-for i in range(data.shape[0]):\n-    for j in range(data.shape[1]):\n-        v=data[i,j];color=contrast_text(cmap((v/np.max(np.abs(data))+1)/2))\n-        ax_heatmap.text(j,i,f'{v:.1f}',ha='center',va='center',fontsize=6,color=color,fontweight='bold')\n-for i in range(data.shape[0]+1):ax_heatmap.plot([-.5,data.shape[1]-.5],[i-.5]*2,color='white',linewidth=1)\n-for j in range(data.shape[1]+1):ax_heatmap.plot([j-.5]*2,[-.5,data.shape[0]-.5],color='white',linewidth=1)\n-ax_heatmap.set_xticks(np.arange(len(years)),years,rotation=90,fontweight='bold')\n-ax_heatmap.set_yticks(np.arange(len(months)),months,fontweight='bold')\n-ax_top=fig.add_subplot(gs[0,0],sharex=ax_heatmap)\n-ax_top.bar(np.arange(len(years)),bar_data_year,color=[palette_stops('diverging')[0] if v<0 else palette_stops('diverging')[-1] for v in bar_data_year])\n-ax_top.tick_params(axis='both',bottom=False,left=False,labelbottom=False,labelleft=False)\n-ax_top.grid(False)\n-ax_right=fig.add_subplot(gs[1,1],sharey=ax_heatmap)\n-ax_right.barh(np.arange(len(months)),bar_data_month,color=[palette_stops('diverging')[0] if v<0 else palette_stops('diverging')[-1] for v in bar_data_month])\n-ax_right.tick_params(axis='both',bottom=False,left=False,labelbottom=False,labelleft=False)\n-ax_right.grid(False)\n-for i,v in enumerate(bar_data_year):\n-    ax_top.text(i,v+(.2 if v>0 else -.8),f'{v:.1f}',ha='center',va='bottom' if v>0 else 'top',fontsize=6,color=palette_stops('diverging')[-1] if v>0 else palette_stops('diverging')[0],fontweight='bold')\n-ax_top.margins(y=.25)\n-for i,v in enumerate(bar_data_month):\n-    ax_right.text(v-1 if v>0 else v+1,i,f'{v:.1f}',ha='right' if v>0 else 'left',va='center',fontsize=7,color='white',fontweight='bold')\n-fig.suptitle('表格热图与边际汇总',x=.06,y=.98,ha='left',fontsize=22,color='#3680ae')\n-fig.subplots_adjust(left=.06,bottom=.14,right=.97,top=.88)\n-plt.show()\n+from matplotlib.patches import Rectangle\n+from figure_common import HERE, setup, save, pu, palette_cmap\n+\n+\n+def marginal_panel(fig, gs, data, title, right_max=700, label_y=True, normalized=False):\n+    inner = gs.subgridspec(2, 2, width_ratios=[8, 1.35], height_ratios=[1, 3.1],\n+                          wspace=.08, hspace=.08)\n+    ax_heatmap = fig.add_subplot(inner[1, 0])\n+    cmap = palette_cmap('sequential')\n+    cmap.set_bad('white')\n+    norm = Normalize(0, 100 if normalized else np.log10(501))\n+    values = 100 * data / data.sum(axis=0) if normalized else np.log10(data + 1)\n+    shown = np.ma.masked_where(data == 0, values)\n+    ax_heatmap.imshow(shown, cmap=cmap, norm=norm, aspect='auto', interpolation='none')\n+    # Preserve white cell boundaries from the recipe, at a scale for 30 x 100 cells.\n+    for i in range(data.shape[0] + 1):\n+        ax_heatmap.axhline(i - .5, color='white', linewidth=.10)\n+    for j in range(data.shape[1] + 1):\n+        ax_heatmap.axvline(j - .5, color='white', linewidth=.08)\n+    ax_heatmap.axvline(79.5, color=pu.PALETTE[2], linewidth=1)\n+    ax_heatmap.axhline(26.5, color='#333333', linestyle='--', linewidth=.8)\n+    ax_heatmap.add_patch(Rectangle((79.5, 26.5), 20, 3, fill=False,\n+                                  edgecolor='#222222', linewidth=1.1))\n+    ax_heatmap.set_xticks([0, 40, 79, 99], ['0', '40', '79', '99'])\n+    ax_heatmap.set_yticks([0, 14, 26, 29], ['0', '14', '26', '29'])\n+    ax_heatmap.tick_params(length=2, pad=2)\n+    ax_heatmap.set_xlabel('Class ID (tail: 80–99)')\n+    if label_y:\n+        ax_heatmap.set_ylabel('Client ID')\n+    ax_heatmap.set_xlim(-.5, 99.5)\n+    ax_heatmap.set_ylim(29.5, -.5)\n+    bar_data_year = data.sum(axis=0)\n+    bar_data_month = data.sum(axis=1)\n+    ax_top = fig.add_subplot(inner[0, 0], sharex=ax_heatmap)\n+    ax_top.bar(np.arange(100), bar_data_year, width=1,\n+               color=[pu.PALETTE[0]] * 80 + [pu.PALETTE[2]] * 20)\n+    ax_top.set_ylim(0, 580)\n+    ax_top.set_yticks([0, 500])\n+    ax_top.tick_params(bottom=False, labelbottom=False, length=2, pad=2)\n+    ax_top.set_title(title, loc='left', pad=13, fontsize=9, fontweight='bold')\n+    ax_top.text(.02, .84, 'Samples / class', transform=ax_top.transAxes, fontsize=8)\n+    ax_top.text(99, 160, str(int(bar_data_year[-1])), ha='right', fontsize=8,\n+                color=pu.PALETTE[2])\n+    ax_right = fig.add_subplot(inner[1, 1], sharey=ax_heatmap)\n+    ax_right.barh(np.arange(30), bar_data_month, height=.83,\n+                 color=[pu.PALETTE[0]] * 27 + [pu.PALETTE[2]] * 3)\n+    ax_right.set_xlim(0, right_max)\n+    ax_right.set_xticks([0, right_max])\n+    ax_right.tick_params(left=False, labelleft=False, length=2, pad=2)\n+    ax_right.set_title('Samples\\n/ client', fontsize=8, pad=5)\n+    ax_right.set_ylim(29.5, -.5)\n+    for ax in (ax_top, ax_right):\n+        ax.grid(False)\n+    return ScalarMappable(norm=norm, cmap=cmap)\n+\n+\n+def colorbar(fig, mappable, y=.12, normalized=False):\n+    cax = fig.add_axes([.33, y, .34, .026])\n+    ticks = [0, 20, 40, 60, 80, 100] if normalized else np.log10(np.array([0, 1, 5, 20, 100, 500]) + 1)\n+    cb = fig.colorbar(mappable, cax=cax, orientation='horizontal', ticks=ticks)\n+    cb.ax.set_xticklabels(['0', '20', '40', '60', '80', '100'] if normalized else ['0', '1', '5', '20', '100', '500'])\n+    cb.ax.tick_params(length=2, pad=2)\n+    cb.set_label('Share of each class at a client (%; white = 0)' if normalized else\n+                 'Samples per cell (log scale; white = 0)', labelpad=3)\n+\n+\n+def main():\n+    setup()\n+    fig = plt.figure(figsize=(7.2, 4.5))\n+    gs = fig.add_gridspec(1, 2, left=.08, right=.96, bottom=.31, top=.82, wspace=.29)\n+    stats = pd.read_csv(HERE / 'data/partition_summary.csv').set_index('partition')\n+    for i, (partition, title) in enumerate([\n+        ('noniid-labeldir-fine', r'(a) Class-wise Dirichlet, $\\beta=0.5$'),\n+        ('client-longtail', r'(b) Client-LT, $\\lambda_T=0.75$')]):\n+        matrix = pd.read_csv(HERE / f'data/counts_{partition}.csv').iloc[:, 1:].to_numpy()\n+        sm = marginal_panel(fig, gs[i], matrix, title, label_y=(i == 0), normalized=True)\n+        share = 100 * stats.loc[partition, 'largest3_tail_share']\n+        x = .08 if i == 0 else .572\n+        fig.text(x, .20, f'Top 3 by tail count: {share:.1f}% of tail samples', fontsize=8,\n+                 fontweight='bold')\n+    colorbar(fig, sm, y=.10, normalized=True)\n+    fig.text(.08, .95, 'Same global sample pool; different client allocation', fontsize=11,\n+             fontweight='bold', va='top')\n+    fig.text(.08, .892, 'CIFAR-100-LT | IF = 100 | 30 clients | split seed 42', fontsize=8)\n+    save(fig, 'partition_comparison')\n+\n+if __name__ == '__main__':\n+    main()\n"
+    },
+    {
+      "findings": [
+        {
+          "kind": "operation_not_found",
+          "method": "GridSpec",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            28
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "call_added",
+          "method": "add_gridspec",
+          "candidate_lines": [
+            23
+          ],
+          "message": "新增调用；核对数据依据及布局用途，必要适配允许保留。",
+          "source_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "operation_not_found",
+          "method": "add_subplot",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            29,
+            39,
+            43
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "operation_not_found",
+          "method": "bar",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            40
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "operation_not_found",
+          "method": "barh",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            44
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "call_added",
+          "method": "colorbar",
+          "candidate_lines": [
+            50
+          ],
+          "message": "新增调用；核对数据依据及布局用途，必要适配允许保留。",
+          "source_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "layout_changed",
+          "method": "figure",
+          "parameter": "figsize",
+          "before": [
+            [
+              12,
+              6
+            ]
+          ],
+          "after": [
+            [
+              7.2,
+              6.9
+            ]
+          ],
+          "message": "按源码出现/可展开循环顺序比较；结合卡片核对用途，不自动判错。",
+          "source_lines": [
+            27
+          ],
+          "candidate_lines": [
+            22
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "operation_not_found",
+          "method": "imshow",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            30
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "operation_not_found",
+          "method": "plot",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            35,
+            36
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "operation_not_found",
+          "method": "rcParams",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            14,
+            18
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "operation_not_found",
+          "method": "subplots_adjust",
+          "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+          "source_lines": [
+            53
+          ],
+          "candidate_lines": [],
+          "severity": "advisory"
+        },
+        {
+          "kind": "call_sites_changed",
+          "method": "text",
+          "before": 3,
+          "after": 4,
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            53,
+            54,
+            55
+          ],
+          "message": "独立调用位置数量变化（不是组数展开次数）；核对新增/删除图层。",
+          "severity": "advisory"
+        },
+        {
+          "kind": "style_changed",
+          "method": "text",
+          "parameter": "fontsize",
+          "before": [
+            6,
+            6,
+            7
+          ],
+          "after": [
+            11,
+            8,
+            8,
+            8
+          ],
+          "message": "按源码出现/可展开循环顺序比较；结合卡片核对用途，不自动判错。",
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            53,
+            54,
+            55
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "parameter_not_found",
+          "method": "text",
+          "parameter": "ha",
+          "message": "原模板显式参数未在此类调用中找到；核对默认值或等价实现。",
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            53,
+            54,
+            55
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "unresolved",
+          "method": "text",
+          "parameter": "text",
+          "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+          "before": [
+            "f'{v:.1f}'",
+            "f'{v:.1f}'",
+            "f'{v:.1f}'"
+          ],
+          "after": [
+            "'Two controls: class imbalance and client concentration'",
+            "'Across: $\\\\lambda_T$ increases  |  Down: IF increases  |  $\\\\alpha_T=0.5$, $q_T=0.1$, $\\\\rho=3$'",
+            "'Partition construction only; these four panels are not training results.'",
+            "'$\\\\lambda_T=0$ is still Client-LT; it is not class-wise Dirichlet.'"
+          ],
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            53,
+            54,
+            55
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "unresolved",
+          "method": "text",
+          "parameter": "va",
+          "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+          "before": [
+            "'center'",
+            "'bottom' if v > 0 else 'top'",
+            "'center'"
+          ],
+          "after": [
+            "'top'"
+          ],
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            53,
+            54,
+            55
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "unresolved",
+          "method": "text",
+          "parameter": "x",
+          "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+          "before": [
+            "j",
+            "i",
+            "v - 1 if v > 0 else v + 1"
+          ],
+          "after": [
+            "0.08",
+            "0.08",
+            "0.08",
+            "0.08"
+          ],
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            53,
+            54,
+            55
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "unresolved",
+          "method": "text",
+          "parameter": "y",
+          "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+          "before": [
+            "i",
+            "v + (0.2 if v > 0 else -0.8)",
+            "i"
+          ],
+          "after": [
+            "0.975",
+            "0.926",
+            "0.883",
+            "0.024"
+          ],
+          "source_lines": [
+            34,
+            48,
+            51
+          ],
+          "candidate_lines": [
+            51,
+            53,
+            54,
+            55
+          ],
+          "severity": "advisory"
+        },
+        {
+          "kind": "repetition_changed",
+          "methods": [
+            "text"
+          ],
+          "message": "样式值及其周期内顺序相同，重复次数不同；可能来自组数或循环组织变化。若重复用于叠加透明图层，仍需核对层数。",
+          "severity": "advisory"
+        }
+      ],
+      "baseline_calls": 16,
+      "candidate_calls": 7,
+      "verdict": "仅提供源码差异线索，不判定视觉通过或失败。即使无提示，仍需按现有流程对照实图。",
+      "limits": "不执行代码、不判断分支实际运行、不跨辅助文件追踪，不验证坐标语义或最终层次是否可见。",
+      "template_id": "screenshot.marginal_heatmap",
+      "baseline": ".vivid\\template-sources\\b01e020c1e236c1cdb08a325.py",
+      "candidate": "figures\\plot_two_axes.py",
+      "checkpoints": [
+        {
+          "title": "带边际柱形的表格热图的完整视觉结构",
+          "preserve": "热图文本、白格线、上方列和、右方行和及数值；保留源码中对应的独立绘制层和视觉编码。",
+          "allowed_adaptation": "有行列标签的数值矩阵，边际求和有意义；可调整数据、标签、尺寸、视角及配色角色，但各色阶、透明度、轮廓和图例语义需对应。",
+          "evidence": [
+            {
+              "line": 30,
+              "end_line": 30,
+              "code": "ax_heatmap.imshow(data,cmap=cmap,aspect='auto',vmin=-np.max(np.abs(data)),vmax=np.max(np.abs(data)))",
+              "href": "sources/screenshot.marginal_heatmap/restored.html#L30"
+            },
+            {
+              "line": 34,
+              "end_line": 34,
+              "code": "        ax_heatmap.text(j,i,f'{v:.1f}',ha='center',va='center',fontsize=6,color=color,fontweight='bold')",
+              "href": "sources/screenshot.marginal_heatmap/restored.html#L34"
+            },
+            {
+              "line": 35,
+              "end_line": 35,
+              "code": "for i in range(data.shape[0]+1):ax_heatmap.plot([-.5,data.shape[1]-.5],[i-.5]*2,color='white',linewidth=1)",
+              "href": "sources/screenshot.marginal_heatmap/restored.html#L35"
+            },
+            {
+              "line": 40,
+              "end_line": 40,
+              "code": "ax_top.bar(np.arange(len(years)),bar_data_year,color=[palette_stops('diverging')[0] if v<0 else palette_stops('diverging')[-1] for v in bar_data_year])",
+              "href": "sources/screenshot.marginal_heatmap/restored.html#L40"
+            },
+            {
+              "line": 44,
+              "end_line": 44,
+              "code": "ax_right.barh(np.arange(len(months)),bar_data_month,color=[palette_stops('diverging')[0] if v<0 else palette_stops('diverging')[-1] for v in bar_data_month])",
+              "href": "sources/screenshot.marginal_heatmap/restored.html#L44"
+            }
+          ]
+        }
+      ],
+      "source_diff": "--- template\n+++ adapted\n@@ -1,54 +1,57 @@\n-\"\"\"带边际柱形的表格热图\n-Restored/adapted from supplied screenshots [79, 80, 81, 82, 83].\n-Source: 小明的代码美学 (as shown in supplied screenshots).\n-This is a runnable restoration, not a byte-for-byte original source file.\n-See SOURCE.md for missing inputs and documented corrections.\n+\"\"\"Vivid marginal-heatmap recipe adapted as a 2 x 2 partition construction.\n+Counts come from repository functions on constructed labels, not training runs.\n \"\"\"\n-import numpy as np; from _utils.palette_maps import palette_cmap, palette_stops, contrast_text\n+import json\n+import importlib.util\n+import logging\n+import sys\n+import numpy as np\n import pandas as pd\n import matplotlib.pyplot as plt\n-from matplotlib.colors import LinearSegmentedColormap, Normalize, to_hex\n-from matplotlib.cm import ScalarMappable\n-from pathlib import Path\n-# Missing .mplstyle files are replaced only by explicit, portable display defaults.\n-plt.rcParams.update({'font.sans-serif':['Microsoft YaHei','DejaVu Sans'],\n- 'axes.unicode_minus':False,'figure.facecolor':'white','axes.facecolor':'white',\n- 'axes.spines.top':False,'axes.spines.right':False,'font.size':9})\n-from matplotlib.gridspec import GridSpec\n-plt.rcParams.update({'axes.edgecolor':'white','xtick.major.size':0,'ytick.major.size':0,'xtick.labelsize':7,'ytick.labelsize':7,'text.color':'#3680ae','xtick.color':'#3680ae','ytick.color':'#3680ae'})\n-cmap=LinearSegmentedColormap.from_list('custom',palette_stops('diverging',count=5),N=300)\n-years=np.arange(1985,2021)\n-months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']\n-np.random.seed(10)\n-data=np.random.uniform(-1,1,(len(months),len(years)))\n-for i in range(len(months)):data[i]+=np.linspace(-1,2,len(years))\n-data+=np.random.uniform(-1.5,1.5,data.shape)\n-bar_data_year=data.sum(axis=0);bar_data_month=data.sum(axis=1)\n-fig=plt.figure(figsize=(12,6),dpi=150)\n-gs=GridSpec(2,2,width_ratios=[10,1.5],height_ratios=[1,2],wspace=.04,hspace=.05)\n-ax_heatmap=fig.add_subplot(gs[1,0])\n-ax_heatmap.imshow(data,cmap=cmap,aspect='auto',vmin=-np.max(np.abs(data)),vmax=np.max(np.abs(data)))\n-for i in range(data.shape[0]):\n-    for j in range(data.shape[1]):\n-        v=data[i,j];color=contrast_text(cmap((v/np.max(np.abs(data))+1)/2))\n-        ax_heatmap.text(j,i,f'{v:.1f}',ha='center',va='center',fontsize=6,color=color,fontweight='bold')\n-for i in range(data.shape[0]+1):ax_heatmap.plot([-.5,data.shape[1]-.5],[i-.5]*2,color='white',linewidth=1)\n-for j in range(data.shape[1]+1):ax_heatmap.plot([j-.5]*2,[-.5,data.shape[0]-.5],color='white',linewidth=1)\n-ax_heatmap.set_xticks(np.arange(len(years)),years,rotation=90,fontweight='bold')\n-ax_heatmap.set_yticks(np.arange(len(months)),months,fontweight='bold')\n-ax_top=fig.add_subplot(gs[0,0],sharex=ax_heatmap)\n-ax_top.bar(np.arange(len(years)),bar_data_year,color=[palette_stops('diverging')[0] if v<0 else palette_stops('diverging')[-1] for v in bar_data_year])\n-ax_top.tick_params(axis='both',bottom=False,left=False,labelbottom=False,labelleft=False)\n-ax_top.grid(False)\n-ax_right=fig.add_subplot(gs[1,1],sharey=ax_heatmap)\n-ax_right.barh(np.arange(len(months)),bar_data_month,color=[palette_stops('diverging')[0] if v<0 else palette_stops('diverging')[-1] for v in bar_data_month])\n-ax_right.tick_params(axis='both',bottom=False,left=False,labelbottom=False,labelleft=False)\n-ax_right.grid(False)\n-for i,v in enumerate(bar_data_year):\n-    ax_top.text(i,v+(.2 if v>0 else -.8),f'{v:.1f}',ha='center',va='bottom' if v>0 else 'top',fontsize=6,color=palette_stops('diverging')[-1] if v>0 else palette_stops('diverging')[0],fontweight='bold')\n-ax_top.margins(y=.25)\n-for i,v in enumerate(bar_data_month):\n-    ax_right.text(v-1 if v>0 else v+1,i,f'{v:.1f}',ha='right' if v>0 else 'left',va='center',fontsize=7,color='white',fontweight='bold')\n-fig.suptitle('表格热图与边际汇总',x=.06,y=.98,ha='left',fontsize=22,color='#3680ae')\n-fig.subplots_adjust(left=.06,bottom=.14,right=.97,top=.88)\n-plt.show()\n+from figure_common import HERE, ROOT, setup, save\n+from plot_partition import marginal_panel, colorbar\n+sys.path.insert(0, str(ROOT))\n+from utils.datasplit import partition_client_longtail\n+logging.getLogger('fontTools.subset').setLevel(logging.WARNING)\n+spec = importlib.util.spec_from_file_location('repo_long_tail', ROOT / 'datasets/long_tail.py')\n+long_tail = importlib.util.module_from_spec(spec)\n+spec.loader.exec_module(long_tail)\n+_get_img_num_per_cls = long_tail._get_img_num_per_cls\n+\n+setup()\n+fig = plt.figure(figsize=(7.2, 6.9))\n+gs = fig.add_gridspec(2, 2, left=.08, right=.96, bottom=.22, top=.79,\n+                      wspace=.29, hspace=.76)\n+records = []\n+for row, imbalance in enumerate([10, 100]):\n+    counts = np.array(_get_img_num_per_cls(np.empty(50000), 100, 1 / imbalance, 'exp'))\n+    labels = np.repeat(np.arange(100), counts)\n+    if imbalance == 100:\n+        actual = pd.read_csv(HERE / 'data/counts_client-longtail.csv').iloc[:, 1:].to_numpy()\n+        assert np.array_equal(counts, actual.sum(axis=0))\n+    for col, concentration in enumerate([0., .75]):\n+        allocation = partition_client_longtail(\n+            labels, 30, 100, specialization_lambda=concentration,\n+            intra_group_alpha=.5, head_leakage_scale=3., rng=np.random.RandomState(42))\n+        matrix = np.array([np.bincount(labels[allocation[k]], minlength=100) for k in range(30)])\n+        assert np.array_equal(matrix.sum(axis=0), counts)\n+        assert sum(map(len, allocation.values())) == len(labels)\n+        share = matrix[27:, 80:].sum() / matrix[:, 80:].sum()\n+        rec = {'IF': imbalance, 'lambda_T': concentration, 'alpha_T': .5, 'q_T': .1,\n+               'rho': 3., 'seed': 42, 'source_type': 'constructed_labels_only_no_training',\n+               'samples': int(matrix.sum()), 'tail_samples': int(matrix[:, 80:].sum()),\n+               'tail_share_clients_27_29': float(share)}\n+        records.append(rec)\n+        pd.DataFrame(matrix, columns=[f'class_{i}' for i in range(100)]).rename_axis('client_id').to_csv(\n+            HERE / f'data/construction_IF{imbalance}_lambda{concentration:g}.csv')\n+        title = f'IF = {imbalance}, ' + rf'$\\lambda_T={concentration:g}$' + f'\\nTail in clients 27–29: {share:.1%}'\n+        sm = marginal_panel(fig, gs[row, col], matrix, title,\n+                            right_max=1400, label_y=(col == 0))\n+colorbar(fig, sm, y=.107)\n+fig.text(.08, .975, 'Two controls: class imbalance and client concentration', fontsize=11,\n+         fontweight='bold', va='top')\n+fig.text(.08, .926, r'Across: $\\lambda_T$ increases  |  Down: IF increases  |  $\\alpha_T=0.5$, $q_T=0.1$, $\\rho=3$', fontsize=8)\n+fig.text(.08, .883, 'Partition construction only; these four panels are not training results.', fontsize=8)\n+fig.text(.08, .024, r'$\\lambda_T=0$ is still Client-LT; it is not class-wise Dirichlet.', fontsize=8)\n+(HERE / 'data/two_axis_construction.json').write_text(json.dumps(records, indent=2), encoding='utf-8')\n+save(fig, 'two_axis_construction')\n"
+    }
+  ],
+  "tracked_scripts": 3,
+  "limits": "Only registered scripts are covered; unregistered or helper files need separate review."
+}

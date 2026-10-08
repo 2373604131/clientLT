@@ -9,9 +9,11 @@ import uuid
 REPO = Path(__file__).resolve().parents[2]
 CONFIG = REPO / 'configs/benchmarks/clientlt_seed42.json'
 FACTOR_CONFIG = REPO / 'configs/benchmarks/factor_baselines_seed42.json'
+LONGTAIL_CONFIG = REPO / 'configs/benchmarks/longtail_baselines_seed42.json'
 METHODS = ('fedavg-lora', 'capt', 'fedpurel', 'fedntd', 'a', 'ab')
 FACTOR_METHODS = ('ffa-lora', 'rolora', 'fedsvd', 'lora-a2')
-ALL_METHODS = METHODS + ('fedavg-lora-la',) + FACTOR_METHODS
+LONGTAIL_METHODS = ('fedavg-lora-la', 'fedlf', 'fedyoyo', 'fedrela')
+ALL_METHODS = METHODS + FACTOR_METHODS + LONGTAIL_METHODS
 LABELS = {
     'fedavg-lora': 'FedAvg + LoRA (joint A/B, CE)',
     'fedavg-lora-la': 'FedAvg + LoRA + global LA (joint A/B)',
@@ -23,6 +25,9 @@ LABELS = {
     'rolora': 'RoLoRA (alternating shared factors; protocol-adapted)',
     'fedsvd': 'FedSVD (non-DP shared CLIP-LoRA; protocol-adapted)',
     'lora-a2': 'LoRA-A2 (global rank4, local budget2; protocol-adapted)',
+    'fedlf': 'FedLF (CLIP-LoRA adaptation)',
+    'fedyoyo': 'FedYoYo (CLIP-LoRA adaptation; estimated prior)',
+    'fedrela': 'FedAvg-LoRA + FedReLa (CE host; one-shot relabel)',
 }
 REFERENCE_FILES = ('partition_manifest.csv', 'bridge_metadata.json', 'protocol/full_schedule.json',
                    'protocol/eri_protocol.json', 'protocol/probe_manifest.csv')
@@ -107,14 +112,15 @@ def reference_contract(root):
 def source_hashes():
     from tools.sfra.ab_validation import code_hashes
     files = code_hashes(REPO)  # normalize newlines, as in the frozen A/AB receipts
-    extra = [CONFIG, FACTOR_CONFIG, REPO / 'scripts/run_factor_benchmarks.py',
+    extra = [CONFIG, FACTOR_CONFIG, LONGTAIL_CONFIG, REPO / 'scripts/run_longtail_benchmarks.py',
+             REPO / 'scripts/vendor_paper_baselines.py', REPO / 'scripts/run_factor_benchmarks.py',
              REPO / 'scripts/run_paper_benchmarks.py', REPO / 'scripts/train_paper_baseline.py',
              REPO / 'scripts/collect_paper_benchmarks.py', REPO / 'trainers/capt.py', REPO / 'loss/prompt_loss.py']
     for folder in ('tools/benchmarks', 'trainers/baselines', 'clip', 'utils/loralib', 'Dassl/dassl/data/transforms'):
         extra.extend((REPO / folder).rglob('*.py'))
     for path in extra:
         files[path.relative_to(REPO).as_posix()] = hashlib.sha256(path.read_text(encoding='utf-8').encode()).hexdigest()
-    for method in ('capt', 'fedntd', 'fedpurel', *FACTOR_METHODS):
+    for method in ('capt', 'fedntd', 'fedpurel', *FACTOR_METHODS, 'fedlf', 'fedyoyo', 'fedrela'):
         base = REPO / 'third_party/paper_baselines' / method
         upstream = read_json(base / 'UPSTREAM.json')
         for name, expected in upstream['files'].items():
@@ -129,11 +135,13 @@ def make_job(method, reference, data_root, output, workers=8, smoke=False, suite
         raise ValueError('Invalid method or worker count')
     if smoke and method in ('a', 'ab'):
         raise ValueError('Smoke mode is for the new external adapters; frozen A/AB remain 100-round jobs')
-    if suite not in ('main', 'factors'):
+    if suite not in ('main', 'factors', 'longtail'):
         raise ValueError('Unknown benchmark suite')
     config = read_json(CONFIG)
     if suite == 'factors' or method in FACTOR_METHODS:
         config['factor_baselines'] = read_json(FACTOR_CONFIG)
+    if suite == 'longtail' or method in ('fedlf', 'fedyoyo', 'fedrela'):
+        config['longtail_baselines'] = read_json(LONGTAIL_CONFIG)
     return dict(schema='paper_benchmarks_seed42_v1', method=method, label=LABELS[method], seed=42,
                 config=config, reference_run=str(Path(reference).resolve()),
                 data_root=str(Path(data_root).resolve()), output_root=str(Path(output).resolve()),

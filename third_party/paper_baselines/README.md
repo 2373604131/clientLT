@@ -10,6 +10,9 @@ and are not launched as standalone training repositories.
 | `fedpurel` | https://github.com/shihaohou/FedPuReL | `20ce20a15f449631c9aa655be585a0a39a18a4cd` |
 | `fedntd` | https://github.com/Lee-Gihun/FedNTD | `be00ee598139654abe650c446a7ba3bc4e340233` |
 | `fedsvd` | https://github.com/seanie12/fed-svd | `e73398ba34b6b269c3bf76ed9d74906761fc1a4d` |
+| `fedlf` | https://github.com/18sym/FedLF | `127cbaf363ec3a1f40c116f6b1de3c1f7a705764` |
+| `fedyoyo` | https://github.com/shanss132/FedYoYo | `fc6d728febb461ca46eedd142ef835b6c6572f88` |
+| `fedrela` | https://github.com/guangzhengh/FedReLa | `20a58bd75f48b3243f80adb35537b5b4ba252773` |
 
 `ffa-lora`, `rolora`, and `lora-a2` instead hold **paper-source provenance**
 receipts, not official code snapshots. Their implementations are derived from
@@ -38,6 +41,15 @@ Adaptation scope:
   The upstream gradient mask occurs after `optimizer.step`; the adapter preserves
   the resulting update instead of silently adding a new pre-step mask.
 
-All methods use the existing repository's CIFAR preprocessing and the frozen
-raw-sample partition. Numeric parity tests extract relevant official definitions
-from these snapshots without importing their training packages.
+All methods use the frozen raw-sample partition and base CIFAR normalization /
+resize. FedLF retains crop/flip and FedYoYo retains its weak/strong views.
+The new global-longtail adapters directly execute selected, hash-verified
+upstream definitions: FedLF DecorrLoss; FedYoYo AutoAugment/Cutout and prior
+change guard; FedReLa's complete statistics/threshold/relabel decision pipeline.
+Their standalone trainers are not imported or launched. FedLF's script has
+an undefined update_feature_syn call and cannot be launched unchanged.
+
+Tests execute the upstream FedLF and FedYoYo Local.local_train bodies to check
+two-step update parity, not just mirrored adapter formulas. See
+`docs/longtail_benchmarks_seed42.md` for input, architecture, numerical guards,
+late learning-rate schedule and checkpoint-state adaptation details.

@@ -1,0 +1,73 @@
+{
+  "unit_tests": {
+    "count": 57,
+    "passed": 57,
+    "skipped": 0
+  },
+  "original_reference_unchanged": true,
+  "gpu_provenance": {
+    "purpose": "GPU execution validation only; never a paper result",
+    "reference_initial_lora_sha256": "b5473d9ee219cda6683eae5cf3d5bd6715e37187ed82741a0774614638072ff4",
+    "local_initial_lora_sha256": "387c4d814b0e5b9e1ca48f269a6111a6f95501a6b3c9b186b5ed4b8576244a61",
+    "initialization_matches_server": false,
+    "frozen_model_sha256": "afbfe7df45cfb8e08456b8969d5f377f5bf7566650cee1f388a13cb00d98dc76",
+    "torch": "2.10.0+cu126",
+    "cuda": "12.6",
+    "gpu": "NVIDIA GeForce RTX 4070 Ti SUPER",
+    "original_reference": "G:\\桌面\\CAPT\\references\\full10_clientlt",
+    "original_protocol": {
+      "partition": "b63146ed58827ba3ac35db5dc149977bd176d35d365d30200fcf59a444d6ddbc",
+      "schedule": "781448d818c69ce6bffc451c5d3c76a05a10891aeb4bb73298fbd647c840d0b9",
+      "pool": "ade06e329d71eee3f96e3ae1a8d56df5ead0979230bb61aa91e641b278fdc769",
+      "test": "e69cc87c480dc1049c777b76c360dc1644b48023f15667c44b178648ade75770",
+      "classnames": "3d794a18a5f8b01726c944c1d81aa48b6e445b71255a084227918e55344adbbb",
+      "reference_files": {
+        "partition_manifest.csv": "cb41d01f365c4cd96b52ea1a45c068f639d61de207e38b1a1b023b909812265c",
+        "bridge_metadata.json": "879b16b6baae76d8a6930a37f584725f657967b6bd2956990e9ca5c9d03e4890",
+        "protocol/full_schedule.json": "cc4f7df49fe83f7e110f776b86f96711e2531d094ae0f454a1f1f9401001c718",
+        "protocol/eri_protocol.json": "c8c493c68c009acd95cbb614570862311a22142ee73432b873dd30a9832d281c",
+        "protocol/probe_manifest.csv": "8a43f25c87036442c611f69fb3dedc592ad96bbbf64b16fe2883b63a2ce1fc43"
+      }
+    }
+  },
+  "smoke": [
+    {
+      "method": "fedavg-lora-la",
+      "rounds": 2,
+      "optimizer_steps": 4,
+      "lora_b_squared_norm": 2.3259516623852505e-07,
+      "relabel_training_images": 0,
+      "status": "smoke_only"
+    },
+    {
+      "method": "fedlf",
+      "rounds": 2,
+      "optimizer_steps": 4,
+      "lora_b_squared_norm": 1.3534882086219113e-06,
+      "relabel_training_images": 0,
+      "status": "smoke_only"
+    },
+    {
+      "method": "fedyoyo",
+      "rounds": 2,
+      "optimizer_steps": 4,
+      "lora_b_squared_norm": 2.2161370472062458e-07,
+      "relabel_training_images": 0,
+      "status": "smoke_only"
+    },
+    {
+      "method": "fedrela",
+      "rounds": 2,
+      "optimizer_steps": 4,
+      "lora_b_squared_norm": 6.294233723114218e-08,
+      "relabel_training_images": 21,
+      "status": "smoke_only"
+    }
+  ],
+  "pack": {
+    "path": "tmp\\longtail_gpu_validation_20261008_final\\suite\\smoke_analysis.tar.gz",
+    "files": 60,
+    "sha256": "c1f54c3f3711a92b7f8b9100d50d3bbe8d589cea7a06fa9519289c47f77aed06",
+    "contains_weights": false
+  }
+}

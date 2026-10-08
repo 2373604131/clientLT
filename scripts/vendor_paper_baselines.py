@@ -1,5 +1,6 @@
 """Fetch pinned, unmodified official reference files (never executed as a package)."""
 import hashlib
+import argparse
 import io
 import json
 from pathlib import Path
@@ -12,12 +13,17 @@ SOURCES = {
     'fedntd': ('Lee-Gihun/FedNTD', 'be00ee598139654abe650c446a7ba3bc4e340233'),
     'capt': ('shihaohou/CAPT', '840b7cab26c04fc9e65540a980b6ce020d62d618'),
     'fedsvd': ('seanie12/fed-svd', 'e73398ba34b6b269c3bf76ed9d74906761fc1a4d'),
+    'fedlf': ('18sym/FedLF', '127cbaf363ec3a1f40c116f6b1de3c1f7a705764'),
+    'fedyoyo': ('shanss132/FedYoYo', 'fc6d728febb461ca46eedd142ef835b6c6572f88'),
+    'fedrela': ('guangzhengh/FedReLa', '20a58bd75f48b3243f80adb35537b5b4ba252773'),
 }
 
 
 def selected(method, path):
     if path.lower().startswith(('license', 'copying', 'notice', 'readme')):
         return True
+    if method in ('fedlf', 'fedyoyo', 'fedrela'):
+        return path.endswith(('.py', '.json', '.yaml', '.yml', '.sh', '.txt', '.md'))
     if method == 'fedntd':
         return path.endswith(('.py', '.json', '.yaml')) and path.startswith(('algorithms/', 'train_tools/', 'config/'))
     if method == 'fedpurel':
@@ -28,7 +34,11 @@ def selected(method, path):
 
 
 def main():
-    for name, (repo, commit) in SOURCES.items():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--methods', nargs='+', choices=list(SOURCES), default=list(SOURCES))
+    args = parser.parse_args()
+    for name in args.methods:
+        repo, commit = SOURCES[name]
         dest = ROOT / 'third_party/paper_baselines' / name
         receipt = dest / 'UPSTREAM.json'
         if receipt.exists():

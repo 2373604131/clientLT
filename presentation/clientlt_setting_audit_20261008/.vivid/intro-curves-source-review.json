@@ -1,0 +1,383 @@
+{
+  "findings": [
+    {
+      "kind": "unresolved",
+      "method": "annotate",
+      "parameter": "arrowprops.color",
+      "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+      "before": [
+        "PALETTE[i]"
+      ],
+      "after": [
+        "colors[i]"
+      ],
+      "source_lines": [
+        41
+      ],
+      "candidate_lines": [
+        31
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "style_changed",
+      "method": "annotate",
+      "parameter": "arrowprops.lw",
+      "before": [
+        1.2
+      ],
+      "after": [
+        0.9
+      ],
+      "message": "按源码出现/可展开循环顺序比较；结合卡片核对用途，不自动判错。",
+      "source_lines": [
+        41
+      ],
+      "candidate_lines": [
+        31
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "parameter_not_found",
+      "method": "annotate",
+      "parameter": "bbox.alpha",
+      "message": "原模板显式参数未在此类调用中找到；核对默认值或等价实现。",
+      "source_lines": [
+        41
+      ],
+      "candidate_lines": [
+        31
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "parameter_not_found",
+      "method": "annotate",
+      "parameter": "bbox.boxstyle",
+      "message": "原模板显式参数未在此类调用中找到；核对默认值或等价实现。",
+      "source_lines": [
+        41
+      ],
+      "candidate_lines": [
+        31
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "parameter_not_found",
+      "method": "annotate",
+      "parameter": "bbox.edgecolor",
+      "message": "原模板显式参数未在此类调用中找到；核对默认值或等价实现。",
+      "source_lines": [
+        41
+      ],
+      "candidate_lines": [
+        31
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "parameter_not_found",
+      "method": "annotate",
+      "parameter": "bbox.facecolor",
+      "message": "原模板显式参数未在此类调用中找到；核对默认值或等价实现。",
+      "source_lines": [
+        41
+      ],
+      "candidate_lines": [
+        31
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "style_changed",
+      "method": "annotate",
+      "parameter": "fontsize",
+      "before": [
+        9
+      ],
+      "after": [
+        8
+      ],
+      "message": "按源码出现/可展开循环顺序比较；结合卡片核对用途，不自动判错。",
+      "source_lines": [
+        41
+      ],
+      "candidate_lines": [
+        31
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "parameter_not_found",
+      "method": "annotate",
+      "parameter": "fontweight",
+      "message": "原模板显式参数未在此类调用中找到；核对默认值或等价实现。",
+      "source_lines": [
+        41
+      ],
+      "candidate_lines": [
+        31
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "parameter_added",
+      "method": "annotate",
+      "parameter": "ha",
+      "after": [
+        "center"
+      ],
+      "message": "新增显式参数；核对其用途。",
+      "source_lines": [
+        41
+      ],
+      "candidate_lines": [
+        31
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "unresolved",
+      "method": "annotate",
+      "parameter": "text",
+      "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+      "before": [
+        "f'★ {y[max_idx]:.1f}'"
+      ],
+      "after": [
+        "label"
+      ],
+      "source_lines": [
+        41
+      ],
+      "candidate_lines": [
+        31
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "unresolved",
+      "method": "annotate",
+      "parameter": "xy",
+      "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+      "before": [
+        "(x[max_idx], y[max_idx])"
+      ],
+      "after": [
+        "(100, y[-1])"
+      ],
+      "source_lines": [
+        41
+      ],
+      "candidate_lines": [
+        31
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "unresolved",
+      "method": "annotate",
+      "parameter": "xytext",
+      "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+      "before": [
+        "(x[max_idx] - 1.5, y[max_idx] + 3)"
+      ],
+      "after": [
+        "(75, 65)"
+      ],
+      "source_lines": [
+        41
+      ],
+      "candidate_lines": [
+        31
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "operation_not_found",
+      "method": "axhspan",
+      "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+      "source_lines": [
+        18
+      ],
+      "candidate_lines": [],
+      "severity": "advisory"
+    },
+    {
+      "kind": "operation_not_found",
+      "method": "fill_between",
+      "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+      "source_lines": [
+        28
+      ],
+      "candidate_lines": [],
+      "severity": "advisory"
+    },
+    {
+      "kind": "parameter_added",
+      "method": "plot",
+      "parameter": "linestyle",
+      "after": [
+        "styles[i]"
+      ],
+      "message": "新增显式参数；核对其用途。",
+      "source_lines": [
+        32
+      ],
+      "candidate_lines": [
+        21
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "unresolved",
+      "method": "plot",
+      "parameter": "linewidth",
+      "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+      "before": [
+        "2.5 if is_ours else 1.8"
+      ],
+      "after": [
+        "1.9 if is_focus else 1.5"
+      ],
+      "source_lines": [
+        32
+      ],
+      "candidate_lines": [
+        21
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "parameter_added",
+      "method": "plot",
+      "parameter": "marker",
+      "after": [
+        "markers[i]"
+      ],
+      "message": "新增显式参数；核对其用途。",
+      "source_lines": [
+        32
+      ],
+      "candidate_lines": [
+        21
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "style_changed",
+      "method": "plot",
+      "parameter": "markeredgewidth",
+      "before": [
+        1.2
+      ],
+      "after": [
+        0.65
+      ],
+      "message": "按源码出现/可展开循环顺序比较；结合卡片核对用途，不自动判错。",
+      "source_lines": [
+        32
+      ],
+      "candidate_lines": [
+        21
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "unresolved",
+      "method": "plot",
+      "parameter": "markersize",
+      "message": "表达式或组织方式改变，静态检查无法确认等价；阅读相关代码。",
+      "before": [
+        "7 if is_ours else 5"
+      ],
+      "after": [
+        "3.5"
+      ],
+      "source_lines": [
+        32
+      ],
+      "candidate_lines": [
+        21
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "style_changed",
+      "method": "scatter",
+      "parameter": "linewidth",
+      "before": [
+        2
+      ],
+      "after": [
+        0.65
+      ],
+      "message": "按源码出现/可展开循环顺序比较；结合卡片核对用途，不自动判错。",
+      "source_lines": [
+        38
+      ],
+      "candidate_lines": [
+        27
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "operation_not_found",
+      "method": "subplots",
+      "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+      "source_lines": [
+        15
+      ],
+      "candidate_lines": [],
+      "severity": "advisory"
+    },
+    {
+      "kind": "operation_not_found",
+      "method": "tight_layout",
+      "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+      "source_lines": [
+        56
+      ],
+      "candidate_lines": [],
+      "severity": "advisory"
+    }
+  ],
+  "baseline_calls": 9,
+  "candidate_calls": 3,
+  "verdict": "仅提供源码差异线索，不判定视觉通过或失败。即使无提示，仍需按现有流程对照实图。",
+  "limits": "不执行代码、不判断分支实际运行、不跨辅助文件追踪，不验证坐标语义或最终层次是否可见。",
+  "template_id": "basic.line",
+  "baseline": "G:\\桌面\\CAPT\\presentation\\clientlt_setting_audit_20261008\\.vivid\\template-sources\\921a02191805bb3dfd6b2e9a.py",
+  "candidate": "G:\\桌面\\CAPT\\presentation\\clientlt_setting_audit_20261008\\figures\\intro_curves.py",
+  "checkpoints": [
+    {
+      "feature": "三层色带的外缘可见性",
+      "preserve": "区间由外向内收窄，alpha 按 0.15→0.08→0.03 对应外、中、内层。保留宽度与透明度的对应关系，不能仅因三层都存在就认定保真。",
+      "allowed_adaptation": "以真实 SD/SE/CI 或明确的范围替换模拟宽度；区间含义、宽度和坐标可变。数据不支持区间时不造数，并说明省略。",
+      "evidence": [
+        {
+          "line": 24,
+          "end_line": 29,
+          "code": "    noise = stds[name]\n\n    # 渐变填充置信带\n    for layer, alpha in enumerate([0.15, 0.08, 0.03]):\n        ax.fill_between(x, y - noise * (1 - layer * 0.2), y + noise * (1 - layer * 0.2),\n                        alpha=alpha, color=PALETTE[i], linewidth=0)",
+          "href": "sources/basic.line/original.html#L24"
+        }
+      ]
+    },
+    {
+      "feature": "主次折线、白边点和极值",
+      "preserve": "保留主次线宽、不同点形、白色点边及有数据依据的极值标记；换色不应覆盖这些设置。",
+      "allowed_adaptation": "主序列身份、点数、极值方向和标注位置按任务变化；没有主序列时不虚构主次。",
+      "evidence": [
+        {
+          "line": 31,
+          "end_line": 46,
+          "code": "    # 主折线\n    ax.plot(x, y, f'{markers[i]}-', color=PALETTE[i],\n            linewidth=2.5 if is_ours else 1.8, markersize=7 if is_ours else 5,\n            markeredgecolor='white', markeredgewidth=1.2, label=name, zorder=3)\n\n    # 极值标注（最大值）\n    max_idx = np.argmax(y)\n    ax.scatter(x[max_idx], y[max_idx], s=120 if is_ours else 80, color=PALETTE[i],\n               edgecolor='white', linewidth=2, zorder=4, marker='*')\n    if is_ours:\n        ax.annotate(f'★ {y[max_idx]:.1f}',\n                    xy=(x[max_idx], y[max_idx]),\n                    xytext=(x[max_idx] - 1.5, y[max_idx] + 3),\n                    fontsize=9, fontweight='bold', color=PALETTE[i],\n                    arrowprops=dict(arrowstyle='->', color=PALETTE[i], lw=1.2),\n                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white',",
+          "href": "sources/basic.line/original.html#L31"
+        }
+      ]
+    }
+  ],
+  "source_diff": "--- template\n+++ adapted\n@@ -1,57 +1,45 @@\n+\"\"\"Vivid basic.line adapted to the paired J runs, with no simulated intervals.\n+\n+Retains the recipe's sequence loop, white-edged markers, main-line emphasis,\n+true maximum and arrow annotation. No smoothing or inferred uncertainty.\n+\"\"\"\n import numpy as np\n-import matplotlib.pyplot as plt\n-from _utils.plot_utils import setup_style, save_fig, PALETTE, COLORS, _lighten\n-setup_style()\n+from figure_common import pu\n \n-x = np.arange(2015, 2025)\n-series = {\n-    '本文方法': np.array([72, 75, 78, 80, 83, 85, 87, 89, 91, 92]),\n-    '方法B':    np.array([70, 73, 76, 79, 81, 82, 84, 86, 88, 89]),\n-    '方法C':    np.array([68, 70, 72, 75, 77, 79, 80, 82, 83, 84]),\n-}\n-markers = ['o', 's', '^']\n-stds = {k: np.random.uniform(1.5, 3.0, len(v)) for k, v in series.items()}\n \n-fig, ax = plt.subplots(figsize=(8, 5))\n-\n-# 淡色背景渐变\n-ax.axhspan(min(min(v) for v in series.values()) - 5,\n-           max(max(v) for v in series.values()) + 5,\n-           alpha=0.02, color=PALETTE[0], zorder=0)\n-\n-for i, (name, y) in enumerate(series.items()):\n-    is_ours = '本文' in name\n-    noise = stds[name]\n-\n-    # 渐变填充置信带\n-    for layer, alpha in enumerate([0.15, 0.08, 0.03]):\n-        ax.fill_between(x, y - noise * (1 - layer * 0.2), y + noise * (1 - layer * 0.2),\n-                        alpha=alpha, color=PALETTE[i], linewidth=0)\n-\n-    # 主折线\n-    ax.plot(x, y, f'{markers[i]}-', color=PALETTE[i],\n-            linewidth=2.5 if is_ours else 1.8, markersize=7 if is_ours else 5,\n-            markeredgecolor='white', markeredgewidth=1.2, label=name, zorder=3)\n-\n-    # 极值标注（最大值）\n-    max_idx = np.argmax(y)\n-    ax.scatter(x[max_idx], y[max_idx], s=120 if is_ours else 80, color=PALETTE[i],\n-               edgecolor='white', linewidth=2, zorder=4, marker='*')\n-    if is_ours:\n-        ax.annotate(f'★ {y[max_idx]:.1f}',\n-                    xy=(x[max_idx], y[max_idx]),\n-                    xytext=(x[max_idx] - 1.5, y[max_idx] + 3),\n-                    fontsize=9, fontweight='bold', color=PALETTE[i],\n-                    arrowprops=dict(arrowstyle='->', color=PALETTE[i], lw=1.2),\n-                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white',\n-                              edgecolor=PALETTE[i], alpha=0.9))\n-\n-ax.set_xlabel('年份', fontsize=11)\n-ax.set_ylabel('准确率 (%)', fontsize=11)\n-ax.legend(frameon=False, labelspacing=0.35, handlelength=1.6, fontsize=9, loc='best')\n-ax.set_xticks(x)\n-ax.grid(alpha=0.12, linestyle='--', color=COLORS['grid'])\n-ax.spines['top'].set_visible(False)\n-ax.spines['right'].set_visible(False)\n-fig.tight_layout()\n-save_fig(fig, 'figures/fig_line.pdf')\n+def draw_curves(ax, runs, *, lang='en'):\n+    markers = ['s', 'o']\n+    styles = ['--', '-']\n+    colors = [pu.PALETTE[0], pu.PALETTE[2]]\n+    labels = ['Dirichlet', 'Client-LT']\n+    for i, (name, run) in enumerate(runs.items()):\n+        x = run['round'].to_numpy()\n+        y = run['bottom20_tail_acc'].to_numpy()\n+        assert np.array_equal(x, np.arange(101))\n+        is_focus = name == 'client-longtail'\n+        # A single paired seed: the template's simulated bands are removed.\n+        ax.plot(x, y, linestyle=styles[i], marker=markers[i], markevery=20,\n+                color=colors[i], linewidth=1.9 if is_focus else 1.5,\n+                markersize=3.5, markeredgecolor='white', markeredgewidth=.65,\n+                label=labels[i], zorder=3)\n+        max_idx = np.argmax(y)\n+        if is_focus:\n+            ax.scatter(x[max_idx], y[max_idx], s=52, color=colors[i],\n+                       edgecolor='white', linewidth=.65, zorder=4, marker='*')\n+            drop = y[max_idx] - y[-1]\n+            label = ('峰值→末轮' if lang == 'zh' else 'Peak → final') + f'\\n−{drop:.2f} pp'\n+            ax.annotate(label, xy=(100, y[-1]), xytext=(75, 65),\n+                        fontsize=8, ha='center', color=colors[i],\n+                        arrowprops=dict(arrowstyle='->', color=colors[i], lw=.9))\n+    ax.set_xlabel('通信轮次' if lang == 'zh' else 'Communication round', labelpad=3)\n+    ax.set_ylabel('尾部类别准确率（%）' if lang == 'zh' else 'Tail accuracy (%)', labelpad=4)\n+    ax.legend(frameon=False, labelspacing=.22, handlelength=2.0,\n+              fontsize=8, loc='lower left', borderaxespad=.25)\n+    ax.set_xlim(0, 100)\n+    ax.set_xticks([0, 50, 100])\n+    ax.set_ylim(55, 76)\n+    ax.set_yticks([55, 60, 65, 70, 75])\n+    ax.tick_params(length=3, pad=3, labelsize=8)\n+    ax.grid(axis='y', alpha=.2, linestyle='--', color=pu.COLORS['grid'])\n+    ax.spines['top'].set_visible(False)\n+    ax.spines['right'].set_visible(False)\n"
+}

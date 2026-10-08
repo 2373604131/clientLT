@@ -1,0 +1,15 @@
+{
+  "skill": "figure-designer",
+  "status": "ready",
+  "actual_images_viewed": ["figures/intro_compact_bright_zh.png", "figures/intro_compact_bright_en.png"],
+  "review": {
+    "palette": "亮蓝与亮橙接近用户参考图的视觉风格；曲线、箭头和客户端组框的对应关系明确。",
+    "heatmap": "少量样本由接近白色改为清晰天蓝；两面板共用相同连续色标，样本数0仍为白色，1–9按相同色彩映射显示。",
+    "layout": "保留原构图；实际检查中英文成图，文字和色条无裁切、无重叠。",
+    "accessibility": "两曲线同时以颜色、线型和点形区分；集中客户端组另有边框。",
+    "data": "原始样本数量和曲线重新读取；仅修改调色板、热图颜色映射及组框颜色。",
+    "export": "PNG预览和直接导出的PDF/SVG齐全；已验证中英文SVG均为0个位图image节点。"
+  },
+  "remaining_critical": 0,
+  "remaining_major": 0
+}

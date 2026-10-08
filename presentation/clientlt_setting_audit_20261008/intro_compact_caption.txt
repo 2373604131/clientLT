@@ -1,0 +1,11 @@
+中文图注
+在相同全局长尾样本池和 J 训练策略下，Client-LT 的尾部类别样本集中于同一组少数客户端，并出现更明显的训练后期准确率下降。(a–b) 展示全部30个客户端与20个尾部类别的实际样本数量，保留原始客户端顺序、使用统一色标，白格表示无样本；(b) 的细框标出预设的3个客户端，它们持有119/153=77.78%的尾部样本。(c) 展示第0–100轮的原始准确率曲线，星号标记Client-LT峰值：71.70%降至末轮59.55%，下降12.15个百分点（pp）；常规Dirichlet为73.05%降至71.25%。两组共用CIFAR-100-LT全局训练池（10,847个样本，IF=100）、rank4 CLIP LoRA、LA损失和相同训练日程，30客户端全参与，划分/训练种子均为42；J正常阶段联合训练LoRA因子A/B三个epoch，轮10、20、…、90额外训练A一个epoch，按客户端样本量加权聚合。Client-LT使用lambda_T=0.75、alpha_T=0.5、q_T=0.1、rho=3，常规逐类Dirichlet使用beta=0.5；本图结论限于该配置，其他训练策略的完整对照另行报告。
+
+English caption
+With the same global long-tailed sample pool and training strategy, Client-LT concentrates tail-class samples in a shared small client group and exhibits a larger late-training accuracy decline. (a–b) Actual sample counts for all 30 clients and all 20 tail classes, with the original client order and a shared color scale; white cells contain no samples, and the outlined three-client group in (b) holds 119/153 (77.78%) of the tail samples. (c) Unsmoothed accuracy over rounds 0–100: Client-LT falls from its peak of 71.70% (star) to 59.55%, a decrease of 12.15 percentage points (pp), whereas class-wise Dirichlet falls from 73.05% to 71.25%. Both runs use the same CIFAR-100-LT training pool (10,847 samples, IF=100), rank-4 CLIP LoRA with logit adjustment, full participation, split/training seed 42, and strategy J: three local epochs jointly updating LoRA factors A/B per round, plus one epoch updating A at rounds 10,20,...,90, with sample-weighted aggregation. Client-LT uses lambda_T=0.75, alpha_T=0.5, q_T=0.1 and rho=3; class-wise Dirichlet uses beta=0.5; the observation is specific to this configuration, with other update strategies reported separately.
+
+复现
+在 presentation/clientlt_setting_audit_20261008 目录运行：
+python figures/plot_intro_compact.py
+所选Vivid热图配方使用seaborn；本次已将seaborn安装在该目录的.vivid/python-deps中。其他依赖沿用既有绘图环境。
+图件原生宽度7.2英寸，适合约183mm通栏，最小字体8pt。PNG供预览，PDF/SVG为矢量插图。

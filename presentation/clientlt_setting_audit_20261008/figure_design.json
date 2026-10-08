@@ -1,0 +1,15 @@
+{
+  "design_skill": "figure-designer",
+  "render_skill": "vivid-figures-skill",
+  "purpose": "分别检查设定差异、准确率下降和两个参数的构造含义，保持论文方法尚未定稿。",
+  "palette": "olive-apricot",
+  "native_and_target_width_inches": 7.2,
+  "minimum_font_pt": 8,
+  "figures": [
+    {"name": "partition_comparison", "type": "motivated-example", "paradigm": "matched visual comparison", "layout": "左右各一个客户端×类别矩阵；上方每类样本数，右方每客户端样本数；尾部类别和预设客户端组以线框标识。审图后热图改为按类别归一化的百分比，使用两图共用线性色标，边际柱保留原始数量。", "source": "实际运行的 partition_manifest.csv 与 client_class_counts.csv", "recipe": "screenshot.marginal_heatmap", "adaptations": "矩阵为非负占比，使用连续顺序色标；3000格不逐格标数，保留边际数值和关键占比；不重排客户端来夸大组聚集；图注明确热图与边际柱的口径。"},
+    {"name": "retention_comparison", "type": "experimental-results", "paradigm": "three aligned time-series panels", "layout": "J、S、E3 横排；相同横纵轴；Client-LT 实线圆点、常规 Dirichlet 虚线方点；标出各自真实峰值和峰值到末轮下降。", "source": "逐轮原始 round_metrics.csv，seed42，round0–100", "recipe": "basic.line", "adaptations": "仅有单次运行，去除模板模拟误差带；保留不同点形、白色描边及峰值星号；不做平滑。"},
+    {"name": "two_axis_construction", "type": "supporting-setting-figure", "paradigm": "2×2 controlled construction", "layout": "纵向 IF10→100；横向 lambda0→0.75；四格各保留类别样本数与客户端样本数边际柱，以及真实划分函数构造的矩阵。", "source": "当前 partition_client_longtail 函数；按现有指数长尾公式构造标签数量，未使用图像、未训练模型。", "recipe": "screenshot.marginal_heatmap", "adaptations": "计数构造示例与已训练结果明确分开；固定alpha0.5、q0.1、rho3、seed42；lambda0不视为常规Dirichlet；IF100实际训练矩阵只出现在第一张图。"}
+  ],
+  "alternatives": "不以 t-SNE 表示样本分配；不以最终准确率柱图替代训练过程；不为尚无完整实验网格绘制性能曲面。",
+  "integrity": "应用场景仅为动机，不作为真实数据分布验证；聚合准确率下降不等于样本级转错统计；不将J标为普通FedAvg。"
+}

@@ -1,0 +1,10 @@
+{
+  "skills": ["figure-designer", "vivid-figures-skill"],
+  "request": "按用户参考图改用对比度更强的亮色配色。",
+  "pre_render_design": "沿用三联图构图。常规Dirichlet使用亮蓝虚线方点，Client-LT使用亮橙实线圆点及对应标注；两张分布图共用白—天蓝—亮蓝—深蓝连续色标，Client-LT的三客户端边框改为亮橙。",
+  "palette_source": ".vivid/config.json 的自定义配色；参照用户图片的蓝、橙、深蓝视觉关系，未声称逐像素精确取色。",
+  "count_scale": "归一化仍为0–9的线性样本数量，0白色、1天蓝、较高数量逐渐加深；连续颜色插值提高少量样本在白底上的可见性。",
+  "scope": "此次改色；保留原始数据、坐标范围、画布、字号、线型和图形布局。",
+  "exports": "figures/intro_compact_bright_{en,zh}.{png,pdf,svg}",
+  "original_exports": "旧配色成图保留供对比。"
+}

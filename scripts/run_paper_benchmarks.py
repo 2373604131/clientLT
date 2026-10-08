@@ -1,5 +1,6 @@
 """Seed42 comparison suite: plan/preflight/smoke/train/status/summary/pack/import-ab."""
 import argparse
+import os
 from pathlib import Path
 import shlex
 import subprocess
@@ -7,7 +8,7 @@ import sys
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
-from tools.benchmarks.common import (ALL_METHODS, METHODS, FACTOR_METHODS, job_id, job_path, make_job,
+from tools.benchmarks.common import (ALL_METHODS, METHODS, FACTOR_METHODS, LONGTAIL_METHODS, job_id, job_path, make_job,
     preflight, read_json, register, run_path)
 
 
@@ -47,7 +48,8 @@ def execute(job, resume=False, stop_after=None):
         logs.mkdir(parents=True, exist_ok=True)
         with (logs / (job['method'] + '.log')).open('a', encoding='utf-8') as stream:
             process = subprocess.Popen(command, cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                       text=True, encoding='utf-8', errors='replace', bufsize=1)
+                                       text=True, encoding='utf-8', errors='replace', bufsize=1,
+                                       env={**os.environ, 'PYTHONIOENCODING': 'utf-8'})
             try:
                 for line in process.stdout:
                     print(line, end='', flush=True)
@@ -66,13 +68,14 @@ def execute(job, resume=False, stop_after=None):
 def parser_for_cli(suite='main'):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--stage', choices=['plan', 'preflight', 'smoke', 'train', 'status', 'summary', 'pack', 'import-ab'], default='plan')
-    choices = ALL_METHODS if suite == 'main' else FACTOR_METHODS + ('a', 'ab')
-    defaults = METHODS if suite == 'main' else FACTOR_METHODS
+    choices = ALL_METHODS if suite == 'main' else (LONGTAIL_METHODS if suite == 'longtail' else FACTOR_METHODS) + ('a', 'ab')
+    defaults = METHODS if suite == 'main' else (LONGTAIL_METHODS if suite == 'longtail' else FACTOR_METHODS)
     p.add_argument('--methods', nargs='+', choices=choices, default=list(defaults))
     p.add_argument('--seed', type=int, choices=[42], default=42, help='This first suite is fixed to seed42')
     p.add_argument('--reference-run', type=Path, default=Path('references/full10_clientlt'))
     p.add_argument('--data-root', type=Path, default=Path('DATA'))
-    output = 'paper_benchmarks_seed42' if suite == 'main' else 'factor_benchmarks_seed42'
+    output = {'main': 'paper_benchmarks_seed42', 'factors': 'factor_benchmarks_seed42',
+              'longtail': 'longtail_benchmarks_seed42_v1'}[suite]
     p.add_argument('--output-root', type=Path, default=Path('output/cifar100_LT') / output)
     p.add_argument('--num-workers', type=int, default=8)
     p.add_argument('--resume', action='store_true')

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "candidate": "figures/plot_partition.py",
+  "baseline": ".vivid/template-sources/6fea2fc8fa2b96f8d6b51b19.py",
+  "source": {
+    "id": "screenshot.marginal_heatmap",
+    "variant": "main",
+    "codeSha256": "76e887cb59e789da9da96e430aa7b37aa809ed3a39d1fb93b27e29e8f8e8f3d1",
+    "contentSha256": "60f11917637539e807c49daced9b42d0fa4ae751424d0041cb884829d53dda14",
+    "file": "figure_recipes_screenshot.md",
+    "blocks": [
+      0
+    ],
+    "requiredInputs": []
+  }
+}

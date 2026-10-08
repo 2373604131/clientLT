@@ -1,0 +1,29 @@
+{
+  "schema": "global_longtail_seed42_v1",
+  "fedlf": {
+    "rs_alpha": 0.25,
+    "center_weight": 0.01,
+    "decorr_weight": 0.01,
+    "distance_epsilon": 1e-12
+  },
+  "fedyoyo": {
+    "tau": 1.5,
+    "temperature": 1.5,
+    "distillation_weight": 4.0,
+    "warmup_rounds": 50,
+    "local_prior_gamma": 0.1,
+    "global_prior_momentum": 0.9,
+    "change_threshold": 100.0,
+    "first_round_outlier_threshold": 10000.0,
+    "effective_epsilon": 1e-6
+  },
+  "fedrela": {
+    "relabel_after_round": 90,
+    "threshold_percent": 5.0,
+    "posterior_passes": 5,
+    "post_relabel_lr_multiplier": 0.1,
+    "host": "FedAvg-LoRA CE",
+    "threshold_mode": "adaptive",
+    "relabel_period": 0
+  }
+}

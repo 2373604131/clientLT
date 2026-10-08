@@ -1,0 +1,29 @@
+{
+  "review_skill": "figure-designer",
+  "date": "2026-10-08",
+  "review_mode": "actual rendered PNGs viewed, then revised and viewed again",
+  "images_reviewed": ["figures/partition_comparison.png", "figures/retention_comparison.png", "figures/two_axis_construction.png"],
+  "pass1_findings": [
+    {"severity": "MAJOR", "figure": "two_axis_construction", "issue": "上方构造说明与第一排标题重叠。", "fix": "下移面板区域，重新渲染并查看，已消除。"},
+    {"severity": "MINOR", "figure": "partition_comparison", "issue": "集中比例标注与横轴标签过近。", "fix": "下移集中比例和色标，已复查。"},
+    {"severity": "MINOR", "figure": "partition_comparison", "issue": "原始数量色阶使尾部类别的分配不够明显。", "fix": "改用按类别归一化的比例色标，保留真实数量的边际柱，并在图注解释两个口径。"}
+  ],
+  "final_checks": {
+    "vector_export": "PASS: PDF/SVG; heatmap cells are embedded raster at native matrix resolution, axes, bars, lines and text are vectors.",
+    "font_size": "PASS at 7.2-inch full width; minimum specified font is 8pt; not intended to shrink into one column.",
+    "non_color_encoding": "PASS: line style/marker differences, client group boundaries and numerical labels supplement palette.",
+    "captions": "PASS: figure_captions.txt gives finding, data, normalization, strategies, scope and limitations.",
+    "honest_axes": "PASS: common linear axes for accuracy; explicitly labelled log count scale for construction; common linear percentage scale for observed allocation.",
+    "integrity": "PASS: real curves unsmoothed; one seed and no confidence bands; constructed counts clearly separated from training; ordinary Dirichlet separate from matched and lambda0.",
+    "chartjunk": "PASS: no 3D, no unrelated illustration, no invented performance surface."
+  },
+  "template_adaptations_reviewed": [
+    "basic.line缺失fill_between为必要适配：只有单次运行，不能沿用模拟误差带。星号保留真实极值；峰值差改为直接数值标注。",
+    "marginal_heatmap保留热图、白色网格及上下边际；3000格的逐格文本省略，避免不可读的小字。",
+    "plot_two_axes通过plot_partition.marginal_panel复用已适配的完整图层；静态检查只检查当前文件，因此部分调用显示缺失。",
+    "顺序色标替代演示的发散色标，因为样本数和占比均非负；Vivid橄榄杏棕配色保持项目统一。"
+  ],
+  "remaining_critical": 0,
+  "remaining_major": 0,
+  "scope": "讨论用科研图，投稿时应按实际栏宽重新检查；应用场景未作为实测事实画入图中。"
+}

@@ -97,6 +97,8 @@ def startup_worker(method):
         gc.collect()
         job = dict(method=method, data_root=tmp, output_root=tmp, workers=0,
                    config=common.read_json(common.CONFIG))
+        if method in common.LONGTAIL_METHODS:
+            job['config']['longtail_baselines'] = common.read_json(common.LONGTAIL_CONFIG)
         cfg = runtime.build_config(job, meta)
         with patch.object(clip, '_download', return_value=str(checkpoint)):
             if not is_capt:
@@ -120,8 +122,14 @@ def startup_worker(method):
         frozen_hash = state_hash(model.state_dict(), frozen)
         images = torch.randn(2, 3, 32, 32)
         labels = torch.tensor([0, 2])
-        after, costs = runtime.local_train(model, teacher, [{'img': images, 'label': labels}],
-                                           method, job['config'], torch.ones(4), 'cpu', smoke=True)
+        if method in ('fedlf', 'fedyoyo', 'fedrela'):
+            from trainers.baselines import longtail
+            batch = dict(img=images, img_strong=images.flip(-1), label=labels, index=torch.arange(2))
+            after, costs = longtail.local_train(model, [batch], method, job['config'], torch.ones(4),
+                'cpu', 2, prior=torch.ones(4) / 4, relabels={0: 1}, relabel_active=True, smoke=True)
+        else:
+            after, costs = runtime.local_train(model, teacher, [{'img': images, 'label': labels}],
+                                               method, job['config'], torch.ones(4), 'cpu', smoke=True)
         assert costs['optimizer_steps'] == 1
         assert any(not torch.equal(value, before[k]) for k, value in after.items())
         assert state_hash(model.state_dict(), frozen) == frozen_hash
@@ -160,6 +168,18 @@ class ModelStartupTests(unittest.TestCase):
 
     def test_fedpurel_startup_and_update(self):
         self.run_worker('fedpurel')
+
+    def test_la_startup_and_update(self):
+        self.run_worker('fedavg-lora-la')
+
+    def test_fedlf_startup_and_update(self):
+        self.run_worker('fedlf')
+
+    def test_fedyoyo_startup_and_update(self):
+        self.run_worker('fedyoyo')
+
+    def test_fedrela_startup_and_update(self):
+        self.run_worker('fedrela')
 
 
 if __name__ == '__main__':

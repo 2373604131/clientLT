@@ -1,0 +1,153 @@
+{
+  "findings": [
+    {
+      "kind": "call_added",
+      "method": "Rectangle",
+      "candidate_lines": [
+        27
+      ],
+      "message": "新增调用；核对数据依据及布局用途，必要适配允许保留。",
+      "source_lines": [],
+      "severity": "advisory"
+    },
+    {
+      "kind": "call_added",
+      "method": "add_patch",
+      "candidate_lines": [
+        27
+      ],
+      "message": "新增调用；核对数据依据及布局用途，必要适配允许保留。",
+      "source_lines": [],
+      "severity": "advisory"
+    },
+    {
+      "kind": "style_changed",
+      "method": "heatmap",
+      "parameter": "annot",
+      "before": [
+        true
+      ],
+      "after": [
+        false
+      ],
+      "message": "按源码出现/可展开循环顺序比较；结合卡片核对用途，不自动判错。",
+      "source_lines": [
+        13
+      ],
+      "candidate_lines": [
+        17
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "style_changed",
+      "method": "heatmap",
+      "parameter": "linewidths",
+      "before": [
+        0.3
+      ],
+      "after": [
+        0.22
+      ],
+      "message": "按源码出现/可展开循环顺序比较；结合卡片核对用途，不自动判错。",
+      "source_lines": [
+        13
+      ],
+      "candidate_lines": [
+        17
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "parameter_added",
+      "method": "heatmap",
+      "parameter": "mask",
+      "after": [
+        "data == 0"
+      ],
+      "message": "新增显式参数；核对其用途。",
+      "source_lines": [
+        13
+      ],
+      "candidate_lines": [
+        17
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "parameter_added",
+      "method": "heatmap",
+      "parameter": "vmax",
+      "after": [
+        9
+      ],
+      "message": "新增显式参数；核对其用途。",
+      "source_lines": [
+        13
+      ],
+      "candidate_lines": [
+        17
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "parameter_added",
+      "method": "heatmap",
+      "parameter": "vmin",
+      "after": [
+        0
+      ],
+      "message": "新增显式参数；核对其用途。",
+      "source_lines": [
+        13
+      ],
+      "candidate_lines": [
+        17
+      ],
+      "severity": "advisory"
+    },
+    {
+      "kind": "operation_not_found",
+      "method": "subplots",
+      "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+      "source_lines": [
+        12
+      ],
+      "candidate_lines": [],
+      "severity": "advisory"
+    },
+    {
+      "kind": "operation_not_found",
+      "method": "tight_layout",
+      "message": "当前文件未找到此调用；检查是否删除图元、改用等价实现或移入辅助文件。",
+      "source_lines": [
+        19
+      ],
+      "candidate_lines": [],
+      "severity": "advisory"
+    }
+  ],
+  "baseline_calls": 3,
+  "candidate_calls": 3,
+  "verdict": "仅提供源码差异线索，不判定视觉通过或失败。即使无提示，仍需按现有流程对照实图。",
+  "limits": "不执行代码、不判断分支实际运行、不跨辅助文件追踪，不验证坐标语义或最终层次是否可见。",
+  "template_id": "competition.spatiotemporal_heatmap",
+  "baseline": "G:\\桌面\\CAPT\\presentation\\clientlt_setting_audit_20261008\\.vivid\\template-sources\\0564f0a8ca539eb9c90be993.py",
+  "candidate": "G:\\桌面\\CAPT\\presentation\\clientlt_setting_audit_20261008\\figures\\intro_heatmaps.py",
+  "checkpoints": [
+    {
+      "feature": "地区时间格与原值",
+      "preserve": "保留地区行、年份列的顺序、连续色阶、原值注释、细白格线及有单位的色条。",
+      "allowed_adaptation": "时段、地区数量、数值精度和连续色相可变，不因检索分组而任意打乱时间。",
+      "evidence": [
+        {
+          "line": 13,
+          "end_line": 16,
+          "code": "sns.heatmap(data, annot=True, fmt='.1f', cmap=palette_cmap('sequential'),\n            xticklabels=years, yticklabels=regions,\n            linewidths=0.3, linecolor='white',\n            cbar_kws={'label': 'GDP增长率 (%)', 'shrink': 0.8}, ax=ax)",
+          "href": "sources/competition.spatiotemporal_heatmap/original.html#L13"
+        }
+      ]
+    }
+  ],
+  "source_diff": "--- template\n+++ adapted\n@@ -1,20 +1,29 @@\n-import numpy as np, matplotlib.pyplot as plt; from _utils.palette_maps import palette_cmap, palette_stops, contrast_text\n+\"\"\"Vivid competition.spatiotemporal_heatmap, adapted to actual client/class counts.\n+\n+The recipe's rectangular sns.heatmap, continuous scale and white cell edges\n+are retained. A shared colorbar replaces duplicate bars; 600 cell annotations\n+would be unreadable at the requested compact paper size and are omitted.\n+\"\"\"\n+import numpy as np\n import seaborn as sns\n-from _utils.plot_utils import setup_style, save_fig, PALETTE, COLORS\n-setup_style()\n-np.random.seed(42)\n+from matplotlib.patches import Rectangle\n+from figure_common import palette_cmap\n \n-regions = ['北京', '上海', '广东', '浙江', '江苏', '四川', '湖北', '山东']\n-years = [str(y) for y in range(2015, 2024)]\n-data = np.random.uniform(3, 12, (len(regions), len(years)))\n-data = np.round(data, 1)\n \n-fig, ax = plt.subplots(figsize=(9, 5))\n-sns.heatmap(data, annot=True, fmt='.1f', cmap=palette_cmap('sequential'),\n-            xticklabels=years, yticklabels=regions,\n-            linewidths=0.3, linecolor='white',\n-            cbar_kws={'label': 'GDP增长率 (%)', 'shrink': 0.8}, ax=ax)\n-ax.set_xlabel('年份', fontsize=11); ax.set_ylabel('地区', fontsize=11)\n-ax.set_yticklabels(regions, rotation=0, fontsize=9)\n-[t.set_color(contrast_text(ax.collections[0].cmap(ax.collections[0].norm(float(t.get_text()))))) for t in ax.texts]; fig.tight_layout()\n-save_fig(fig, 'figures/fig_spatiotemporal.pdf')\n+def draw_heatmap(ax, data, *, lang='en', show_ylabel=False, selected_group=False):\n+    assert data.shape == (30, 20)\n+    assert int(data.sum()) == 153\n+    assert np.all(data >= 0)\n+    sns.heatmap(data, annot=False, fmt='d', cmap=palette_cmap('sequential'),\n+                vmin=0, vmax=9, mask=data == 0,\n+                xticklabels=False, yticklabels=False,\n+                linewidths=0.22, linecolor='white', cbar=False, ax=ax)\n+    ax.set_xticks([.5, 9.5, 19.5], ['80', '89', '99'])\n+    ax.set_yticks([.5, 14.5, 29.5], ['0', '14', '29'])\n+    ax.set_xlabel('尾部类别' if lang == 'zh' else 'Tail class', labelpad=2)\n+    ax.set_ylabel(('客户端' if lang == 'zh' else 'Client') if show_ylabel else '', labelpad=3)\n+    ax.tick_params(length=0, pad=3, labelsize=8, labelrotation=0)\n+    if selected_group:\n+        ax.add_patch(Rectangle((0, 27), 20, 3, fill=False, edgecolor='#333333',\n+                               linewidth=.8, clip_on=False))\n+    return ax.collections[0]\n"
+}

@@ -1,0 +1,3 @@
+round,train_seconds,upload_bytes,downlink_bytes,optimizer_steps,student_forward_images,teacher_forward_images,backward_images,projection_conflicts,loss_sum
+1,11.007701500318944,294912,294912,2,64,0,64,0,1.9461311101913452
+2,9.745254100300372,294912,294912,2,64,0,64,0,2.0975165367126465

@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-08",
+  "skills": ["figure-designer", "vivid-figures-skill"],
+  "type": "motivated-example with measured training failure",
+  "purpose": "读者先看清同一全局长尾样本池下尾部类别集中到同一少数客户端，再看到同一J策略下全局模型的尾部准确率后期下降。",
+  "layout": "一行三幅：常规Dirichlet的30×20尾部样本数量矩阵、Client-LT的同尺寸矩阵、两种划分的J准确率曲线。前两幅统一原始客户端顺序和0–9色标。Client-LT下方3行用一个细框标记。",
+  "native_width_inches": 7.2,
+  "native_height_inches": 2.65,
+  "target": "通栏约183mm，按1:1排版；基础字号8.5pt，最小8pt。若改为单栏，需重新布局。",
+  "palette": "olive-apricot；Dirichlet为橄榄绿虚线方点，Client-LT为棕橙实线圆点；热图共用顺序色标",
+  "recipes": {
+    "heatmaps": "competition.spatiotemporal_heatmap：沿用sns.heatmap矩阵、细白格线及色条；600格逐格数字因可读性省略。",
+    "curves": "basic.line：沿用逐序列折线、白边点、真实峰值及标注；单次运行不绘制模板模拟置信带。"
+  },
+  "simplification": "仅保留坐标、面板名、一个共享色条和曲线图例/少量下降标注；不画工厂、服务器、流程箭头、额外参数网格和边际柱。",
+  "data_scope": "Tail20全部类别80–99和全部客户端0–29；完整轮次0–100；同一全局10847样本，尾部153样本。J为AB联合更新加9次额外A更新，不能标为普通FedAvg。",
+  "alternatives": "全100类矩阵会稀释尾部集中差异，边际柱和IF网格增加当前图的信息负担；不使用示意样本或平滑曲线代替真实实验。",
+  "planned_exports": ["intro_compact_en.png", "intro_compact_en.pdf", "intro_compact_en.svg", "intro_compact_zh.png", "intro_compact_zh.pdf", "intro_compact_zh.svg"],
+  "caption_scope": "说明配对条件、J训练定义、全局IF和划分参数；结论限当前种子与策略，其他策略结果保留在已有完整对照中。"
+}

@@ -1,0 +1,10 @@
+partition,method,seed,initial_tail,peak_tail,peak_round,final_tail,peak_to_final_pp,last20_tail,last20_overall,source
+client-longtail,j,42,66.35,71.7,22,59.55,12.150000000000006,60.27,71.196,output/la_control_js_topology_analysis/la_control/seed42/client-longtail/j/tau1_a1_protocol42
+client-longtail,s,42,66.35,71.8,46,68.35,3.450000000000003,68.6625,70.91,output/la_control_js_topology_analysis/la_control/seed42/client-longtail/s/tau1_a1_protocol42
+client-longtail,e3,42,66.35,71.4,89,71.05,0.3500000000000085,71.25499999999998,69.64549999999998,output/la_control_js_topology_analysis/la_control/seed42/client-longtail/e3/tau1_a1_protocol42
+noniid-labeldir-fine,j,42,66.35,73.05,28,71.25,1.7999999999999972,71.36,72.29249999999999,output/la_control_standard_dirichlet_e3_j_s_analysis/la_control/seed42/noniid-labeldir-fine/j/tau1_a1_protocol42_beta0.5
+noniid-labeldir-fine,s,42,66.35,72.9,57,72.0,0.9000000000000057,72.29749999999999,71.01400000000001,output/la_control_standard_dirichlet_e3_j_s_analysis/la_control/seed42/noniid-labeldir-fine/s/tau1_a1_protocol42_beta0.5
+noniid-labeldir-fine,e3,42,66.35,72.15,98,72.1,0.05000000000001137,72.0175,69.60349999999998,output/la_control_standard_dirichlet_e3_j_s_analysis/la_control/seed42/noniid-labeldir-fine/e3/tau1_a1_protocol42_beta0.5
+matched-dirichlet,j,42,66.35,73.2,98,72.8,0.4000000000000057,73.0025,72.467,output/la_control_js_topology_analysis/la_control/seed42/matched-dirichlet/j/tau1_a1_protocol42
+matched-dirichlet,s,42,66.35,72.75,58,72.1,0.6500000000000057,72.06999999999998,70.94350000000001,output/la_control_js_topology_analysis/la_control/seed42/matched-dirichlet/s/tau1_a1_protocol42
+matched-dirichlet,e3,42,66.35,71.9,85,71.7,0.20000000000000284,71.8075,69.664,output/la_control_js_topology_analysis/la_control/seed42/matched-dirichlet/e3/tau1_a1_protocol42

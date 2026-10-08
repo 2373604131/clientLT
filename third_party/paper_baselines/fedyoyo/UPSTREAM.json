@@ -1,0 +1,21 @@
+{
+  "repository": "https://github.com/shanss132/FedYoYo",
+  "commit": "fc6d728febb461ca46eedd142ef835b6c6572f88",
+  "archive_sha256": "aa329175dedbe4bb3eb4f1fb9b8cd94abddc86b1ba52cfbbdc209e3412674893",
+  "files": {
+    "data_loader/autoaug.py": "435d05dfc548f1b4db59f35ab8fd85c2437ad4b985fdaf18cdfc9cb95c6e434f",
+    "data_loader/imagenet_lt_data_loaders.py": "4930621893c559278f69286d7b9629d36967d624f80a98bf7586f580276ad434",
+    "data_loader/imbalance_cifar.py": "90871b9fce3957f256058bb646de0ed3853275891167a75d613d48b57d96ffd7",
+    "data_loader/imbalance_svhn.py": "1490c8fa1630c8fef9ae1e2cbcc18b31a5e5ea5127b3514115a5ee8fd2f5dc37",
+    "data_loader/tools.py": "58b01c6b2ea637f25e4c91c9ecea89b48b51a0afbc93d3443677a90b19d3431d",
+    "fedyoyo.sh": "d5c94c11a18687c502e24aed6f54f3b556dd3fe8048cca2b169077a49b922826",
+    "main_fedyoyo.py": "05191d0ac9019eca062f2b2fb34ad25bf1c4a6252a33403a1395d57122a4aa60",
+    "models/ResNet50.py": "be9dc929d1fc20713a0b41014dc401dbc5a5238d080af992391cd8067fb23bb1",
+    "models/ResNet_imagenet.py": "5d49b83f14b3f2228c0cb308c8886ac4fc29853b877471fc793d353fd426966d",
+    "models/Resnet8.py": "31af2ad5ed1627cbb4194411d221f8789677345e6aea696d5ef4411e6d3935b2",
+    "models/__init__.py": "72054b2dee61445c4b1ec3c8ade3fa0dba8d3b5d1de3c6f9e7ee7258474357f0",
+    "models/resnet_cifar.py": "3f1c2b59f0ccd1a775a2657ae27e43cb9cdfbce23382328da83f44f6735e9cfe",
+    "readme.md": "07f0d6a1cd70cf4cbf47331ef6dda96a39ab183975110e9b973a0ec92fb8f878",
+    "utils.py": "8561ca997cdccf8acc785f782583892fac5501421d924b98faa95c67a0fd48ee"
+  }
+}

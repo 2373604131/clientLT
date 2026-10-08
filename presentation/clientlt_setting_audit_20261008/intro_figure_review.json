@@ -1,0 +1,30 @@
+{
+  "skill": "figure-designer",
+  "reviewed_images": ["figures/intro_compact_en.png", "figures/intro_compact_zh.png"],
+  "status": "ready",
+  "initial_review": [
+    {"severity": "MAJOR", "finding": "共享色条标签底部裁切", "correction": "增大面板下方空间、上移色条，保持画布大小及字体不变。"},
+    {"severity": "MAJOR", "finding": "中文下降标注接近画布右边界", "correction": "缩为峰值到末轮的两行标注，明确pp单位于图注。"},
+    {"severity": "MINOR", "finding": "下降标注箭头原先指向第80轮，容易混淆统计范围", "correction": "改为明确指向第100轮末值，并写明Peak→final。"},
+    {"severity": "MINOR", "finding": "Matplotlib默认将连续色条栅格化", "correction": "显式关闭色条rasterized，重新导出并检查SVG无位图节点。"}
+  ],
+  "final_visual_review": "修改后完整查看中英文PNG。标题、坐标和色条文字无重叠或裁切；末尾三客户端集中分布可辨，曲线及完整轮次清楚，标注准确指向末轮。",
+  "checks": {
+    "purpose_and_layout": "PASS：真实划分对比连接实测后期退化，未添加方法胜负或抽象流程。",
+    "data_integrity": "PASS：读取原始J运行文件，完整0–100轮、两张30×20矩阵均合计153样本；样本池与主要配置复用已核查的配对记录。",
+    "statistics": "PASS：无模拟误差带或平滑；12.15个百分点由Client-LT峰值71.70减末轮59.55得到；图注另报Dirichlet73.05→71.25。",
+    "vector": "PASS：PDF/SVG直接导出，SVG无image位图节点；矩阵使用seaborn的矢量QuadMesh。",
+    "font_size": "PASS：原生及目标通栏宽度7.2英寸，8–9pt文字；缩成单栏前需重新布局。",
+    "color_and_shape": "PASS：共用连续样本数量色标，白格为零；折线同时用颜色、线型、点形区分。",
+    "axes": "PASS：两热图共用0–9真实数量范围和相同顺序；准确率轴55–76%，包含全部真实数据，标明单位；无轴断裂。",
+    "caption": "PASS：intro_compact_caption.txt提供中英文图注，说明J并非普通FedAvg，列出数据/参数和结论适用配置。",
+    "minimalism": "PASS：一行三幅，无总标题、无边际柱、无参数网格、无服务器/工厂装饰，仅一个强调框和一个数据标注。"
+  },
+  "source_adaptations": [
+    "competition.spatiotemporal_heatmap保留sns.heatmap、细白格线和连续色标；600格逐格数值省略，共享色条移至两热图下方。",
+    "basic.line保留逐序列绘制、白边点、主线强调、真实峰值和箭头；单次运行移除模拟区间，紧凑图取消背景色带与标注外框。",
+    "调用位置变化主要来自封装函数供三面板组合使用；已保存两份独立源码差异报告。"
+  ],
+  "remaining_critical": 0,
+  "remaining_major": 0
+}

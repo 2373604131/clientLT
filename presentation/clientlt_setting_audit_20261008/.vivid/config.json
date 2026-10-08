@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "palette": "custom",
+  "style": "clean_open",
+  "language": "zh",
+  "output_format": "pdf",
+  "colors": [
+    "#1597D5",
+    "#64C6ED",
+    "#FF851B",
+    "#1454A0",
+    "#19A77B",
+    "#FFBE2E"
+  ]
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "round": 1,
+    "client": 4,
+    "optimizer_steps": 1,
+    "student_forward_images": 32,
+    "teacher_forward_images": 0,
+    "backward_images": 32,
+    "auxiliary_forward_images": 32,
+    "loss_sum": 7.550002574920654,
+    "ce_loss_sum": 7.391946792602539,
+    "center_loss_sum": 14.399083137512207,
+    "decorr_loss_sum": 1.406455397605896,
+    "kd_loss_sum": 0.0,
+    "selected_distillation_images": 0,
+    "relabeled_training_images": 0,
+    "statistics_upload_bytes": 0,
+    "statistics_download_bytes": 0
+  },
+  {
+    "round": 1,
+    "client": 21,
+    "optimizer_steps": 1,
+    "student_forward_images": 32,
+    "teacher_forward_images": 0,
+    "backward_images": 32,
+    "auxiliary_forward_images": 32,
+    "loss_sum": 5.0838212966918945,
+    "ce_loss_sum": 4.922532558441162,
+    "center_loss_sum": 14.6588773727417,
+    "decorr_loss_sum": 1.4700032472610474,
+    "kd_loss_sum": 0.0,
+    "selected_distillation_images": 0,
+    "relabeled_training_images": 0,
+    "statistics_upload_bytes": 0,
+    "statistics_download_bytes": 0
+  }
+]

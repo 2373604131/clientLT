@@ -1,0 +1,4 @@
+partition,samples,tail_samples,client_min,client_max,tail_samples_in_clients_27_29,tail_share_clients_27_29,largest3_tail_share,clients_with_any_tail,mean_clients_per_tail_class,mean_effective_clients_per_tail_class,selected_group_total_samples,selected_group_fedavg_weight
+client-longtail,10847,153,39,638,119,0.7777777777777778,0.7777777777777778,22,3.65,2.425562522111276,130,0.011984880612150825
+noniid-labeldir-fine,10847,153,229,500,12,0.0784313725490196,0.19607843137254902,30,6.05,5.369936204146731,801,0.07384530284871393
+matched-dirichlet,10847,153,39,638,1,0.006535947712418301,0.28104575163398693,27,5.35,4.558146464877542,130,0.011984880612150825

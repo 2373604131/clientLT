@@ -1,0 +1,29 @@
+{
+  "repository": "https://github.com/18sym/FedLF",
+  "commit": "127cbaf363ec3a1f40c116f6b1de3c1f7a705764",
+  "archive_sha256": "fe820ff41c4d4b14dc3f60374225d64c60b45d97c8912de800225a74ab7fa558",
+  "files": {
+    "Dataset/FedIC_long_tailed_cifar10.py": "ef06284f1106f7784ff13ee5f5015d76fd8cedc3d058f1938d9b54fd2626f9a1",
+    "Dataset/Gradient_matching_loss.py": "7727b532431219807fc0e355503c39bb47c595aa4cbaca989469e8424f072b13",
+    "Dataset/ImageNet_LT.py": "cc7e9cd5137bca98ed3094d9dc0bd8971c431d249a8320daddd16c33873565ed",
+    "Dataset/dataset.py": "daac4f6404d18babb22261b252910e1847d9a95af77d67eea52bfcf9e59a70b7",
+    "Dataset/long_tailed_cifar10.py": "42f761e4e96101bb761fa04a4d40320c91229df2b1e7c2734e5ec422d66bf5ec",
+    "Dataset/long_tailed_cifar100.py": "075c7e5b9a79f1a24f69741c224a935ff54ee06a581a737fa8bdc704ca46fe29",
+    "Dataset/param_aug.py": "0e86c6085a245ce061fe546f3daf1c9c42b27a11000f8df615e2d38af99fe650",
+    "Dataset/sample_dirichlet.py": "925e240c06aa82c8b1a352b1b6b876c73611ccf7f74a9907c3cf1b8da2d25296",
+    "Dimensionality_reduction/tSNE_cifar10.py": "cdd0330898ca95333fbf2c40a1034f1d4016b8886f26ade124a43846a3b063f9",
+    "Dimensionality_reduction/tSNE_example.py": "664b2a01c46fe1b05e2ecfc75eb97109abed8a2d6704970429db2ef8cff3155a",
+    "Model/CNN.py": "4644571904dff1f82a8115c12ebea2cbde88b42f9d8b7aa0abb36f6cd20dbde6",
+    "Model/FedIC_model_feature.py": "52187ade737448912616cd24f27131be21d8ee59d4cb25322496d403b2f14afb",
+    "Model/ResNet50.py": "b85893a2ee87488cb22274c04152283e41f3289ba954892ebbfd00247d1da90f",
+    "Model/Resnet8.py": "3b90f6dbd7eb50379e63b9666f4ea73a099cc006e6dfb0398c0eaae5bfc2cacb",
+    "Model/log_model.py": "ce8697cb6d812513dca24ec939f9085d2963c5875b19116eab3149f5f794aabd",
+    "README.md": "b7e8df49da266170aa3c9222a988f3f3ba62e7df6eaa4ae6c67bbedfc755adf9",
+    "algorithm/Focal_Loss.py": "9ead5d3b1d568e5f7479d5e70a2f0bc2a0c1e75cc083c6d29dca87f9e215ab41",
+    "algorithm/fedlf.py": "d33729a92e5f4dfb6c5c910a770fadc58ab0133c625ba30b0067c5ce113800e4",
+    "algorithm/utils.py": "87cd78d04f29b31174bec8a1520ce6dfd61e8a17e7286c17fd8a698ce241a554",
+    "main.py": "a7f3b283f6fcb9fe66e112ebd8d9af90bbc709e718a5c07588b7506371958962",
+    "options.py": "5c34a6bdbf3eff89d7a5c9e974041c6f3afe84dc97cca9fe723acf5a23bb1c60",
+    "test.py": "e9368a2f21fe7faa30b24fc1bb6eeef089c7c25a26cade145f18d1b0ed49c687"
+  }
+}

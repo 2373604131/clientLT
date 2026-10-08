@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "candidate": "figures/plot_retention.py",
+  "baseline": ".vivid/template-sources/1027bda6956674cdc12788be.py",
+  "source": {
+    "id": "basic.line",
+    "variant": "main",
+    "codeSha256": "0af09146821f6490c8e5172f32446038d772f01f6703e65003571db38c654268",
+    "contentSha256": "b85dba2439be57af18d4508ed89bc7ca6af641b055b3dd32f42cb1539f8b356d",
+    "file": "figure_recipes_basic.md",
+    "blocks": [
+      0
+    ],
+    "requiredInputs": []
+  }
+}

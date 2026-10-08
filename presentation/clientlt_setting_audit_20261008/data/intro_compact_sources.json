@@ -1,0 +1,22 @@
+{
+  "noniid-labeldir-fine": {
+    "source": "output/la_control_standard_dirichlet_e3_j_s_analysis/la_control/seed42/noniid-labeldir-fine/j/tau1_a1_protocol42_beta0.5",
+    "hashes": {
+      "client_class_counts.csv": "97582964f9e8de3423f651b2e7a81e467457c7faec517510dc679eb1d6002536",
+      "round_metrics.csv": "b6904a1f93df39e0f332cdbb6ee7343cf90f4b4b15ffb2a4f52b899f86614dcd",
+      "partition_manifest.csv": "695fd0dd969aec159a7a9e8993b3c193f65520534a445c9125f3cc1b14b45441"
+    },
+    "peak": 73.05,
+    "final": 71.25
+  },
+  "client-longtail": {
+    "source": "output/la_control_js_topology_analysis/la_control/seed42/client-longtail/j/tau1_a1_protocol42",
+    "hashes": {
+      "client_class_counts.csv": "e74dca68012dd851531cd3a82a648838b203bb31c746f73f4b66b778dc5e0af8",
+      "round_metrics.csv": "7358cd5986bbba9d35130b8c0a0ded30b498d2627f8b3458fc7dd5a3c1bcc43f",
+      "partition_manifest.csv": "cb41d01f365c4cd96b52ea1a45c068f639d61de207e38b1a1b023b909812265c"
+    },
+    "peak": 71.7,
+    "final": 59.55
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "repository": "https://github.com/guangzhengh/FedReLa",
+  "commit": "20a58bd75f48b3243f80adb35537b5b4ba252773",
+  "archive_sha256": "59b7abf31b261e16e2793d793accd0eb2f08cafc40ae5071c097cecfebb3ec36",
+  "files": {
+    "LICENSE": "0ada589b7074a247273104a27fd8eb6f26a89436820c5f2c6034d648d54a02d3",
+    "README.md": "ad41ab8f1511bfd61dbf43f3fa85bbdef397f05681838ad1103e64f3e2353637",
+    "fed_etf.py": "f39b6aa5b9e435f3712dbb7875d6faf08e7b4776c0f8fba3cca2c7332656b694",
+    "fedetf_100.py": "8d1bab65f8032e22c22239ff781eea1d610d7771dab631166d66352aa53e2817",
+    "fedloge.py": "e2de89c0656c497dd53f492d4813a92381305d6f88201973f99a717409e811c2",
+    "fedloge_100.py": "1e59405ca55e71d0ef04582c2ab9234c01b8d2a7625ecfda6bfaef9c3b629353",
+    "model/build_model.py": "495ae3824387338eb2f22f2ca93e4534f4405baf74fed68f2856ea577f6d0169",
+    "model/model_res.py": "95706561034c17e2e4028fe688351ab59a8ba0bdf81271e379ff784c94a43b73",
+    "options.py": "abb7eab119c483e5808eaad762b0ade0d3b56cefdaf8cc665656ce1132284d09",
+    "realignment.py": "d3787903b211ee34f1f3f833a725c4c3cb312e002e19c938ae639a0fb1a71670",
+    "realignment_100.py": "d6005d149a1cedebe18a97d55e3537917f71a43e879cc6023a0e9ead772be3ac",
+    "requirements.txt": "cb55e014fce7aa949e0b2acad1841af4da5eec6109d618915257a5d8444ef767",
+    "util/FedReLa.py": "c02d581dfc9a8a2e55faba23979919bdf7ee18e3b73d763536fa7dabfe3f8122",
+    "util/checkpoint.py": "a2f2f06b4733c0a53f948e092dbc0e6bc4cd20396b2a840079b8ccae07dde54c",
+    "util/dataset.py": "d305ed5a71ee6527677cee6ba7d4c55a63a28ad18c21ffde1955f4f3907e17d6",
+    "util/etf_methods.py": "91c49b2cf261148481699a86a848d38bfc2dccfbed4e78e4cd5817f76c8fd48c",
+    "util/fedavg.py": "4378f281c295cb3bfc9c0c6206056c7d56d13570277df9078bf97192d6237887",
+    "util/imbalance_cifar.py": "247fce31a2e80be48183d38000fda3e47406f10211ffb2447bf636fd64670bac",
+    "util/losses.py": "fb21eecb186b387da5b4931877edadfad020c510edf9c93b9c64e8cfb02d52ce",
+    "util/realign_eval.py": "f3d72b737b3b93cebb096bfd066fe329057128c76cdfdbe779189e5af0423cdf",
+    "util/runlog.py": "b457bc92112698ac7aea9402824d3299924ec4e22d0afe53e2e9b380a1c2b789",
+    "util/sampling.py": "1457771eb4f255c586067b9e1a628a0c318f17c781b90eb6c6b2f025526ad137",
+    "util/update_baseline.py": "cc292225391462e17e90f929d44112731e081a19fbd757e70f5db0ca5755e89e",
+    "util/util.py": "1f8a54908d1cf821477bf72689ce569b52b3589f1a4ed6013fd4bfd91ac2ca11"
+  }
+}

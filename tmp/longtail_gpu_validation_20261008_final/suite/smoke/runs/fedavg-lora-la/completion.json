@@ -1,0 +1,9 @@
+{
+  "job_id": "131fd6846d817da00dca6812018c9f0a78145a8415535fcc36a200b696435c89",
+  "completed_round": 2,
+  "smoke": true,
+  "official_test_passes": 3,
+  "train_seconds": 20.752955600619316,
+  "optimizer_steps": 4,
+  "source_unchanged": true
+}

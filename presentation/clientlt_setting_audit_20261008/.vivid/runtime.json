@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "profile": "modeling-competition",
+  "capability": "paper-figure",
+  "workspace": "G:\\桌面\\CAPT\\presentation\\clientlt_setting_audit_20261008",
+  "runtime_skill": "C:\\Users\\Administrator\\.codex\\skills\\vivid-figures-skill\\original\\resources",
+  "paths": {
+    "python": "D:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+    "configured_python": null,
+    "chrome": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "drawio": null,
+    "mmdc": null,
+    "node": "E:\\node\\node.exe",
+    "xelatex": "D:\\Users\\Administrator\\texlive\\2024\\bin\\windows\\xelatex.exe",
+    "bash": "C:\\Program Files\\Git\\bin\\bash.exe",
+    "shared_scripts": "G:\\桌面\\CAPT\\presentation\\clientlt_setting_audit_20261008\\skills\\shared-scripts",
+    "utils": "G:\\桌面\\CAPT\\presentation\\clientlt_setting_audit_20261008\\_utils",
+    "templates": "G:\\桌面\\CAPT\\presentation\\clientlt_setting_audit_20261008\\_templates"
+  },
+  "injection": {
+    "shared": {
+      "copied": 78,
+      "preserved": 0
+    },
+    "utils": {
+      "copied": 78,
+      "preserved": 0
+    },
+    "templates": {
+      "copied": 7,
+      "preserved": 0
+    }
+  },
+  "prompt_policy": "drawing semantics and recipe layers are preserved"
+}

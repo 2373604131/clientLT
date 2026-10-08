@@ -1,0 +1,5 @@
+method,seed,status,completed_round,detail
+fedavg-lora-la,42,smoke_only,2,
+fedlf,42,smoke_only,2,
+fedrela,42,smoke_only,2,
+fedyoyo,42,smoke_only,2,

@@ -83,6 +83,9 @@ def build_config(job, meta):
     if job['method'] in FACTOR_METHODS:
         from trainers.baselines.factor_freezing import validate_options
         validate_options(job['config'])
+    if 'longtail_baselines' in job['config']:
+        from trainers.baselines.longtail import validate_options
+        validate_options(job['config'])
     cfg.freeze()
     return cfg
 
@@ -174,6 +177,8 @@ def build_model(job, cfg, meta, device):
 
 
 def local_train(model, teacher, loader, method, options, global_counts, device, smoke=False):
+    if method not in ('fedavg-lora', 'fedavg-lora-la', 'capt', 'fedntd', 'fedpurel'):
+        raise ValueError('Use the dedicated method worker for ' + method)
     from trainers.baselines import capt, fedntd, fedpurel
     params = [p for p in model.parameters() if p.requires_grad]
     # No optimizer state is inherited from a previously simulated client.
@@ -263,6 +268,9 @@ def save_checkpoint(path, payload):
 
 
 def train(job, resume=False, stop_after=None, device_override=None):
+    if job['method'] in ('fedlf', 'fedyoyo', 'fedrela'):
+        from tools.benchmarks.longtail_runtime import train as train_longtail
+        return train_longtail(job, resume, stop_after, device_override)
     from utils.cliplora_a_refresh import isolated_rng
     from utils.pfrf import capture_rng_state, restore_rng_state
     from trainers.baselines import capt

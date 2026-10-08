@@ -1,0 +1,3 @@
+round,train_seconds,upload_bytes,downlink_bytes,optimizer_steps,student_forward_images,teacher_forward_images,backward_images,auxiliary_forward_images,loss_sum,ce_loss_sum,center_loss_sum,decorr_loss_sum,kd_loss_sum,selected_distillation_images,relabeled_training_images,statistics_upload_bytes,statistics_download_bytes
+1,13.00309480028227,294912,294912,2,64,0,64,64,12.633823871612549,12.314479351043701,29.057960510253906,2.8764586448669434,0.0,0,0,0,0
+2,12.861601599957794,294912,294912,2,64,0,64,64,16.37656831741333,16.036131858825684,31.076257705688477,2.9674079418182373,0.0,0,0,0,0
