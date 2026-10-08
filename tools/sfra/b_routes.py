@@ -39,6 +39,44 @@ def file_hash(path):
     return value.hexdigest()
 
 
+def reference_probe_manifest(source):
+    """Recover exact recorded probe bytes after an LF/CRLF checkout conversion.
+
+    The metadata digest remains authoritative. No rows, whitespace, encoding or
+    stored hashes are relaxed; a candidate must match the original SHA256.
+    This function is read-only, including during preflight.
+    """
+    source = Path(source)
+    path = source/'protocol/probe_manifest.csv'
+    expected = load_json(source/'bridge_metadata.json').get('probe_manifest_sha256')
+    if (not isinstance(expected, str) or len(expected) != 64 or
+            any(c not in '0123456789abcdef' for c in expected)):
+        raise ValueError('Missing/invalid recorded probe_manifest_sha256 in '+str(source/'bridge_metadata.json'))
+    raw = path.read_bytes()
+    observed = hashlib.sha256(raw).hexdigest()
+    lf = raw.replace(b'\r\n', b'\n')
+    candidates = [('none', raw), ('LF', lf), ('CRLF', lf.replace(b'\n', b'\r\n'))]
+    for conversion, candidate in candidates:
+        if hashlib.sha256(candidate).hexdigest() == expected:
+            return candidate, dict(source_sha256=observed, recorded_sha256=expected,
+                prepared_sha256=expected, newline_conversion=conversion,
+                source_bytes=len(raw), prepared_bytes=len(candidate))
+    raise ValueError(
+        f'Probe manifest identity mismatch: {path}; recorded={expected}, actual={observed}. '
+        'Neither LF nor CRLF matches the recorded SHA256. Restore the original reference '
+        'probe manifest; do not replace the metadata hash or disable the identity check.')
+
+
+def verify_prepared_probe(run):
+    """Check the final copied bytes before importing/loading the training model."""
+    run = Path(run)
+    expected = load_json(run/'protocol/source_metadata.json').get('probe_manifest_sha256')
+    actual = file_hash(run/'protocol/probe_manifest.csv')
+    if actual != expected:
+        raise ValueError(f'Prepared probe manifest differs from source metadata: {run}; '
+                         f'recorded={expected}, actual={actual}')
+
+
 def replay_files(rounds, include_legacy=False):
     names = ['sfra_config.json', 'command.json', 'bridge_metadata.json', 'partition_manifest.csv',
              'private_witness_manifest.json', 'execution_config.json', 'checkpoints/base_model.pt',
@@ -58,6 +96,12 @@ def replay_preflight(source, rounds, include_legacy=False, hash_files=False):
     names = replay_files(rounds, include_legacy)
     missing = [n for n in names if not (source/n).is_file()]
     errors = []
+    probe_identity = None
+    if (source/'bridge_metadata.json').is_file() and (source/'protocol/probe_manifest.csv').is_file():
+        try:
+            _, probe_identity = reference_probe_manifest(source)
+        except ValueError as error:
+            errors.append(str(error))
     if (source/'sfra_config.json').is_file():
         cfg = load_json(source/'sfra_config.json')
         for key, expected in {**FROZEN, **dict(variant='full-cp', classification_weight=1.,
@@ -77,7 +121,7 @@ def replay_preflight(source, rounds, include_legacy=False, hash_files=False):
         execution = load_json(source/'execution_config.json')
         if any(execution.get(k) != v for k, v in dict(version=2, feedback_forward_batch_size=128, device_cache_gib=4.).items()):
             errors.append('Replay source must use the frozen fast-v2 f128 c4 execution mode')
-    return dict(ready=not missing and not errors, missing=missing, errors=errors,
+    return dict(ready=not missing and not errors, missing=missing, errors=errors, probe_manifest_identity=probe_identity,
                 source_sha256={n: file_hash(source/n) for n in names} if hash_files and not missing else {})
 
 

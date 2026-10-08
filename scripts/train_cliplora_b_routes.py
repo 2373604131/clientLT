@@ -12,7 +12,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
     parser.add_argument('--route-spec', type=Path, required=True)
     args, remaining = parser.parse_known_args(argv)
-    from tools.sfra.b_routes import check_sources, file_hash
+    from tools.sfra.b_routes import check_sources, file_hash, verify_prepared_probe
     from tools.sfra.maintext import load_json
     spec = load_json(args.route_spec)
     check_sources(spec, REPO)
@@ -22,6 +22,7 @@ def main(argv=None):
     output = args.route_spec.resolve().parent
     if output == source or source in output.parents or output in source.parents:
         raise ValueError('Worker output must be separate from its source/reference')
+    verify_prepared_probe(output)
     if spec['mode'] == 'replay':
         for name, expected in spec['source_sha256'].items():
             if file_hash(Path(spec['source_run'])/name) != expected:

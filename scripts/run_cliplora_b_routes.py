@@ -15,7 +15,8 @@ from scripts.run_ab_validation import file_lock, input_fingerprint, write_json
 from scripts.run_cliplora_a_refresh import build_command
 from scripts.run_cliplora_sfra import prepare_protocol
 from tools.sfra.b_routes import (ARMS, SCHEMA, check_sources, file_hash, replay_files, replay_preflight,
-                                source_hashes, summarize, summarize_replay, validate_profile)
+                                reference_probe_manifest, source_hashes, summarize, summarize_replay,
+                                validate_profile, verify_prepared_probe)
 from tools.sfra.maintext import digest, load_json
 
 
@@ -135,10 +136,11 @@ def jobs(args, hash_inputs=True):
     common = dict(schema_version=SCHEMA, mode=args.mode, code_sha256=hashes)
     if args.mode == 'full':
         fingerprint = input_fingerprint(SimpleNamespace(reference_run=args.reference_run, partition='client-longtail'))
+        _, probe_identity = reference_probe_manifest(args.reference_run)
         for seed in args.seeds:
             for arm in args.arms:
                 run = args.output_root.resolve()/'runs'/arm/f'seed{seed}'
-                spec = dict(common, input_fingerprint=fingerprint, settings=dict(
+                spec = dict(common, input_fingerprint=fingerprint, probe_manifest_identity=probe_identity, settings=dict(
                     arm=arm, seed=seed, protocol_seed=42, partition='client-longtail', rho=1., null_index=0,
                     reference_run=str(args.reference_run.resolve()), data_root=str(args.data_root.resolve()),
                     num_workers=args.num_workers, feedback_batch_size=128, feedback_cache_gib=4.))
@@ -152,6 +154,7 @@ def jobs(args, hash_inputs=True):
             run = args.output_root.resolve()/'replay'/f'seed{cfg["seed"]}'/f'r{rnd:03d}'
             inputs = {n: report['source_sha256'][n] for n in replay_files([rnd], args.include_legacy)} if hash_inputs else {}
             spec = dict(common, source_run=str(args.source_run.resolve()), source_sha256=inputs,
+                probe_manifest_identity=report['probe_manifest_identity'],
                 round=rnd, seed=cfg['seed'], arms=args.arms, rhos=args.rhos, rotations=not args.no_rotations,
                 include_legacy=args.include_legacy, source_probe=not args.skip_source_probe,
                 data_root=str(args.data_root.resolve()), num_workers=args.num_workers)
@@ -163,6 +166,21 @@ def dataset_preflight(args):
     missing = [str(folder/n) for n in ('train', 'test', 'meta') if not (folder/n).is_file() or (folder/n).stat().st_size == 0]
     if missing:
         raise ValueError('Missing CIFAR-100 files: '+str(missing))
+
+
+def prepare_route_protocol(source, run, spec):
+    recovered, identity = reference_probe_manifest(source)
+    if identity != spec['probe_manifest_identity']:
+        raise ValueError('Reference probe manifest changed after preflight')
+    result = prepare_protocol(SimpleNamespace(reference_run=source, partition='client-longtail'), run)
+    path = run/'protocol/probe_manifest.csv'
+    if path.read_bytes() != recovered:
+        path.write_bytes(recovered)
+        print('Probe manifest: restored '+identity['newline_conversion']+
+              ' line endings in output copy; original SHA256 verified.', flush=True)
+    verify_prepared_probe(run)
+    write_json(run/'protocol/probe_manifest_identity.json', identity)
+    return result
 
 
 def sources_unchanged(spec):
@@ -242,7 +260,7 @@ def execute(args, run, spec, command):
             # Replay always revalidates branch artifacts inside the worker.
         else:
             protocol_source = args.reference_run if spec['mode'] == 'full' else args.source_run
-            prepare_protocol(SimpleNamespace(reference_run=protocol_source, partition='client-longtail'), run)
+            prepare_route_protocol(protocol_source, run, spec)
             write_json(saved, spec)
             write_json(run/'command.json', command)
         if args.stop_after_round is not None:
@@ -316,7 +334,8 @@ def main(argv=None):
                 print(shlex.join(command))
             return
         write_preflight(args, dict(ready=True, mode=args.mode,
-            jobs=[dict(run=str(r), spec_digest=digest(s)) for r, s, _ in planned], gpu_execution_tested=False))
+            jobs=[dict(run=str(r), spec_digest=digest(s), probe_manifest_identity=s['probe_manifest_identity'])
+                  for r, s, _ in planned], gpu_execution_tested=False))
         if args.stage == 'preflight':
             print(f'File/configuration preflight passed for {len(planned)} jobs. GPU execution has not been tested.')
             return
