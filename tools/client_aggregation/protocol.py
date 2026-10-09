@@ -1,0 +1,128 @@
+"""Immutable protocol: two trajectories, one aggregation rule, no test selection."""
+from pathlib import Path
+
+import numpy as np
+
+from tools.sfra.maintext import FROZEN, PAIR_HASHES, digest, load_json
+from tools.sfra.ab_validation import code_hashes as ab_code_hashes
+from tools.sfra.simple_controls import protocol_info, read_csv, write_table
+from tools.client_aggregation.weights import audit_weights, solve_weights
+
+SCHEMA = 'joint_client_aggregation_v1'
+ARMS = ('frozen', 'ab')
+DIAGNOSTIC_ROUNDS = (1, 20, 30, 50, 70, 80, 90, 100)
+B_ROUNDS = (30, 40, 50, 60, 70, 80, 90, 100)
+FILES = ('tools/client_aggregation/__init__.py', 'tools/client_aggregation/weights.py',
+    'tools/client_aggregation/protocol.py', 'tools/client_aggregation/runtime.py',
+    'tools/client_aggregation/analysis.py', 'tools/client_aggregation/plots.py',
+    'tools/client_aggregation/parallel.py', 'scripts/run_cliplora_joint_aggregation.py',
+    'scripts/train_cliplora_joint_aggregation.py', 'tools/sfra/simple_controls.py',
+    'scripts/run_method_a_simple_controls.py', 'Dassl/dassl/data/data_manager.py',
+    'Dassl/dassl/data/samplers.py', 'Dassl/dassl/optim/optimizer.py',
+    'Dassl/dassl/optim/lr_scheduler.py', 'utils/cliplora_loss.py')
+CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='client-longtail',
+    arms=list(ARMS), aggregation='KL(uniform || R.T @ w) + lambda/2 * chi_square(w || sample_weights)',
+    scope='ordinary B aggregation every round; ordinary A aggregation when A is opened',
+    frozen='initial LoRA A fixed for all 100 rounds; ordinary B only; no functional repair or transfer',
+    ab='Full-CP lambda10 mu1, A rounds1..90; original shared donor C, class-cyclic, tail_weight0.35',
+    A=FROZEN, B=dict(rounds=list(B_ROUNDS), learning_rate=.3, probe_step=.1,
+        regularization=.001, steps=2, non_tail_sampling='class-cyclic', tail_weight=.35),
+    primary='committed rounds81..100 Tail20 mean; Overall/Head20/Middle60 reported jointly',
+    interpretation='bundled A-learning + retention + shared-B effect; not budget-matched or separate A/B attribution',
+    diagnostics='read-only official test; never fed to optimizer, weights, history, gates, or checkpoint selection',
+    diagnostics_rounds=list(DIAGNOSTIC_ROUNDS), lambda_policy='default0.1 is a fixed exploratory setting, not test-selected',
+    unchanged='LA training prior, local loss, optimizer, source priority, CP sample weighting and B recipient objective')
+
+
+def code_hashes(repo):
+    import hashlib
+    values = ab_code_hashes(repo)
+    for name in FILES:
+        values[name] = hashlib.sha256((Path(repo) / name).read_text(encoding='utf-8').encode()).hexdigest()
+    return values
+
+
+def count_matrix(reference):
+    fingerprint, counts = protocol_info(reference)
+    matrix = np.zeros((30, 100), dtype=np.int64)
+    for row in read_csv(Path(reference) / 'partition_manifest.csv'):
+        matrix[int(row['client_id']), int(row['class_id'])] += 1
+    return fingerprint, counts, matrix
+
+
+def partition_signature(rows):
+    return digest(sorted(tuple(int(row[k]) for k in ('client_id', 'local_position', 'raw_sample_id', 'class_id')) for row in rows))
+
+
+def aggregation_spec(reference, strength):
+    fingerprint, counts, matrix = count_matrix(reference)
+    solution = solve_weights(matrix, strength)
+    weights = solution['weights']
+    return dict(input_fingerprint=fingerprint, counts=counts, matrix=matrix.tolist(),
+        partition_sha256=partition_signature(read_csv(Path(reference) / 'partition_manifest.csv')),
+        lambda_value=strength, weights=weights, weights_sha256=digest(weights),
+        matrix_sha256=digest(matrix.tolist()), solver=solution)
+
+
+def check_aggregation(spec):
+    if digest(spec['weights']) != spec['weights_sha256'] or digest(spec['matrix']) != spec['matrix_sha256']:
+        raise ValueError('Frozen weights/counts digest mismatch')
+    return audit_weights(spec['weights'], spec['matrix'], spec['lambda_value'])
+
+
+def client_execution_config(job):
+    slots = job.get('settings', {}).get('client_concurrency', 1)
+    if slots == 4:
+        from tools.client_aggregation.parallel import EXECUTION
+        return dict(EXECUTION)
+    if slots != 1:
+        raise ValueError('Only the original serial path or four-client attempt is supported')
+    return dict(version=1, backend='original_serial', max_concurrent_clients=1)
+
+
+def audit_runtime_config(run, job):
+    cfg = load_json(Path(run) / 'sfra_config.json')
+    expected_execution = client_execution_config(job)
+    if (cfg.get('client_execution') != expected_execution
+            or load_json(Path(run) / 'client_execution.json') != expected_execution):
+        raise ValueError('Client execution mode differs from the registered experiment')
+    frozen = job['arm'] == 'frozen'
+    if cfg.get('joint_aggregation') != dict(schema=SCHEMA, arm=job['arm'], mode=job['mode'],
+            lambda_value=job['aggregation']['lambda_value'], weights_sha256=job['aggregation']['weights_sha256']):
+        raise ValueError('Runtime aggregation differs from registered job')
+    expected = dict(FROZEN, variant='s' if frozen else 'full-cp',
+        refresh_rounds=[] if frozen else list(range(1, 91)))
+    if not frozen:
+        expected['classification_weight'] = 1.
+    for key, value in expected.items():
+        if cfg.get(key) != value:
+            raise ValueError('A runtime configuration mismatch: ' + key)
+    base = cfg['base_training_config']
+    expected_base = dict(seed=42, protocol_seed=42, topology='client-longtail', la_tau=1.,
+        aggregation='joint_class_distribution_client_weights', normal_steps_expected=105600,
+        extra_steps_expected=0 if frozen else 31680)
+    for key, value in expected_base.items():
+        if base.get(key) != value:
+            raise ValueError('Base training mismatch: ' + key)
+    transfer = cfg.get('b_transfer')
+    if frozen and transfer:
+        raise ValueError('Frozen arm must not execute B transfer')
+    if not frozen:
+        wanted = dict(CONTRACT['B'], rounds=[1] if job['mode'] == 'smoke' else list(B_ROUNDS), mode='shared')
+        if not transfer or any(transfer.get(k) != v for k, v in wanted.items()):
+            raise ValueError('Shared B does not match the frozen AB method')
+    execution = load_json(Path(run) / 'execution_config.json')
+    if any(execution.get(k) != v for k, v in dict(version=2, feedback_forward_batch_size=128, device_cache_gib=4.).items()):
+        raise ValueError('Execution must be fast-v2 f128 c4')
+    return cfg
+
+
+def write_weight_tables(root, spec):
+    check = check_aggregation(spec)
+    matrix = np.asarray(spec['matrix'])
+    write_table(Path(root) / 'client_weights.csv', [dict(client_id=j, n=int(matrix[j].sum()),
+        n_tail=int(matrix[j, spec['counts']['tail_ids']].sum()), sample_weight=check['sample_weights'][j],
+        weight=spec['weights'][j]) for j in range(30)])
+    write_table(Path(root) / 'class_support_proxy.csv', [dict(class_id=c, n=int(matrix[:, c].sum()),
+        holders=int((matrix[:, c] > 0).sum()), sample_mixture=float(matrix[:, c].sum() / matrix.sum()),
+        joint_mixture=check['mixture'][c], target=check['target'][c]) for c in range(100)])
