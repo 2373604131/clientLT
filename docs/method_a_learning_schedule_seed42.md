@@ -86,12 +86,15 @@ python scripts/run_cliplora_a_learning_schedule.py --stage preflight
 
 ## 2. 三个独立节点，每节点一张 GPU
 
-把 `a_learning_schedule_code_seed42_3nodes_fix1.zip` 放到旧服务器的仓库根目录。若三个节点使用同一个共享目录，只需解压一次：
+推荐用 Git 同步代码。在能访问 GitHub 的登录节点（如 `ln01`）更新仓库；三个计算节点共享同一项目目录时，只需更新一次：
 
 ```bash
 cd ~/run/yzh/code/clientLT
-unzip -o a_learning_schedule_code_seed42_3nodes_fix1.zip
+git pull --ff-only origin main
+python -c "from tools.a_learning_schedule.config import parse_archived_config; print('FIX2_READY')"
 ```
+
+看到 `FIX2_READY` 后再启动计算节点。旧的 fix1 压缩包不包含本次配置解析修复，不应覆盖 Git 拉取后的新代码。计算节点不能解析 GitHub 域名时，在登录节点更新共享仓库即可。
 
 三个计算节点分别进入仓库并激活原训练环境：
 
@@ -207,10 +210,18 @@ python scripts/run_cliplora_a_learning_schedule.py --stage collect
 
 ## 验证范围
 
-本地提供 `python -m unittest tests.test_a_learning_schedule -v`，17 项测试覆盖 CPU 小型 LoRA 模型的完整 40 节点执行、共享前缀复用、冻结因子、随机流、续跑、固定主窗口和样本学习/遗忘计数，以及三份任务恰好覆盖六个起点、每卡串行执行两个起点、继承设备掩码和三份预检/报告并发写入互不覆盖。启动回归测试用隔离的最小注册依赖图复现循环导入，并验证正式入口所用的修复函数；另验证失败启动记录的恢复及已有结果保护。本地没有完整模型依赖、CUDA 和服务器检查点，因此真实 CLIP/CIFAR GPU 执行必须在服务器通过 `--stage smoke` 验证。
+运行 `python -m unittest tests.test_a_learning_schedule tests.test_a_learning_schedule_config -v`，23 项测试覆盖 CPU 小型 LoRA 模型的完整 40 节点执行、共享前缀复用、冻结因子、随机流、续跑、固定主窗口和样本学习/遗忘计数，以及三份任务恰好覆盖六个起点、每卡串行执行两个起点、继承设备掩码和三份预检/报告并发写入互不覆盖。启动回归测试用隔离的最小注册依赖图复现循环导入，并验证正式入口所用的修复函数；另验证失败启动记录的恢复及已有结果保护。配置回归使用真实 YACS 和原始 E2/E3 元数据，复现旧版将尺寸首元素读为字符 `(` 的错误，再验证尺寸、增强、裁剪范围正确恢复；真实 YACS 测试需要安装 yacs，原始归档测试需要本地参考归档。本地没有完整模型依赖、CUDA 和服务器检查点，因此真实 CLIP/CIFAR GPU 执行必须在服务器通过 `--stage smoke` 验证。
 
 ## fix1：启动阶段循环导入
 
 若旧版小测试报 `ImportError: cannot import name 'ClipLora' from partially initialized module 'trainers.cliplora'`，原因是新入口直接导入 ClipLora 时，Dassl 注册器又试图读取尚未定义的 ClipLora 类。fix1 与原 `federated_main.py` 一致，先初始化 `Dassl.dassl.engine` 注册，再读取模型构建与优化函数；实验协议和训练计算没有变化。
 
 更新代码后重新执行各自的 `smoke --shard N` 和 `run --shard N` 即可。旧版在此次导入失败前已写入 `request.json`，fix1 仅在来源/参数完全相同、只改变代码指纹、且起点目录没有任何模型或评估等工作产物时，备份旧记录并重新登记。无需手动删除输出目录。只要已经保存起点信息、小测试结果、评估或训练节点，就仍然拒绝跨代码版本复用；这种情况应选新的结果根目录。
+
+## fix2：历史配置中的元组类型恢复
+
+若日志已出现 `Loading CLIP`，随后报 `cfg_imsize (() must equal to clip_imsize (224)`，说明循环导入已通过，但配置读取仍把历史文本中的 `(224, 224)` 当成字符串。原始元数据保存的是 `str(CfgNode)`，其中 `INPUT.SIZE`、`INPUT.TRANSFORMS`、`INPUT.RRCROP_SCALE` 等采用 Python 元组文本，直接 `CfgNode.load_cfg()` 不会恢复这些类型。
+
+fix2 使用 YAML 安全读取后，再以 `ast.literal_eval` 恢复元组字面量，保留原始尺寸、增强顺序、裁剪范围、提示词和优化参数。文件预检现在会验证输入字段的类型和尺寸，在加载 GPU 模型前发现这类错误。此处修复配置解析，不更改实验协议；这次模型构建失败留下的启动记录也能按 fix1 的条件自动恢复。
+
+子进程失败时，启动器会把本次启动的最后至多 60 行日志直接打印到终端，不再只显示 `code=1`，也不会混入以前追加保存的错误。完整历史日志仍保留在原位置。

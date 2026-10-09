@@ -207,7 +207,8 @@ class ShardTests(unittest.TestCase):
                     for i in (1, 2, 3)]
 
             def source_check(source, *unused):
-                return dict(path=str(source), rows=[], meta={'schedule': []})
+                return dict(path=str(source), rows=[], meta={'schedule': [], 'resolved_config':
+                    "INPUT:\n  SIZE: (224, 224)\n  TRANSFORMS: ('normalize',)\n"})
 
             def run_reports(arg):
                 preflight(arg)
@@ -235,6 +236,32 @@ class ShardTests(unittest.TestCase):
 
 
 class StartupTests(unittest.TestCase):
+    def test_launcher_prints_the_current_failure_without_old_appended_errors(self):
+        from scripts.run_cliplora_a_learning_schedule import parse_args, launch
+        with tempfile.TemporaryDirectory() as temp:
+            args = parse_args(['--stage', 'smoke', '--shard', '1', '--gpus', '0', '--output-root', temp])
+            log = Path(temp) / 'launcher_logs/seed42/e2_r020_smoke.log'
+            log.parent.mkdir(parents=True)
+            log.write_text('old-error-that-must-not-be-repeated\n', encoding='utf-8')
+
+            class FailedProcess:
+                pid = 123
+                def __init__(self, command, **kwargs):
+                    # Popen inherits this descriptor after the attempt header.
+                    kwargs['stdout'].write('Traceback (most recent call last):\nValueError: current-error\n')
+                    kwargs['stdout'].flush()
+
+                def poll(self):
+                    return 1
+
+            output = io.StringIO()
+            with patch('scripts.run_cliplora_a_learning_schedule.subprocess.Popen', side_effect=FailedProcess), \
+                 contextlib.redirect_stdout(output), self.assertRaisesRegex(ValueError, '1 anchor jobs failed'):
+                launch(args, [dict(origin='e2', anchor_round=20, source_run='/source/e2')], 'test')
+            self.assertIn('ValueError: current-error', output.getvalue())
+            self.assertNotIn('old-error-that-must-not-be-repeated', output.getvalue())
+            self.assertIn('old-error-that-must-not-be-repeated', log.read_text(encoding='utf-8'))
+
     def test_dassl_registration_first_breaks_the_reported_import_cycle(self):
         # Reproduce the observed registration graph in clean interpreters. The
         # production bootstrap is exercised; GPU/model dependencies are omitted.

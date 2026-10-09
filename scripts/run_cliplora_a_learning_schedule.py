@@ -14,6 +14,7 @@ import zipfile
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
+from tools.a_learning_schedule.config import parse_archived_config, validate_input_config
 from tools.a_learning_schedule.protocol import (
     ARMS, ROUNDS, PROTOCOL, check_source, digest, discover_source, file_digest,
     job_root, plan, read_json, write_csv, write_json,
@@ -115,11 +116,15 @@ def code_fingerprint():
 
 def preflight(args):
     sources = {}
+    input_configs = {}
     errors = []
     for origin in args.origins:
         try:
             source = discover_source(args.source_root, args.seed, origin, getattr(args, origin + '_run'))
-            sources[origin] = check_source(source, origin, args.seed, args.rounds)
+            checked = check_source(source, origin, args.seed, args.rounds)
+            values = parse_archived_config(checked['meta']['resolved_config'])
+            input_configs[origin] = validate_input_config(values)
+            sources[origin] = checked
         except (OSError, ValueError, KeyError) as error:
             errors.append('%s: %s' % (origin, error))
     if len(sources) == 2:
@@ -142,7 +147,7 @@ def preflight(args):
     report = dict(protocol=PROTOCOL, seed=args.seed, code_fingerprint=fingerprint, jobs=jobs,
                   arms=list(ARMS), branches=len(jobs) * 4, nodes_per_anchor=len(unique_nodes),
                   normal_nodes_per_anchor=sum(n['kind'] == 'normal' for n in unique_nodes.values()),
-                  gpu_tested=False)
+                  input_configs=input_configs, gpu_tested=False)
     write_json(preflight_path(args), report)
     print('File/configuration preflight passed: %d anchors, %d arms. GPU execution has NOT been tested.' % (len(jobs), 4 * len(jobs)), flush=True)
     for job in jobs:
@@ -176,6 +181,21 @@ def stop_owned(process):
     process.wait()
 
 
+def print_failure_tail(log, start, max_bytes=32768, max_lines=60):
+    """Show only this attempt's output, not errors from older appended attempts."""
+    try:
+        with Path(log).open('rb') as stream:
+            stream.seek(0, os.SEEK_END)
+            end = stream.tell()
+            stream.seek(max(start, end - max_bytes))
+            lines = stream.read().decode('utf-8', errors='replace').splitlines()[-max_lines:]
+    except OSError as error:
+        print('Unable to read failure log %s: %s' % (log, error), flush=True)
+        return
+    print('Current attempt failure details: ' + str(log), flush=True)
+    print('\n'.join(lines) if lines else '(No child output was written.)', flush=True)
+
+
 def launch(args, jobs, fingerprint):
     from scripts.run_ab_validation import file_lock
     gpus = selected_gpus(args)
@@ -196,6 +216,7 @@ def launch(args, jobs, fingerprint):
                     stream = log.open('a', encoding='utf-8')
                     stream.write('\n[%s] CUDA_VISIBLE_DEVICES=%s %s\n' % (time.strftime('%Y-%m-%d %H:%M:%S'), gpu, shlex.join(command)))
                     stream.flush()
+                    log_start = log.stat().st_size
                     env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu), PYTHONUNBUFFERED='1')
                     env.setdefault('OMP_NUM_THREADS', '1')
                     group = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP) if os.name == 'nt' else dict(start_new_session=True)
@@ -204,9 +225,9 @@ def launch(args, jobs, fingerprint):
                     except Exception:
                         stream.close()
                         raise
-                    active[gpu] = (process, stream, job, log)
+                    active[gpu] = (process, stream, job, log, log_start)
                     print('START GPU=%s %s round=%d PID=%d log=%s' % (gpu, job['origin'], job['anchor_round'], process.pid, log), flush=True)
-                for gpu, (process, stream, job, log) in list(active.items()):
+                for gpu, (process, stream, job, log, log_start) in list(active.items()):
                     code = process.poll()
                     if code is None:
                         continue
@@ -214,11 +235,12 @@ def launch(args, jobs, fingerprint):
                     print('EXIT GPU=%s %s round=%d code=%d' % (gpu, job['origin'], job['anchor_round'], code), flush=True)
                     if code:
                         failures.append(dict(**job, returncode=code, log=str(log)))
+                        print_failure_tail(log, log_start)
                     del active[gpu]
                 if active:
                     time.sleep(1)
         finally:
-            for process, stream, _, _ in active.values():
+            for process, stream, _, _, _ in active.values():
                 stop_owned(process)
                 stream.close()
     write_json(log_root / (args.stage + '_results_' + selection + '.json'), dict(failures=failures, jobs=jobs))

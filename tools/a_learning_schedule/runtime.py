@@ -10,6 +10,7 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 
+from tools.a_learning_schedule.config import parse_archived_config, validate_input_config
 from tools.a_learning_schedule.protocol import (
     ARMS, HORIZON, PROTOCOL, check_source, digest, file_digest, final_nodes,
     job_root, paired_probes, phase_seed, plan, read_json, source_event, write_csv, write_json,
@@ -90,7 +91,9 @@ def prediction_metrics(arrays, groups, anchor=None):
 def build_config(source, args):
     # Load the complete archived configuration, avoiding today's launcher defaults.
     from yacs.config import CfgNode
-    cfg = CfgNode.load_cfg(source['meta']['resolved_config'])
+    values = parse_archived_config(source['meta']['resolved_config'])
+    validate_input_config(values)
+    cfg = CfgNode(values)
     cfg.defrost()
     cfg.DATASET.ROOT = str(args.data_root.resolve())
     cfg.OUTPUT_DIR = str(args.output_root.resolve())
