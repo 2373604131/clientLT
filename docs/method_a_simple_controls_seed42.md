@@ -141,4 +141,39 @@ python -m unittest discover -s tests -p test_method_a_parallel_launcher.py -v
 python -m unittest discover -s tests -p "test_sfra*.py"
 ```
 
-本次新增 12 项检查通过；现有 SFRA 回归 161 项中 160 项通过、1 项 CUDA 检查跳过。检查覆盖 gamma=0 退化、两个因子的实际聚合、覆盖数及历史单独激活、共同输入上的真实三步 CP 修正、状态与 RNG 恢复、源码冻结和恢复命令、日志异常拒绝、逐样本统计及打包。另已用现有 seed42 S/A 归档验证配对资格。CPU 检查不代表完整 GPU 训练已完成或方法收益已成立。
+简单对照现有 16 项检查通过，包括 4 项探针清单换行恢复/拒绝篡改检查；之前的 SFRA 回归 161 项中 160 项通过、1 项 CUDA 检查跳过。检查覆盖 gamma=0 退化、两个因子的实际聚合、覆盖数及历史单独激活、共同输入上的真实三步 CP 修正、状态与 RNG 恢复、源码冻结和恢复命令、日志异常拒绝、逐样本统计及打包。另已用现有 seed42 S/A 归档验证配对资格。CPU 检查不代表完整 GPU 训练已完成或方法收益已成立。
+
+## 6. 初始化报错 `probe_manifest_sha256` 的修复
+
+该校验比较 `protocol/probe_manifest.csv` 的文件字节哈希与参考 `bridge_metadata.json` 的记录。当前参考记录的 SHA256 是 `8a43f25c87036442c611f69fb3dedc592ad96bbbf64b16fe2883b63a2ce1fc43`，对应 CRLF 换行。把同一份清单转换为 LF 后，哈希变为 `0bfa0a2da47623aa8ab5151f7c8522ee3a4c5425328df9bca92aea1873a1592e`。Git 检出或文本传输可能触发这种变化，即使 CSV 的样本行没有改变。
+
+修复只需同步这两个更新文件：
+
+- `scripts/run_method_a_simple_controls.py`
+- `tools/sfra/simple_controls.py`
+
+现在计划/预检阶段就检查清单能否匹配登记哈希。新运行准备协议时，只在 LF/CRLF 换行转换后精确匹配原哈希的情况下恢复运行目录内的副本，并保存 `probe_manifest_replay.json`。共享参考、登记哈希、样本顺序和训练算法均保持原样。若内容确实不匹配，会在加载模型前报错；不要跳过原运行时断言或用当前错误哈希覆盖参考记录。
+
+这次错误发生在轮次检查点创建前，因此无需 `--resume`。修复更新了已冻结清单中的启动源码，使用新输出根目录，避免与旧计划冲突。确认旧启动进程已退出、同步两份文件后，在四个终端分别执行：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python scripts/run_method_a_simple_controls.py --stage train --seed 42 --methods tailrw-g1 --output-root output/cifar100_LT/method_a_simple_controls_v1_probe_fix
+```
+
+```bash
+CUDA_VISIBLE_DEVICES=1 python scripts/run_method_a_simple_controls.py --stage train --seed 42 --methods tailrw-g4 --output-root output/cifar100_LT/method_a_simple_controls_v1_probe_fix
+```
+
+```bash
+CUDA_VISIBLE_DEVICES=2 python scripts/run_method_a_simple_controls.py --stage train --seed 42 --methods tailrw-g16 --output-root output/cifar100_LT/method_a_simple_controls_v1_probe_fix
+```
+
+```bash
+CUDA_VISIBLE_DEVICES=3 python scripts/run_method_a_simple_controls.py --stage train --seed 42 --methods cover-cp --output-root output/cifar100_LT/method_a_simple_controls_v1_probe_fix
+```
+
+原失败目录保留，已有 S/A 仍按原规则复用。之后恢复、汇总和打包都使用同一个新输出根目录。例如训练完成后的汇总：
+
+```bash
+python scripts/run_method_a_simple_controls.py --stage summary --output-root output/cifar100_LT/method_a_simple_controls_v1_probe_fix
+```

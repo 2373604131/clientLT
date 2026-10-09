@@ -1,5 +1,7 @@
 """CPU checks for the seed42 controls; no CIFAR/CLIP training or downloads."""
 import copy
+import hashlib
+import shutil
 import tempfile
 import tarfile
 import unittest
@@ -55,6 +57,81 @@ class TestSimpleControls(unittest.TestCase):
         for bad in (-1, float('inf'), float('nan')):
             with self.assertRaises(ValueError):
                 protocol.tail_weights(sizes, tails, bad)
+
+    def test_probe_replay_recovers_recorded_bytes_in_both_newline_directions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)/'probe_manifest.csv'
+            lf = b'class_id,slot,raw_train_index,excluded_from_federated_lt_pool\n80,0,24418,1\n'
+            crlf = lf.replace(b'\n', b'\r\n')
+            for original, transported, conversion in ((crlf, lf, 'CRLF'), (lf, crlf, 'LF'), (crlf, crlf, 'unchanged')):
+                path.write_bytes(transported)
+                expected = hashlib.sha256(original).hexdigest()
+                payload, receipt = protocol.probe_manifest_replay(path, expected)
+                self.assertEqual(payload, original)
+                self.assertEqual(receipt['newline_conversion'], conversion)
+                self.assertEqual(receipt['replayed_sha256'], expected)
+                self.assertEqual(path.read_bytes(), transported)  # Reference is never mutated.
+
+    def test_probe_replay_refuses_real_sample_changes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)/'probe_manifest.csv'
+            original = b'class_id,slot,raw_train_index\r\n80,0,24418\r\n'
+            altered = original.replace(b'24418', b'24419').replace(b'\r\n', b'\n')
+            path.write_bytes(altered)
+            with self.assertRaisesRegex(ValueError, 'cannot be repaired'):
+                protocol.probe_manifest_replay(path, hashlib.sha256(original).hexdigest())
+            self.assertEqual(path.read_bytes(), altered)
+
+    def test_all_four_launches_replay_linux_transport_without_changing_reference(self):
+        with tempfile.TemporaryDirectory() as temp, patch('builtins.print'):
+            root = Path(temp)
+            reference = root/'reference'
+            shutil.copytree(REPO/'references/full10_clientlt', reference)
+            manifest = reference/'protocol/probe_manifest.csv'
+            original = manifest.read_bytes()
+            expected = protocol.load_json(reference/'bridge_metadata.json')['probe_manifest_sha256']
+            self.assertEqual(hashlib.sha256(original).hexdigest(), expected)
+            transported = original.replace(b'\r\n', b'\n')
+            self.assertNotEqual(hashlib.sha256(transported).hexdigest(), expected)
+            manifest.write_bytes(transported)
+            metadata = (reference/'bridge_metadata.json').read_bytes()
+            data_root = root/'fake-data'
+            data_dir = data_root/'cifar-100/cifar-100-python'
+            data_dir.mkdir(parents=True)
+            for name in ('train', 'test', 'meta'):
+                (data_dir/name).write_bytes(b'synthetic file-presence fixture; never used for training')
+            args = launcher.parse_args(['--reference-run', str(reference), '--data-root', str(data_root),
+                                       '--output-root', str(root/'runs')])
+            jobs = launcher.plan_jobs(args)
+            launcher.merge_plan(args, jobs)
+            def assert_before_gpu(command, **kwargs):
+                run = Path(command[command.index('--output-dir')+1])
+                payload = (run/'protocol/probe_manifest.csv').read_bytes()
+                source = protocol.load_json(run/'protocol/source_metadata.json')
+                # This is the exact original BridgeAudit/LAControl comparison that failed.
+                self.assertEqual(hashlib.sha256(payload).hexdigest(), source['probe_manifest_sha256'])
+                self.assertEqual(payload, original)
+                self.assertEqual((run/'protocol/source_metadata.json').read_bytes(), metadata)
+                self.assertEqual(protocol.load_json(run/'probe_manifest_replay.json')['newline_conversion'], 'CRLF')
+            with patch.object(launcher.subprocess, 'run', side_effect=assert_before_gpu) as execute, \
+                    patch('tools.sfra.simple_controls_summary.read_result'):
+                for job in jobs:
+                    launcher.execute_job(job, args.output_root)
+                self.assertEqual(execute.call_count, 4)
+            self.assertEqual(manifest.read_bytes(), transported)
+            self.assertEqual((reference/'bridge_metadata.json').read_bytes(), metadata)
+
+    def test_reference_content_mismatch_fails_before_registering_training(self):
+        with tempfile.TemporaryDirectory() as temp:
+            reference = Path(temp)/'reference'
+            shutil.copytree(REPO/'references/full10_clientlt', reference)
+            path = reference/'protocol/probe_manifest.csv'
+            rows = protocol.read_csv(path)
+            rows[0]['raw_train_index'] = int(rows[0]['raw_train_index'])+1
+            protocol.write_table(path, rows)
+            args = launcher.parse_args(['--reference-run', str(reference)])
+            with self.assertRaisesRegex(ValueError, 'probe_manifest_sha256 mismatch'):
+                launcher.plan_jobs(args)
 
     def test_real_partition_and_four_seed42_jobs(self):
         _, counts = protocol.protocol_info(REPO/'references/full10_clientlt')

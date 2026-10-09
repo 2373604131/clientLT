@@ -14,7 +14,7 @@ from scripts.run_cliplora_a_refresh import build_command
 from scripts.run_cliplora_sfra import prepare_protocol
 from tools.sfra.simple_controls import (CONTRACT, METHODS, NEW_METHODS, PLAN_NAME, SCHEMA,
     code_hashes, digest, implementation_variant, load_json, protocol_info, static_tables,
-    read_csv, validate_config, write_table)
+    probe_manifest_replay, read_csv, validate_config, write_table)
 
 
 def parse_args(argv=None):
@@ -125,10 +125,31 @@ def preflight_job(job):
     fingerprint, counts = protocol_info(job['reference_run'])
     if fingerprint != job['input_fingerprint'] or counts != job['counts']:
         raise ValueError('Reference training partition/protocol changed')
+    reference = Path(job['reference_run'])
+    _, replay = probe_manifest_replay(reference/'protocol/probe_manifest.csv',
+        load_json(reference/'bridge_metadata.json')['probe_manifest_sha256'])
+    if replay['newline_conversion'] != 'unchanged':
+        print('Probe manifest: will restore '+replay['newline_conversion']+' line endings in the run copy '
+              'to reproduce recorded SHA256 '+replay['expected_sha256'], flush=True)
     dataset = Path(job['data_root'])/'cifar-100/cifar-100-python'
     for name in ('train', 'test', 'meta'):
         if not (dataset/name).is_file() or not (dataset/name).stat().st_size:
             raise ValueError('Missing/empty CIFAR-100 file: ' + str(dataset/name))
+
+
+def prepare_control_protocol(job, run):
+    """Preserve the historical byte hash, without editing the shared reference or metadata."""
+    run = Path(run)
+    prepare_protocol(SimpleNamespace(reference_run=Path(job['reference_run']), partition='client-longtail'), run)
+    manifest = run/'protocol/probe_manifest.csv'
+    expected = load_json(run/'protocol/source_metadata.json')['probe_manifest_sha256']
+    payload, replay = probe_manifest_replay(manifest, expected)
+    if replay['newline_conversion'] != 'unchanged':
+        temporary = manifest.with_suffix('.csv.tmp')
+        temporary.write_bytes(payload)
+        temporary.replace(manifest)
+        print(f'Probe manifest restored to recorded bytes ({replay["newline_conversion"]}): {expected}', flush=True)
+    write_json(run/'probe_manifest_replay.json', replay)
 
 
 def execute_job(job, root, resume=False):
@@ -149,7 +170,7 @@ def execute_job(job, root, resume=False):
                 raise ValueError('Resume needs the original registered job and a round-boundary checkpoint')
             validate_config(run, job['method'])
         else:
-            prepare_protocol(SimpleNamespace(reference_run=Path(job['reference_run']), partition='client-longtail'), run)
+            prepare_control_protocol(job, run)
             write_json(run/'simple_control_job.json', job)
         command = command_for(job, root, resume=occupied)
         if not occupied:

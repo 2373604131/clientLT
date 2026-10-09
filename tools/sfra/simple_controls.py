@@ -98,12 +98,31 @@ def static_tables(counts):
     return client_rows, class_rows
 
 
+def probe_manifest_replay(path, expected_sha256):
+    """Recover recorded CSV bytes only when LF/CRLF conversion proves an exact match."""
+    path = Path(path)
+    original = path.read_bytes()
+    lf = original.replace(b'\r\n', b'\n')
+    candidates = [('unchanged', original), ('LF', lf), ('CRLF', lf.replace(b'\n', b'\r\n'))]
+    hashes = {name: hashlib.sha256(value).hexdigest() for name, value in candidates}
+    for name, value in candidates:
+        if hashes[name] == expected_sha256:
+            return value, dict(source_sha256=hashes['unchanged'], expected_sha256=expected_sha256,
+                replayed_sha256=hashes[name], newline_conversion=name)
+    raise ValueError(f'{path}: probe_manifest_sha256 mismatch cannot be repaired by LF/CRLF conversion; '
+                     f'expected={expected_sha256}, observed={hashes}. '
+                     'Restore the original reference manifest; do not replace the recorded hash.')
+
+
 def protocol_info(reference):
     root = Path(reference)
     names = ('partition_manifest.csv', 'bridge_metadata.json', 'protocol/full_schedule.json',
              'protocol/eri_protocol.json', 'protocol/probe_manifest.csv')
     fingerprint = {n: hashlib.sha256((root/n).read_bytes()).hexdigest() for n in names}
     meta = load_json(root/'bridge_metadata.json')
+    # Detect a corrupt/mismatched reference before any costly model initialization.
+    # The reference remains read-only; exact byte restoration happens in each new run.
+    probe_manifest_replay(root/'protocol/probe_manifest.csv', meta['probe_manifest_sha256'])
     if meta['topology'] != 'client-longtail':
         raise ValueError('This suite requires the frozen Client-LT protocol')
     schedule = load_json(root/'protocol/full_schedule.json')
