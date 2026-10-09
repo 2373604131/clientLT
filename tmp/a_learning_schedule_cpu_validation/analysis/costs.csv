@@ -1,0 +1,2 @@
+seed,origin,anchor_round,actual_optimizer_steps,logical_steps_per_arm,unique_training_nodes,training_client_seconds
+42,e2,20,216,64,40,0.15868230210617185

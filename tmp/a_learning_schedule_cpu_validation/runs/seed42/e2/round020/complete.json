@@ -1,0 +1,20 @@
+{
+  "version": "a_learning_schedule_v1",
+  "arms": [
+    "BB",
+    "AB",
+    "AA_short",
+    "AA_long"
+  ],
+  "curve_rows": 44,
+  "unique_training_nodes": 40,
+  "actual_optimizer_steps": 216,
+  "logical_optimizer_steps_per_arm": 64,
+  "shared_prefixes": true,
+  "primary_offsets": [
+    8,
+    9,
+    10
+  ],
+  "frozen_state_unchanged": true
+}

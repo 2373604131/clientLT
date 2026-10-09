@@ -1,0 +1,14 @@
+{
+  "completed": 1,
+  "expected": 1,
+  "seeds": [
+    42
+  ],
+  "origins": [
+    "e2"
+  ],
+  "rounds": [
+    20
+  ],
+  "plot_error": null
+}

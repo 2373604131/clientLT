@@ -1,0 +1,2 @@
+seed,origin,anchor_round,status,saved_training_nodes,reason,run
+42,e2,20,complete,40,,tmp\a_learning_schedule_cpu_validation\runs\seed42\e2\round020

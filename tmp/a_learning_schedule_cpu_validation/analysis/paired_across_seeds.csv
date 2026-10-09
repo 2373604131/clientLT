@@ -1,0 +1,4 @@
+origin,anchor_round,comparison,seed_count,seeds,overall_mean_pp,overall_std_pp,head20_mean_pp,head20_std_pp,middle60_mean_pp,middle60_std_pp,tail20_mean_pp,tail20_std_pp
+e2,20,AB-BB,1,42,0.0,,0.0,,0.0,,0.0,
+e2,20,AA_long-AB,1,42,0.0,,0.0,,0.0,,0.0,
+e2,20,AA_long-AA_short,1,42,0.0,,0.0,,0.0,,0.0,
