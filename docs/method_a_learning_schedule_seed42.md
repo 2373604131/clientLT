@@ -1,8 +1,10 @@
-# 方法 A：学习机会与开放间隔实验，seed42 六卡运行
+# 方法 A：学习机会与开放间隔实验，seed42 三节点运行
 
 入口：`scripts/run_cliplora_a_learning_schedule.py`。
 
 本轮使用 **E2、E3 各第 20、50、80 轮，共六个起点**。每个起点执行四组十轮短分支，总计 24 条。默认只运行 seed42，不会自动补基线或其他种子。
+
+当前推荐三个独立 GPU 节点，每个节点一张卡，分别使用 `--shard 1`、`--shard 2`、`--shard 3`。每份顺序执行两个起点；三个节点之间没有训练通信，不需要设置主节点、端口或使用 torchrun。六卡单机模式仍然可用。
 
 ## 固定实验协议
 
@@ -82,40 +84,70 @@ python scripts/run_cliplora_a_learning_schedule.py --stage preflight
 
 预检通过只表示文件和配置可用，不表示 GPU 训练已验证。
 
-## 2. 六卡冒烟
+## 2. 三个独立节点，每节点一张 GPU
+
+把 `a_learning_schedule_code_seed42_3nodes_fix1.zip` 放到旧服务器的仓库根目录。若三个节点使用同一个共享目录，只需解压一次：
 
 ```bash
-python scripts/run_cliplora_a_learning_schedule.py --stage smoke --gpus 0 1 2 3 4 5
+cd ~/run/yzh/code/clientLT
+unzip -o a_learning_schedule_code_seed42_3nodes_fix1.zip
 ```
 
-每张卡加载一个起点，使用两张训练反馈图片分别执行一次 A/B forward/backward，检查非零有效更新和冻结因子，再恢复起点。不会写入正式分支，也不会把测试图片用于训练。
-
-冒烟完成后检查命令退出码；任何失败先看对应日志。
-
-## 3. 六卡正式运行
+三个计算节点分别进入仓库并激活原训练环境：
 
 ```bash
-python scripts/run_cliplora_a_learning_schedule.py --stage run --gpus 0 1 2 3 4 5
+cd ~/run/yzh/code/clientLT
+conda activate clientlt
 ```
 
-默认分配：
+| 节点 | 参数 | 同一张 GPU 上依次执行 | 分支数 |
+|---|---|---|---:|
+| 第一个节点 | `--shard 1` | E2 第 20 轮 → E3 第 20 轮 | 8 |
+| 第二个节点 | `--shard 2` | E2 第 50 轮 → E3 第 50 轮 | 8 |
+| 第三个节点 | `--shard 3` | E2 第 80 轮 → E3 第 80 轮 | 8 |
 
-| GPU | 工作 |
-|---:|---|
-| 0 | E2，第 20 轮，四组 |
-| 1 | E2，第 50 轮，四组 |
-| 2 | E2，第 80 轮，四组 |
-| 3 | E3，第 20 轮，四组 |
-| 4 | E3，第 50 轮，四组 |
-| 5 | E3，第 80 轮，四组 |
+在**第一个节点**执行（先小测试，成功后自动开始这份正式实验）：
 
-`--gpus` 设置每个子进程的 `CUDA_VISIBLE_DEVICES`，会覆盖继承的环境变量。编号必须是这台计算节点上允许使用的设备。六张卡在不同节点时，使用下面的单起点方式，不能在一个节点上填写另一节点的 GPU 编号。
+```bash
+python scripts/run_cliplora_a_learning_schedule.py --stage smoke --shard 1 && \
+python scripts/run_cliplora_a_learning_schedule.py --stage run --shard 1
+```
+
+在**第二个节点**执行：
+
+```bash
+python scripts/run_cliplora_a_learning_schedule.py --stage smoke --shard 2 && \
+python scripts/run_cliplora_a_learning_schedule.py --stage run --shard 2
+```
+
+在**第三个节点**执行：
+
+```bash
+python scripts/run_cliplora_a_learning_schedule.py --stage smoke --shard 3 && \
+python scripts/run_cliplora_a_learning_schedule.py --stage run --shard 3
+```
+
+这三份可以同时启动，不需要彼此等待。每份开始前自动预检它需要的来源文件；任一小测试失败，不会继续该份正式训练。冒烟测试用两张训练反馈图片分别执行 A/B forward/backward，检查非零更新和冻结因子，再恢复起点。
+
+以上命令刻意省略 `--gpus`：启动器继承调度系统设置的 `CUDA_VISIBLE_DEVICES`，保留分配到的编号或 UUID。`--shard` 要求可见设备只有一个；若当前会话暴露了多张卡，需要在该份的两条命令中一致加 `--gpus 分配给你的设备编号`。例如当前节点分配到编号 3，就使用 `--gpus 3`。三个节点不需要使用相同的设备编号。环境变量未设置时默认使用当前节点的 GPU 0；显式设置为空或 `-1` 会报错，不会擅自选择其他 GPU。
+
+`--shard` 已经选好了 E2/E3 和对应轮次，不要再加 `--origins`、`--rounds`，也不要在三个节点上都启动不带 `--shard` 的全量训练。
+
+三节点共享同一仓库、原始检查点、数据和结果目录时，结果自动汇入：
+
+```text
+output/cifar100_LT/a_learning_schedule_v1/
+```
+
+各份预检分别写入 `preflight_seed42_e2-e3_r020.json`（另两份为 `r050`、`r080`）；自动汇总分别位于 `analysis/selections/seed42_e2-e3_r020/` 等目录，不会互相覆盖。训练节点仍写入统一的 `runs/seed42/e2/round020/` 等目录，因此全部完成后可以直接统一汇总。
+
+如果节点文件系统不共享，则在每台节点安装同一份代码并提供原始数据；全部完成后，将各节点 `runs/seed42/` 下各自负责的 E2/E3 轮次子目录保留结构合并到同一个结果根目录，再执行汇总。独立运行不要求网络通信，自动汇总要求结果文件最终位于同一目录。
 
 默认 DataLoader `num_workers=0`，避免每个客户端反复创建进程。可以在首次运行前统一选择 `--num-workers 2`，但它会成为这轮实验固定配置；续跑不要改变它。
 
 运行器为前台进程，适合在已有调度作业或 tmux 中启动。关闭终端或中断启动器会停止它启动的子进程。阶段结果已保存，可以续跑。
 
-## 单 GPU / 不同节点分配
+## 其他运行方式：单起点与单机六卡
 
 例如某节点只给 GPU 0，负责 E3 第 50 轮：
 
@@ -123,7 +155,16 @@ python scripts/run_cliplora_a_learning_schedule.py --stage run --gpus 0 1 2 3 4 
 python scripts/run_cliplora_a_learning_schedule.py --stage run --origins e3 --rounds 50 --gpus 0
 ```
 
-分别将 `e2/e3` 与 `20/50/80` 组合分给六张卡即可。不同起点可以共享结果目录；相同起点有独占锁，禁止重复训练。同一共享目录需要使用一致的来源绝对路径和代码。
+不同起点可以共享结果目录；相同起点有独占锁，禁止重复训练。同一共享目录需要使用一致的来源绝对路径和代码。
+
+若以后申请到同一节点的六张卡，可以使用原有模式：
+
+```bash
+python scripts/run_cliplora_a_learning_schedule.py --stage smoke --gpus 0 1 2 3 4 5
+python scripts/run_cliplora_a_learning_schedule.py --stage run --gpus 0 1 2 3 4 5
+```
+
+`--gpus` 会覆盖继承的设备掩码，只能填写当前计算节点上允许使用的设备。单机六卡顺序为 E2/20、E2/50、E2/80、E3/20、E3/50、E3/80。
 
 ## 状态、续跑、汇总、回收
 
@@ -137,7 +178,11 @@ python scripts/run_cliplora_a_learning_schedule.py --stage collect
 
 运行被打断后，重新执行原 `--stage run` 命令即可。它复用已经原子保存的阶段和评估结果，不会把半个客户端训练当成完成。代码、数据路径或运行配置变化时会拒绝混用缓存，应选择新的 `--output-root`。
 
-六卡完整运行成功后自动汇总并生成 PNG/PDF 图。若服务器没有 matplotlib，CSV/报告仍正常生成，可以在分析机器上补图。
+三份全部完成后，在任意一个可见全部结果的节点执行上述不带 `--shard` 的 `summary` 或 `collect`，即可得到六个起点的统一报告。`collect` 会先汇总再打包，因此不必先单独运行 `summary`；不要给 `collect` 加 `--shard`。统一报告应显示 `Completed anchors: 6/6`。
+
+只查看第 2 份进度可以用 `--stage status --shard 2`；只续跑第 2 份可以用 `--stage run --shard 2`。不需要重新启动另外两份。
+
+每份运行成功后自动生成自己的 PNG/PDF 图和报告。若服务器没有 matplotlib，CSV/报告仍正常生成，可以在分析机器上补图。
 
 主要输出：
 
@@ -162,4 +207,10 @@ python scripts/run_cliplora_a_learning_schedule.py --stage collect
 
 ## 验证范围
 
-本地提供 `python -m unittest tests.test_a_learning_schedule -v`，用 CPU 小型 LoRA 模型覆盖完整 40 节点执行、共享前缀复用、冻结因子、随机流、续跑、固定主窗口和样本学习/遗忘计数。本地没有 CUDA 和完整服务器检查点，因此实际 CLIP/CIFAR GPU 执行必须在服务器通过 `--stage smoke` 验证。
+本地提供 `python -m unittest tests.test_a_learning_schedule -v`，17 项测试覆盖 CPU 小型 LoRA 模型的完整 40 节点执行、共享前缀复用、冻结因子、随机流、续跑、固定主窗口和样本学习/遗忘计数，以及三份任务恰好覆盖六个起点、每卡串行执行两个起点、继承设备掩码和三份预检/报告并发写入互不覆盖。启动回归测试用隔离的最小注册依赖图复现循环导入，并验证正式入口所用的修复函数；另验证失败启动记录的恢复及已有结果保护。本地没有完整模型依赖、CUDA 和服务器检查点，因此真实 CLIP/CIFAR GPU 执行必须在服务器通过 `--stage smoke` 验证。
+
+## fix1：启动阶段循环导入
+
+若旧版小测试报 `ImportError: cannot import name 'ClipLora' from partially initialized module 'trainers.cliplora'`，原因是新入口直接导入 ClipLora 时，Dassl 注册器又试图读取尚未定义的 ClipLora 类。fix1 与原 `federated_main.py` 一致，先初始化 `Dassl.dassl.engine` 注册，再读取模型构建与优化函数；实验协议和训练计算没有变化。
+
+更新代码后重新执行各自的 `smoke --shard N` 和 `run --shard N` 即可。旧版在此次导入失败前已写入 `request.json`，fix1 仅在来源/参数完全相同、只改变代码指纹、且起点目录没有任何模型或评估等工作产物时，备份旧记录并重新登记。无需手动删除输出目录。只要已经保存起点信息、小测试结果、评估或训练节点，就仍然拒绝跨代码版本复用；这种情况应选新的结果根目录。

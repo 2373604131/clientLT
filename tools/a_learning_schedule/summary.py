@@ -38,9 +38,9 @@ def primary_means(curves):
     return result
 
 
-def summarize(output_root, seeds, origins, rounds, plots=True):
+def summarize(output_root, seeds, origins, rounds, plots=True, destination=None):
     output_root = Path(output_root)
-    destination = output_root / 'analysis'
+    destination = output_root / 'analysis' if destination is None else Path(destination)
     statuses = status_rows(output_root, seeds, origins, rounds)
     write_csv(destination / 'status.csv', statuses)
     curves, per_run, pairs, costs = [], [], [], []

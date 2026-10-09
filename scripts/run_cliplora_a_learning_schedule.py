@@ -1,4 +1,4 @@
-"""Six-GPU, seed42 paired A/B opportunities and A-spacing interventions."""
+"""Seed42 paired A/B interventions: one host or three independent single-GPU shards."""
 import sys
 if sys.version_info < (3, 10):
     raise SystemExit('Python >=3.10 required. Activate the clientlt conda environment first.')
@@ -31,8 +31,10 @@ def parse_args(argv=None):
     parser.add_argument('--e3-run', type=Path)
     parser.add_argument('--output-root', type=Path, default=Path('output/cifar100_LT/a_learning_schedule_v1'))
     parser.add_argument('--data-root', type=Path, default=Path('DATA'))
-    parser.add_argument('--origins', nargs='+', choices=('e2', 'e3'), default=['e2', 'e3'])
-    parser.add_argument('--rounds', nargs='+', type=int, choices=ROUNDS, default=list(ROUNDS))
+    parser.add_argument('--origins', nargs='+', choices=('e2', 'e3'))
+    parser.add_argument('--rounds', nargs='+', type=int, choices=ROUNDS)
+    parser.add_argument('--shard', type=int, choices=(1, 2, 3),
+                        help='Independent single-GPU node: 1=E2/E3 round20, 2=round50, 3=round80')
     parser.add_argument('--gpus', nargs='+', help='CUDA_VISIBLE_DEVICES tokens, e.g. 0 1 2 3 4 5; overrides inherited mask')
     parser.add_argument('--num-workers', type=int, default=0, help='Per-client DataLoader workers; 0 avoids repeatedly spawning workers')
     parser.add_argument('--eval-batch-size', type=int, default=64)
@@ -45,6 +47,17 @@ def parse_args(argv=None):
     parser.add_argument('--device', default='cuda:0', help=argparse.SUPPRESS)
     parser.add_argument('--code-fingerprint', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.shard is not None:
+        if args.origins is not None or args.rounds is not None:
+            parser.error('--shard already selects E2/E3 and its anchor round; omit --origins/--rounds')
+        if args.stage in ('collect', '_worker'):
+            parser.error('--shard is not used with this stage; collect all three shards without --shard')
+        if args.gpus is not None and len(args.gpus) != 1:
+            parser.error('--shard uses exactly one GPU on this node')
+        args.origins, args.rounds = ['e2', 'e3'], [ROUNDS[args.shard - 1]]
+    else:
+        args.origins = args.origins or ['e2', 'e3']
+        args.rounds = args.rounds or list(ROUNDS)
     if args.summary_seeds and args.stage not in ('summary', 'status', 'collect'):
         parser.error('--summary-seeds is only for reading existing results')
     if args.num_workers < 0 or args.eval_batch_size <= 0 or args.seed < 0:
@@ -54,6 +67,41 @@ def parse_args(argv=None):
     if args.gpus and (len(set(args.gpus)) != len(args.gpus) or any(not g or ',' in g for g in args.gpus)):
         parser.error('Supply distinct GPU tokens separated by spaces')
     return args
+
+
+def selection_label(args, seeds=None):
+    seeds = [args.seed] if seeds is None else seeds
+    return 'seed%s_%s_r%s' % ('-'.join(map(str, sorted(seeds))),
+                            '-'.join(sorted(args.origins)),
+                            '-'.join('%03d' % r for r in sorted(args.rounds)))
+
+
+def full_selection(args):
+    return set(args.origins) == {'e2', 'e3'} and set(args.rounds) == set(ROUNDS)
+
+
+def analysis_directory(args, seeds=None):
+    root = args.output_root / 'analysis'
+    return root if full_selection(args) else root / 'selections' / selection_label(args, seeds)
+
+
+def preflight_path(args):
+    label = 'seed%d' % args.seed if full_selection(args) else selection_label(args)
+    return args.output_root / ('preflight_%s.json' % label)
+
+
+def selected_gpus(args):
+    gpus = args.gpus
+    if gpus is None:
+        visible = os.environ.get('CUDA_VISIBLE_DEVICES')
+        gpus = ['0'] if visible is None else visible.split(',')
+    gpus = [g.strip() for g in gpus]
+    if not gpus or len(set(gpus)) != len(gpus) or any(not g or g == '-1' for g in gpus):
+        raise ValueError('No usable GPUs in CUDA_VISIBLE_DEVICES/--gpus; run inside your GPU allocation.')
+    if args.shard is not None and len(gpus) != 1:
+        raise ValueError('--shard needs one allocated GPU. Select it with --gpus TOKEN; '
+                         'CUDA_VISIBLE_DEVICES currently exposes: ' + ','.join(gpus))
+    return gpus
 
 
 def code_fingerprint():
@@ -95,7 +143,7 @@ def preflight(args):
                   arms=list(ARMS), branches=len(jobs) * 4, nodes_per_anchor=len(unique_nodes),
                   normal_nodes_per_anchor=sum(n['kind'] == 'normal' for n in unique_nodes.values()),
                   gpu_tested=False)
-    write_json(args.output_root / ('preflight_seed%d.json' % args.seed), report)
+    write_json(preflight_path(args), report)
     print('File/configuration preflight passed: %d anchors, %d arms. GPU execution has NOT been tested.' % (len(jobs), 4 * len(jobs)), flush=True)
     for job in jobs:
         print('  %s round%03d <- %s' % (job['origin'], job['anchor_round'], job['source_run']), flush=True)
@@ -130,18 +178,12 @@ def stop_owned(process):
 
 def launch(args, jobs, fingerprint):
     from scripts.run_ab_validation import file_lock
-    gpus = args.gpus
-    if gpus is None:
-        visible = os.environ.get('CUDA_VISIBLE_DEVICES')
-        gpus = visible.split(',') if visible else ['0']
-    gpus = [g.strip() for g in gpus]
-    if not gpus or len(set(gpus)) != len(gpus) or any(not g or g == '-1' for g in gpus):
-        raise ValueError('No usable GPUs. Supply --gpus 0 1 2 3 4 5.')
+    gpus = selected_gpus(args)
     log_root = args.output_root / 'launcher_logs' / ('seed%d' % args.seed)
     log_root.mkdir(parents=True, exist_ok=True)
     queue, active, failures = list(jobs), {}, []
     selection = digest([(j['origin'], j['anchor_round']) for j in jobs])[:12]
-    # Disjoint single-anchor launches on different hosts can share one result root.
+    # Disjoint selections on different hosts can share one result root.
     with file_lock(args.output_root / ('launcher_seed%d_%s.lock' % (args.seed, selection)), timeout=.1):
         try:
             while queue or active:
@@ -207,15 +249,17 @@ def main(argv=None):
         run_worker(args)
         return
     seeds = args.summary_seeds or [args.seed]
+    destination = analysis_directory(args, seeds)
     if args.stage == 'status':
         rows = status_rows(args.output_root, seeds, args.origins, args.rounds)
-        write_csv(args.output_root / 'analysis/status.csv', rows)
+        write_csv(destination / 'status.csv', rows)
         for row in rows:
             print('seed%s %s round%03d: %-10s saved_nodes=%d %s' % (row['seed'], row['origin'], row['anchor_round'], row['status'], row['saved_training_nodes'], row['reason']))
         return
     if args.stage in ('summary', 'collect'):
-        summarize(args.output_root, seeds, args.origins, args.rounds, plots=not args.no_plots)
-        print('Summary: ' + str(args.output_root / 'analysis/report.md'))
+        summarize(args.output_root, seeds, args.origins, args.rounds,
+                  plots=not args.no_plots, destination=destination)
+        print('Summary: ' + str(destination / 'report.md'))
         if args.stage == 'collect':
             collect(args)
         return
@@ -223,7 +267,9 @@ def main(argv=None):
     if args.stage in ('smoke', 'run'):
         launch(args, jobs, fingerprint)
         if args.stage == 'run':
-            summarize(args.output_root, [args.seed], args.origins, args.rounds, plots=not args.no_plots)
+            summarize(args.output_root, [args.seed], args.origins, args.rounds,
+                      plots=not args.no_plots, destination=destination)
+            print('Summary: ' + str(destination / 'report.md'))
 
 
 if __name__ == '__main__':

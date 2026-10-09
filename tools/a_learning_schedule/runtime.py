@@ -112,6 +112,14 @@ def build_config(source, args):
     return cfg
 
 
+def load_training_api():
+    # Match federated_main.py: finish Dassl's trainer registration first.
+    # Importing cliplora first re-enters it from engine.build before ClipLora exists.
+    import Dassl.dassl.engine  # noqa: F401
+    from trainers.cliplora import build_cliplora_model, cliplora_optimizer_step
+    return build_cliplora_model, cliplora_optimizer_step
+
+
 def make_data(cfg, source, args):
     from Dassl.dassl.data.data_manager import build_data_loader
     from Dassl.dassl.data.transforms import build_transform
@@ -174,7 +182,7 @@ class Worker:
             torch.backends.cuda.matmul.allow_tf32 = False
             torch.backends.cudnn.allow_tf32 = False
         cfg = build_config(source, args)
-        from trainers.cliplora import build_cliplora_model, cliplora_optimizer_step
+        build_cliplora_model, cliplora_optimizer_step = load_training_api()
         with isolated_rng(args.seed):
             self.model = build_cliplora_model(cfg, source['meta']['classnames']).to(self.device)
         self.step = cliplora_optimizer_step
@@ -481,6 +489,30 @@ class Worker:
         print('GPU smoke passed; formal branches have NOT run.', flush=True)
 
 
+def register_request(root, request):
+    """Allow a code fix after failed startup, never across saved model/evaluation work.
+
+    Called only while holding the anchor's worker lock. The old import failure
+    left request.json before any Worker artifacts existed; preserve that record.
+    """
+    root = Path(root)
+    path = root / 'request.json'
+    if path.exists():
+        previous = read_json(path)
+        if previous != request:
+            changed = {key for key in previous.keys() | request.keys()
+                       if previous.get(key) != request.get(key)}
+            artifacts = [p for p in root.iterdir()
+                         if not (p.is_file() and (p.name in ('request.json', 'worker.lock')
+                                 or (p.name.startswith('request_before_startup_fix_') and p.suffix == '.json')))]
+            if changed != {'code_fingerprint'} or artifacts:
+                raise ValueError('Existing output has a different protocol/code/source. Choose a new --output-root.')
+            backup = root / ('request_before_startup_fix_%s.json' % digest(previous)[:16])
+            write_json(backup, previous)
+            print('Recovered startup-only request after code fix; previous request saved to ' + str(backup), flush=True)
+    write_json(path, request)
+
+
 def run_worker(args):
     from scripts.run_ab_validation import file_lock
     source = check_source(args.source_run, args.origin, args.seed, [args.anchor_round])
@@ -493,10 +525,7 @@ def run_worker(args):
                        event_sha256=file_digest(source_event(args.source_run, args.origin, args.anchor_round)),
                        data_root=str(args.data_root.resolve()), num_workers=args.num_workers,
                        eval_batch_size=args.eval_batch_size, code_fingerprint=args.code_fingerprint)
-        path = root / 'request.json'
-        if path.exists() and read_json(path) != request:
-            raise ValueError('Existing output has a different protocol/code/source. Choose a new --output-root.')
-        write_json(path, request)
+        register_request(root, request)
         if args.worker_mode == 'run' and (root / 'complete.json').is_file():
             print('SKIP completed anchor: ' + str(root), flush=True)
             return

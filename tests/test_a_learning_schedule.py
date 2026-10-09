@@ -1,7 +1,11 @@
 """CPU tests for the actual paired training engine, continuation graph and reports."""
 import contextlib
+from concurrent.futures import ThreadPoolExecutor
 import io
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,7 +21,9 @@ from tools.a_learning_schedule.protocol import (
     ARMS, PRIMARY, actions, check_source, final_nodes, paired_probes, phase_seed, plan,
     read_csv, read_json, source_event, write_csv, write_json,
 )
-from tools.a_learning_schedule.runtime import Worker, aggregate, effective_norm, prediction_metrics, load_torch
+from tools.a_learning_schedule.runtime import (
+    Worker, aggregate, effective_norm, prediction_metrics, load_torch, register_request,
+)
 from tools.a_learning_schedule.summary import primary_means, summarize
 from utils.cliplora_a_refresh import state_hash
 
@@ -121,6 +127,189 @@ class ProtocolTests(unittest.TestCase):
                          call.args[0][call.args[0].index('--anchor-round') + 1]) for call in popen.call_args_list]
             self.assertEqual(observed, [('0', 'e2', '20'), ('1', 'e2', '50'), ('2', 'e2', '80'),
                                         ('3', 'e3', '20'), ('4', 'e3', '50'), ('5', 'e3', '80')])
+
+
+class ShardTests(unittest.TestCase):
+    def test_shards_cover_each_anchor_once_and_reject_conflicting_options(self):
+        from scripts.run_cliplora_a_learning_schedule import parse_args
+        selected = []
+        for shard in (1, 2, 3):
+            args = parse_args(['--stage', 'run', '--shard', str(shard)])
+            selected.extend((origin, rnd) for origin in args.origins for rnd in args.rounds)
+        self.assertEqual(sorted(selected), [(origin, rnd) for origin in ('e2', 'e3') for rnd in (20, 50, 80)])
+        for flags in (['--rounds', '20'], ['--origins', 'e2'], ['--gpus', '0', '1'],
+                      ['--stage', 'collect']):
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                parse_args(['--shard', '1'] + flags)
+
+    def test_shard_preserves_allocated_gpu_and_rejects_disabled_or_multiple_devices(self):
+        from scripts.run_cliplora_a_learning_schedule import parse_args, selected_gpus
+        args = parse_args(['--shard', '1'])
+        for token in ('0', '3', 'GPU-allocated-uuid', 'MIG-allocated-uuid'):
+            with patch.dict(os.environ, {'CUDA_VISIBLE_DEVICES': token}):
+                self.assertEqual(selected_gpus(args), [token])
+        for mask in ('', '-1', '0,1'):
+            with patch.dict(os.environ, {'CUDA_VISIBLE_DEVICES': mask}), self.assertRaises(ValueError):
+                selected_gpus(args)
+        with patch.dict(os.environ, {'CUDA_VISIBLE_DEVICES': '1,3'}):
+            explicit = parse_args(['--shard', '1', '--gpus', '3'])
+            self.assertEqual(selected_gpus(explicit), ['3'])
+
+    def test_three_launchers_run_two_anchors_serially_on_their_own_device(self):
+        from scripts.run_cliplora_a_learning_schedule import parse_args, launch
+        observed = []
+        with tempfile.TemporaryDirectory() as temp:
+            for shard, token in enumerate(('3', 'GPU-node2', '0'), 1):
+                args = parse_args(['--stage', 'run', '--shard', str(shard), '--output-root', temp])
+                jobs = [dict(origin=origin, anchor_round=args.rounds[0], source_run='/source/' + origin)
+                        for origin in args.origins]
+                live = set()
+
+                class SimulatedProcess:
+                    pid = 123
+                    def __init__(self, command, **kwargs):
+                        if live:
+                            raise AssertionError('Two anchors were launched concurrently on one shard GPU')
+                        self.pending = True
+                        live.add(self)
+                        observed.append((kwargs['env']['CUDA_VISIBLE_DEVICES'],
+                                         command[command.index('--origin') + 1],
+                                         int(command[command.index('--anchor-round') + 1])))
+
+                    def poll(self):
+                        if self.pending:
+                            self.pending = False
+                            return None
+                        live.discard(self)
+                        return 0
+
+                with patch.dict(os.environ, {'CUDA_VISIBLE_DEVICES': token}), \
+                     patch('scripts.run_cliplora_a_learning_schedule.subprocess.Popen', side_effect=SimulatedProcess), \
+                     patch('scripts.run_cliplora_a_learning_schedule.time.sleep'), \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    launch(args, jobs, 'test')
+                self.assertFalse(live)
+        self.assertEqual(observed, [('3', 'e2', 20), ('3', 'e3', 20),
+                                    ('GPU-node2', 'e2', 50), ('GPU-node2', 'e3', 50),
+                                    ('0', 'e2', 80), ('0', 'e3', 80)])
+
+    def test_concurrent_preflight_and_reports_do_not_overwrite_other_shards(self):
+        from scripts.run_cliplora_a_learning_schedule import (
+            parse_args, preflight, preflight_path, analysis_directory,
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            data = root / 'data'
+            data.mkdir()
+            for name in ('train', 'test', 'meta'):
+                (data / name).touch()
+            args = [parse_args(['--shard', str(i), '--output-root', temp, '--data-root', str(data)])
+                    for i in (1, 2, 3)]
+
+            def source_check(source, *unused):
+                return dict(path=str(source), rows=[], meta={'schedule': []})
+
+            def run_reports(arg):
+                preflight(arg)
+                return summarize(root, [42], arg.origins, arg.rounds, plots=False,
+                                 destination=analysis_directory(arg))
+
+            with patch('scripts.run_cliplora_a_learning_schedule.discover_source',
+                       side_effect=lambda root, seed, origin, override: '/source/' + origin), \
+                 patch('scripts.run_cliplora_a_learning_schedule.check_source', side_effect=source_check), \
+                 patch('scripts.run_cliplora_a_learning_schedule.code_fingerprint', return_value='test'), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                with ThreadPoolExecutor(max_workers=3) as pool:
+                    results = list(pool.map(run_reports, args))
+            self.assertTrue(all(len(rows) == 2 for rows in results))
+            for arg in args:
+                report = read_json(preflight_path(arg))
+                self.assertEqual([j['anchor_round'] for j in report['jobs']], arg.rounds * 2)
+                summary = read_json(analysis_directory(arg) / 'summary.json')
+                self.assertEqual(summary['rounds'], arg.rounds)
+                self.assertEqual(summary['expected'], 2)
+            self.assertFalse((root / 'analysis/summary.json').exists())
+            summarize(root, [42], ['e2', 'e3'], [20, 50, 80], plots=False)
+            self.assertEqual(read_json(root / 'analysis/summary.json')['expected'], 6)
+            self.assertTrue(all(read_json(analysis_directory(arg) / 'summary.json')['expected'] == 2 for arg in args))
+
+
+class StartupTests(unittest.TestCase):
+    def test_dassl_registration_first_breaks_the_reported_import_cycle(self):
+        # Reproduce the observed registration graph in clean interpreters. The
+        # production bootstrap is exercised; GPU/model dependencies are omitted.
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            modules = {
+                'Dassl/__init__.py': '', 'Dassl/dassl/__init__.py': '', 'trainers/__init__.py': '',
+                'Dassl/dassl/engine/__init__.py': (repo / 'Dassl/dassl/engine/__init__.py').read_text(encoding='utf-8'),
+                'Dassl/dassl/engine/trainer.py': '\n'.join('class %s: pass' % name for name in
+                    ('TrainerX', 'TrainerXU', 'TrainerBase', 'SimpleTrainer', 'SimpleNet')),
+                'Dassl/dassl/engine/build.py': 'from trainers.clip import CLIP\n'
+                    'from trainers.cliplora import ClipLora\nTRAINER_REGISTRY = {}\n'
+                    'def build_trainer(): return ClipLora()\n',
+                'trainers/clip.py': 'from Dassl.dassl.engine.trainer import TrainerX\n'
+                    'class CLIP(TrainerX): pass\n',
+                'trainers/cliplora.py': 'from Dassl.dassl.engine.trainer import TrainerX\n'
+                    'class ClipLora(TrainerX): pass\n'
+                    'def build_cliplora_model(): return ClipLora()\n'
+                    'def cliplora_optimizer_step(): return "step-ready"\n',
+            }
+            for name, source in modules.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(source, encoding='utf-8')
+            setup = 'import sys\nsys.path.insert(0, sys.argv[1])\n'
+            broken = subprocess.run([sys.executable, '-c', setup + 'from trainers.cliplora import ClipLora', temp],
+                                    cwd=repo, capture_output=True, text=True, timeout=30)
+            self.assertNotEqual(broken.returncode, 0)
+            self.assertIn('partially initialized module', broken.stderr)
+            fixed = subprocess.run([sys.executable, '-c', setup +
+                                    'from tools.a_learning_schedule.runtime import load_training_api\n'
+                                    'build, step = load_training_api()\n'
+                                    'assert type(build()).__name__ == "ClipLora"\n'
+                                    'assert step() == "step-ready"\n', temp],
+                                   cwd=repo, capture_output=True, text=True, timeout=30)
+            self.assertEqual(fixed.returncode, 0, fixed.stderr)
+
+    def test_failed_startup_request_can_recover_with_audited_code_change(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            previous = dict(seed=42, source='same-source', code_fingerprint='old')
+            current = dict(previous, code_fingerprint='fixed')
+            write_json(root / 'request.json', previous)
+            (root / 'worker.lock').touch()
+            with contextlib.redirect_stdout(io.StringIO()):
+                register_request(root, current)
+            self.assertEqual(read_json(root / 'request.json'), current)
+            backups = list(root.glob('request_before_startup_fix_*.json'))
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(read_json(backups[0]), previous)
+            register_request(root, current)
+            self.assertEqual(list(root.glob('request_before_startup_fix_*.json')), backups)
+
+    def test_code_change_cannot_reuse_saved_work_or_change_experiment_inputs(self):
+        previous = dict(seed=42, source='same-source', code_fingerprint='old')
+        for artifact in ('anchor_info.json', 'feedback_manifest.csv', 'smoke.json',
+                         'nodes/phase.pt', 'evaluations/anchor/metrics.json', 'complete.json'):
+            with self.subTest(artifact=artifact), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                write_json(root / 'request.json', previous)
+                path = root / artifact
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'existing-work')
+                with self.assertRaisesRegex(ValueError, 'different protocol/code/source'):
+                    register_request(root, dict(previous, code_fingerprint='fixed'))
+                self.assertEqual(read_json(root / 'request.json'), previous)
+                self.assertEqual(path.read_bytes(), b'existing-work')
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            write_json(root / 'request.json', previous)
+            for changed in (dict(previous, source='other-source'), dict(previous, seed=0, code_fingerprint='fixed')):
+                with self.assertRaises(ValueError):
+                    register_request(root, changed)
+            self.assertEqual(read_json(root / 'request.json'), previous)
 
 
 class TinyLoRA(nn.Module):
