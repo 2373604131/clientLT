@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-09",
+  "skills": ["figure-designer", "vivid-figures-skill"],
+  "figure_type": "solution-overview",
+  "paradigm": "Three-panel computation pipeline with a cross-round historical feedback loop",
+  "pre_render_design": "PAPER_PLAN.md",
+  "renderer": "TikZ / XeLaTeX; pdftoppm for previews; pdftocairo for SVG",
+  "artifact_status": "Complete figure candidate, not a compiled manuscript page",
+  "actual_visual_inspection": {
+    "languages": ["zh", "en"],
+    "initial_render_inspected": true,
+    "repair_rounds": 3,
+    "final_full_previews_inspected": true,
+    "repairs": [
+      "Shortened overflowing English labels and moved the optimization-step annotation.",
+      "Removed text-crossing arrows and replaced a crowded effective-count equation with the overview-level inverse-count weight rule; exact definition is in captions.md.",
+      "Made the response-selection branch explicitly feed both the current target and retention weights."
+    ],
+    "remaining_major_visual_defects": [],
+    "remaining_minor_notes": [
+      "Equation superscripts and subscripts are smaller than body labels, as normal mathematical typography.",
+      "Keep the figure at full two-column width; do not shrink it to a single column."
+    ]
+  },
+  "universal_audit": {
+    "vector_master": "PASS: one-page PDF; embedded fonts; pdfimages reports no raster images.",
+    "body_font_size": "PASS at assumed 177.8 mm insertion width: source minimum 8.3 TeX pt, approximately 8.1 final PDF pt.",
+    "color_encoding": "PASS: panel titles, formulas, signs, arrow styles and position supplement color.",
+    "caption": "PASS: standalone bilingual captions and definition notes in captions.md.",
+    "data_integrity": "PASS: no experimental curves, performance numbers or invented empirical improvements.",
+    "decoration": "PASS: flat vector icons; no 3-D, shadows or decorative hatching.",
+    "formula_and_temporal_semantics": "PASS: ordinary sample weights, one-sided soft correction, two available targets, committed-history feedback and next-round registration explained.",
+    "final_paper_page": "NOT APPLICABLE to this figures-only request; must be reviewed when inserted into a manuscript."
+  },
+  "measured_geometry": {
+    "report": "geometry_review.json",
+    "labels_per_language": 78,
+    "overlapping_text_pairs": 0,
+    "labels_outside_canvas": 0,
+    "overfull_warnings": 0,
+    "method": "Native TikZ text-node south-west/north-east anchors emitted during compilation, plus actual rendered-image inspection."
+  },
+  "legacy_checker_adjudication": {
+    "raw_reports": ["legacy_check_zh.txt", "legacy_check_en.txt"],
+    "checker_modified": false,
+    "raw_checker_pass": false,
+    "palette_finding": "The heuristic counts separate tints of the same base hue as distinct colors. Three bright base hues are explicitly requested by the user; white and gray are neutrals.",
+    "overlap_finding": "Its generic text estimates default to 0.75 cm height and approximate character widths without using the actual 8.3 pt font metrics. Specific alleged overlaps were checked against native TikZ bounds and rendered images.",
+    "resolution": "All actual overlaps and overflows were fixed. The remaining generic heuristic findings are documented false positives or user-authorized palette overrides, not unexamined passes."
+  },
+  "scientific_limits": [
+    "The inverse effective-client-count priority is a design assumption, not a proven causal relationship with forgetting.",
+    "The correction loss is soft and does not guarantee that accuracy or classification loss cannot deteriorate.",
+    "An architecture diagram does not establish an advantage over simple client weighting or simple historical retention.",
+    "This is a computation overview, not a packet-by-packet communication diagram; raw images stay local and candidate feedback is recomputed locally."
+  ],
+  "integrity_gate": {
+    "type_matches_content": true,
+    "explicit_layout_and_entities": true,
+    "appropriate_renderer": true,
+    "actual_render_reviewed": true,
+    "no_unresolved_actual_critical_or_major_issue": true,
+    "source_artifacts_complete": true
+  }
+}

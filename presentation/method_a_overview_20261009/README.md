@@ -1,5 +1,16 @@
 # 方法 A 论文概览图
 
+**最新局部修改：方法 A 右侧已单独展开重画。**
+查看 [右侧中文细节图](figures/tikz_method_a_detail_zh.png)、
+[中文矢量 PDF](figures/tikz_method_a_detail_zh.pdf)、
+[英文矢量 PDF](figures/tikz_method_a_detail_en.pdf)。
+生成、图注与检查说明见 [右侧细节图说明](METHOD_A_DETAIL_README.md)。
+
+**当前版本已改为模型示意图**，见 [模型示意图说明](MODEL_SCHEMATIC_README.md)。
+优先查看 [新版中文 PNG](figures/tikz_method_a_model_zh.png)、
+[新版英文 PDF](figures/tikz_method_a_model_en.pdf) 和 [新版图注](model_captions.md)。
+新版由 render_model_schematic.py 生成。以下内容为保留的旧文字流程图说明。
+
 - 中文预览：figures/tikz_method_a_overview_zh.png
 - 英文预览：figures/tikz_method_a_overview_en.png
 - 论文插图：同名 PDF（矢量、嵌入字体）

@@ -1,0 +1,56 @@
+{
+  "skill": "figure-designer",
+  "task_scope": "Redraw and expand only the right-hand Method A correction panel",
+  "pre_draw_plan": "METHOD_A_DETAIL_PLAN.md",
+  "figure_type": "solution-overview",
+  "paradigm": "model architecture with graphical mechanism insets",
+  "actual_images_inspected": [
+    "figures/tikz_method_a_detail_zh.png",
+    "figures/tikz_method_a_detail_en.png"
+  ],
+  "layout_repair_rounds": 3,
+  "additional_copy_fix": "After the third layout review, shortened the English encoder label to CLIP / encoder to remove a shape-boundary overflow; regenerated and visually checked again.",
+  "repairs": [
+    "Replaced unlabeled direction vectors with a two-view signed response matrix and retained-positive-effect bars.",
+    "Distinguished mean positive effect for the current target from concentration for the retention weight.",
+    "Added the current-target cap of 2, the five-round history minimum, conditional registration, and a visible maximum operator.",
+    "Replaced a bare retention-loss symbol with a target/current-margin gap and an explicit orange weight multiplier.",
+    "Added a separate diagram of classification-loss increase relative to ordinary aggregation.",
+    "Routed the correction-gradient loop directly to A; B has a frozen symbol and no optimization arrow.",
+    "Removed disconnected parameter snapshots that did not explain an additional operation.",
+    "Fixed response-column label overflow, English caption clipping, and target-shortfall label overlap."
+  ],
+  "scientific_review": {
+    "update_effects": "first-order inner products at the common post-B, pre-A model",
+    "view_filter": "both views positive; conservative minimum and numerical threshold clarified in protocol",
+    "weight_scope": "retention loss, not ordinary aggregation",
+    "target": "capped current improvement target combined with valid registered history",
+    "history": "committed models, nonoverlapping five-round block, two-view minimum, conditional registration",
+    "retention_condition": "penalize target shortfall only",
+    "classification_condition": "penalize global weighted LA loss increase relative to the ordinary proposal",
+    "updated_parameter": "LoRA A only during this stage",
+    "illustration_data": "schematic signs, bar heights and deficits; not empirical results",
+    "simplifications_disclosed": "view subscripts on targets, scale normalization, sums, coefficients, proximity term; see caption",
+    "privacy_description": "images and loss evaluation remain client-local; no formal privacy guarantee claimed"
+  },
+  "final_visual_audit": {
+    "forward_model_visible": true,
+    "weight_meaning_visible": true,
+    "history_to_target_connection_visible": true,
+    "shortfall_to_loss_to_A_connection_visible": true,
+    "parameter_status_dual_encoded": "snowflake/flame plus text and color",
+    "text_overlap": "none in final native TeX bounds check",
+    "clipped_text": "none observed in final renders",
+    "critical_unresolved": [],
+    "major_unresolved": []
+  },
+  "exports": {
+    "formats": ["PDF", "SVG", "TEX", "PNG"],
+    "vector_except_input_thumbnails": true,
+    "pdf_fonts": "embedded",
+    "min_body_font_pt": 8.8,
+    "min_body_font_at_177_8mm_pt": 8.64,
+    "recommended_layout": "standalone full-width method detail, not shrunk back into the old narrow panel"
+  },
+  "status": "reviewed"
+}

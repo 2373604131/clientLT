@@ -1,0 +1,65 @@
+{
+  "skill": "figure-designer",
+  "figure_type": "solution-overview",
+  "paradigm": "model and system architecture, with two compact mechanism insets",
+  "pre_draw_plan": "MODEL_SCHEMATIC_PLAN.md",
+  "actual_images_inspected": [
+    "figures/tikz_method_a_model_zh.png",
+    "figures/tikz_method_a_model_en.png"
+  ],
+  "render_cycles": 3,
+  "repair_rounds": 2,
+  "repairs": [
+    "Replaced the previous text-box algorithm overview with actual input pictures, CLIP encoder silhouettes, LoRA factors, feature strips, prediction bars, server racks, and client computers.",
+    "Moved the server label away from upload arrowheads; widened the prompt card; reduced encoder label size in English.",
+    "Separated the two class-score labels and relocated the gradient-vector label away from the inset heading.",
+    "Removed the trainable icon attached to a loss rather than a parameter.",
+    "Shortened the English aggregation header to keep it inside its panel.",
+    "Rerouted the correction gradient into the side of LoRA A to avoid crossing the LoRA label.",
+    "Separated shared legend labels and icons."
+  ],
+  "final_visual_audit": {
+    "model_geometry_dominates": "pass",
+    "input_model_prediction_reading_order": "pass",
+    "freeze_train_status_visible_on_objects": "pass",
+    "arrow_directions": "pass",
+    "body_text_collisions": "none observed; independent native TeX bounds check also passed",
+    "clipped_text": "none observed",
+    "equations_and_long_protocols_moved_to_caption": "pass",
+    "status_not_encoded_by_color_alone": "pass; snowflake/flame shapes and legend",
+    "bright_palette_requested_by_user": "pass; blue/orange/green",
+    "experimental_claims_in_schematic": "none; bar heights and directions are illustrative",
+    "critical_unresolved": [],
+    "major_unresolved": []
+  },
+  "scientific_fidelity": {
+    "scope": "A stage only, after B training and aggregation",
+    "trainable": "LoRA A",
+    "frozen": "B and pretrained CLIP components, prompt parameters and logit scale",
+    "ordinary_aggregation_weights": "unchanged sample weights",
+    "gradient_measurement": "common post-B, pre-A model; clarified in caption",
+    "input_privacy": "images and loss evaluation stay on clients; clarified in caption",
+    "history_rule": "nonoverlapping 5-round blocks, two-view minimum, register after improvement, effective next round; details in caption",
+    "omissions_disclosed": [
+      "two-view filtering and normalization in the vector inset",
+      "proximity regularization and projected correction radius",
+      "registration threshold and cache rules",
+      "full B-stage graph"
+    ],
+    "extra_networks_invented": false
+  },
+  "exports": {
+    "formats": ["TEX", "PDF", "SVG", "PNG"],
+    "vector_except_input_photos": true,
+    "input_photos": "Original CIFAR-100 training arrays; assets/manifest.json records class and index",
+    "pdf_fonts": "embedded",
+    "png_dpi": 240,
+    "body_font_min_pt": 8.8,
+    "body_font_min_at_177_8mm_pt": 8.64
+  },
+  "remaining_submission_work": [
+    "Select the final method name and caption length when the paper scope is fixed.",
+    "Use this as the A-stage illustration or add a separate B-stage panel if the final paper combines methods."
+  ],
+  "status": "reviewed_method_A_schematic"
+}

@@ -1,0 +1,2 @@
+comparison,seed,repetitions,delta_overall_acc,delta_head20_acc,delta_middle60_acc,delta_bottom20_tail_acc,delta_non_tail_acc,delta_tail_peak_to_final
+full-cp minus s,42,1,-0.277000000000001,-0.7325000000000017,-0.9750000000000085,2.272500000000008,-0.9143749999999926,-2.450000000000003

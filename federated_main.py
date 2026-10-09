@@ -4110,6 +4110,11 @@ def main(args):
         if args.sfra_variant != 'off':
             from utils.cliplora_sfra import SFRARuntime
             runtime_class = SFRARuntime
+        if args.method_a_simple_control_manifest:
+            if args.method_a_supplement_manifest or args.method_a_diagnostic_manifest or args.b_problem2_replay_manifest:
+                raise ValueError('Simple A controls cannot be combined with another experiment runtime')
+            from utils.method_a_simple_controls import MethodASimpleControlsRuntime
+            runtime_class = MethodASimpleControlsRuntime
         if args.method_a_supplement_manifest:
             if args.method_a_diagnostic_manifest or args.b_problem2_replay_manifest:
                 raise ValueError('Method A supplements cannot be combined with short diagnostics or B replay')
@@ -6505,6 +6510,8 @@ if __name__ == "__main__":
                         help='Isolated Method A diagnostic job; use scripts/run_method_a_diagnostics.py')
     parser.add_argument('--method_a_supplement_manifest', default='',
                         help='Seed42 100-round controls; use scripts/run_method_a_supplement.py')
+    parser.add_argument('--method_a_simple_control_manifest', default='',
+                        help='Seed42 TailRW/Cover-CP; use scripts/run_method_a_simple_controls.py')
     parser.add_argument('--sfra_b_aggregation', choices=['sample', 'uniform-transfer-rounds'], default='sample')
     parser.add_argument('--sfra_fast_execution', action='store_true')
     parser.add_argument('--sfra_fast_execution_v2', action='store_true')

@@ -1,0 +1,10 @@
+method,status,reason
+full-cp minus tailrw-g1,pending,missing or incomplete paired run
+full-cp minus tailrw-g4,pending,missing or incomplete paired run
+full-cp minus tailrw-g16,pending,missing or incomplete paired run
+full-cp minus cover-cp,pending,missing or incomplete paired run
+full-cp minus s,eligible,
+tailrw-g1 minus s,pending,missing or incomplete paired run
+tailrw-g4 minus s,pending,missing or incomplete paired run
+tailrw-g16 minus s,pending,missing or incomplete paired run
+cover-cp minus s,pending,missing or incomplete paired run

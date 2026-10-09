@@ -1,0 +1,623 @@
+[
+  {
+    "id": "label0",
+    "text": "1",
+    "font_pt": 9.5,
+    "center_cm": [
+      0.47,
+      0.46699999999999997
+    ]
+  },
+  {
+    "id": "label1",
+    "text": "Estimate class-wise update effects",
+    "font_pt": 10.5,
+    "center_cm": [
+      0.81,
+      0.47
+    ]
+  },
+  {
+    "id": "label2",
+    "text": "2",
+    "font_pt": 9.5,
+    "center_cm": [
+      9.9,
+      0.46699999999999997
+    ]
+  },
+  {
+    "id": "label3",
+    "text": "Combine current and historical targets",
+    "font_pt": 9.7,
+    "center_cm": [
+      10.24,
+      0.47
+    ]
+  },
+  {
+    "id": "label4",
+    "text": "Class images\\\\$q=(k,c)$",
+    "font_pt": 9.1,
+    "center_cm": [
+      1.08,
+      1.29
+    ]
+  },
+  {
+    "id": "label5",
+    "text": "Common\\\\model",
+    "font_pt": 8.8,
+    "center_cm": [
+      1.06,
+      3.15
+    ]
+  },
+  {
+    "id": "label6",
+    "text": "$F_q^0$",
+    "font_pt": 10,
+    "center_cm": [
+      1.06,
+      3.78
+    ]
+  },
+  {
+    "id": "label7",
+    "text": "$g_{qv}$",
+    "font_pt": 10.1,
+    "center_cm": [
+      1.99,
+      1.96
+    ]
+  },
+  {
+    "id": "label8",
+    "text": "Client updates $\\Delta A_j$",
+    "font_pt": 8.8,
+    "center_cm": [
+      4.19,
+      0.97
+    ]
+  },
+  {
+    "id": "label9",
+    "text": "$1$",
+    "font_pt": 9.2,
+    "center_cm": [
+      3.12,
+      1.35
+    ]
+  },
+  {
+    "id": "label10",
+    "text": "$2$",
+    "font_pt": 9.2,
+    "center_cm": [
+      3.83,
+      1.35
+    ]
+  },
+  {
+    "id": "label11",
+    "text": "$3$",
+    "font_pt": 9.2,
+    "center_cm": [
+      4.54,
+      1.35
+    ]
+  },
+  {
+    "id": "label12",
+    "text": "$K$",
+    "font_pt": 9.2,
+    "center_cm": [
+      5.25,
+      1.35
+    ]
+  },
+  {
+    "id": "label13",
+    "text": "$v_1$",
+    "font_pt": 9.1,
+    "center_cm": [
+      2.63,
+      1.93
+    ]
+  },
+  {
+    "id": "label14",
+    "text": "$v_2$",
+    "font_pt": 9.1,
+    "center_cm": [
+      2.63,
+      2.51
+    ]
+  },
+  {
+    "id": "label15",
+    "text": "$+$",
+    "font_pt": 12,
+    "center_cm": [
+      3.12,
+      1.93
+    ]
+  },
+  {
+    "id": "label16",
+    "text": "$+$",
+    "font_pt": 12,
+    "center_cm": [
+      3.83,
+      1.93
+    ]
+  },
+  {
+    "id": "label17",
+    "text": "$-$",
+    "font_pt": 12,
+    "center_cm": [
+      4.54,
+      1.93
+    ]
+  },
+  {
+    "id": "label18",
+    "text": "$+$",
+    "font_pt": 12,
+    "center_cm": [
+      5.25,
+      1.93
+    ]
+  },
+  {
+    "id": "label19",
+    "text": "$+$",
+    "font_pt": 12,
+    "center_cm": [
+      3.12,
+      2.51
+    ]
+  },
+  {
+    "id": "label20",
+    "text": "$+$",
+    "font_pt": 12,
+    "center_cm": [
+      3.83,
+      2.51
+    ]
+  },
+  {
+    "id": "label21",
+    "text": "$-$",
+    "font_pt": 12,
+    "center_cm": [
+      4.54,
+      2.51
+    ]
+  },
+  {
+    "id": "label22",
+    "text": "$-$",
+    "font_pt": 12,
+    "center_cm": [
+      5.25,
+      2.51
+    ]
+  },
+  {
+    "id": "label23",
+    "text": "Positive in both views",
+    "font_pt": 8.8,
+    "center_cm": [
+      4.18,
+      4.17
+    ]
+  },
+  {
+    "id": "label24",
+    "text": "$r_{qvj}=\\langle g_{qv},\\Delta A_j\\rangle$",
+    "font_pt": 9.5,
+    "center_cm": [
+      3.9,
+      4.53
+    ]
+  },
+  {
+    "id": "label25",
+    "text": "Current target $T_q^{\\mathrm{cur}}$",
+    "font_pt": 9.3,
+    "center_cm": [
+      7.53,
+      1.25
+    ]
+  },
+  {
+    "id": "label26",
+    "text": "$\\min\\{2,F_q^0+0.5u_q\\}$",
+    "font_pt": 9.5,
+    "center_cm": [
+      7.52,
+      1.76
+    ]
+  },
+  {
+    "id": "label27",
+    "text": "Mean positive effect $u_q$",
+    "font_pt": 8.8,
+    "center_cm": [
+      7.52,
+      2.23
+    ]
+  },
+  {
+    "id": "label28",
+    "text": "More concentrated",
+    "font_pt": 9.0,
+    "center_cm": [
+      7.63,
+      2.73
+    ]
+  },
+  {
+    "id": "label29",
+    "text": "$\\omega_q\\uparrow$",
+    "font_pt": 10.5,
+    "center_cm": [
+      7.63,
+      3.23
+    ]
+  },
+  {
+    "id": "label30",
+    "text": "Larger retention\\\\weight",
+    "font_pt": 9.0,
+    "center_cm": [
+      7.63,
+      3.85
+    ]
+  },
+  {
+    "id": "label31",
+    "text": "Committed models: 5-round block",
+    "font_pt": 9.3,
+    "center_cm": [
+      12.15,
+      1.25
+    ]
+  },
+  {
+    "id": "label32",
+    "text": "$H_q$",
+    "font_pt": 10.5,
+    "center_cm": [
+      13.98,
+      2.36
+    ]
+  },
+  {
+    "id": "label33",
+    "text": "Register improved\\\\block minimum",
+    "font_pt": 9,
+    "center_cm": [
+      11.88,
+      3.78
+    ]
+  },
+  {
+    "id": "label34",
+    "text": "$\\max$",
+    "font_pt": 10.3,
+    "center_cm": [
+      16.45,
+      3
+    ]
+  },
+  {
+    "id": "label35",
+    "text": "Take the larger",
+    "font_pt": 9.0,
+    "center_cm": [
+      16.45,
+      3.62
+    ]
+  },
+  {
+    "id": "label36",
+    "text": "$T_q$",
+    "font_pt": 10.5,
+    "center_cm": [
+      16.45,
+      4.25
+    ]
+  },
+  {
+    "id": "label37",
+    "text": "Retention target",
+    "font_pt": 9.3,
+    "center_cm": [
+      14.73,
+      4.25
+    ]
+  },
+  {
+    "id": "label38",
+    "text": "3",
+    "font_pt": 9.5,
+    "center_cm": [
+      0.47,
+      5.147
+    ]
+  },
+  {
+    "id": "label39",
+    "text": "Correct shared $A$ using target shortfalls",
+    "font_pt": 10.5,
+    "center_cm": [
+      0.81,
+      5.15
+    ]
+  },
+  {
+    "id": "label40",
+    "text": "Fixed local\\\\images",
+    "font_pt": 8.8,
+    "center_cm": [
+      1.13,
+      6.07
+    ]
+  },
+  {
+    "id": "label41",
+    "text": "CLIP\\\\encoder",
+    "font_pt": 8.8,
+    "center_cm": [
+      3.1,
+      6.95
+    ]
+  },
+  {
+    "id": "label42",
+    "text": "$A$",
+    "font_pt": 10.5,
+    "center_cm": [
+      2.65,
+      8.27
+    ]
+  },
+  {
+    "id": "label43",
+    "text": "$B$",
+    "font_pt": 10.5,
+    "center_cm": [
+      3.75,
+      8.27
+    ]
+  },
+  {
+    "id": "label44",
+    "text": "LoRA",
+    "font_pt": 9.1,
+    "center_cm": [
+      3.22,
+      8.73
+    ]
+  },
+  {
+    "id": "label45",
+    "text": "Aggregation",
+    "font_pt": 8.8,
+    "center_cm": [
+      1.08,
+      7.85
+    ]
+  },
+  {
+    "id": "label46",
+    "text": "$A^{\\mathrm{ord}}$",
+    "font_pt": 10.0,
+    "center_cm": [
+      1.04,
+      8.27
+    ]
+  },
+  {
+    "id": "label47",
+    "text": "Fixed text features",
+    "font_pt": 8.8,
+    "center_cm": [
+      5.54,
+      5.78
+    ]
+  },
+  {
+    "id": "label48",
+    "text": "$\\odot$",
+    "font_pt": 13,
+    "center_cm": [
+      5.53,
+      6.95
+    ]
+  },
+  {
+    "id": "label49",
+    "text": "$s_c$",
+    "font_pt": 8.8,
+    "center_cm": [
+      6.72,
+      7.63
+    ]
+  },
+  {
+    "id": "label50",
+    "text": "$s_{c'}$",
+    "font_pt": 8.8,
+    "center_cm": [
+      7.2,
+      7.63
+    ]
+  },
+  {
+    "id": "label51",
+    "text": "Prediction margin $F_q$",
+    "font_pt": 8.8,
+    "center_cm": [
+      7.02,
+      8.1
+    ]
+  },
+  {
+    "id": "label52",
+    "text": "$T_q$",
+    "font_pt": 10.5,
+    "center_cm": [
+      10.82,
+      5.99
+    ]
+  },
+  {
+    "id": "label53",
+    "text": "$F_q(A)$",
+    "font_pt": 10.0,
+    "center_cm": [
+      11.37,
+      7.05
+    ]
+  },
+  {
+    "id": "label54",
+    "text": "Target\\\\shortfall",
+    "font_pt": 9,
+    "center_cm": [
+      12.2,
+      6.44
+    ]
+  },
+  {
+    "id": "label55",
+    "text": "$\\omega_q$",
+    "font_pt": 10.5,
+    "center_cm": [
+      8.98,
+      8.12
+    ]
+  },
+  {
+    "id": "label56",
+    "text": "$\\times$",
+    "font_pt": 11,
+    "center_cm": [
+      9.52,
+      8.12
+    ]
+  },
+  {
+    "id": "label57",
+    "text": "$[T_q-F_q(A)]_+^2$",
+    "font_pt": 10.4,
+    "center_cm": [
+      10.88,
+      8.12
+    ]
+  },
+  {
+    "id": "label58",
+    "text": "Retention loss",
+    "font_pt": 9.3,
+    "center_cm": [
+      10.24,
+      8.66
+    ]
+  },
+  {
+    "id": "label59",
+    "text": "Classification loss",
+    "font_pt": 9.3,
+    "center_cm": [
+      14.85,
+      5.91
+    ]
+  },
+  {
+    "id": "label60",
+    "text": "$C^{\\mathrm{ord}}$",
+    "font_pt": 9.2,
+    "center_cm": [
+      14.3,
+      7.65
+    ]
+  },
+  {
+    "id": "label61",
+    "text": "$C(A)$",
+    "font_pt": 9.2,
+    "center_cm": [
+      15.24,
+      7.65
+    ]
+  },
+  {
+    "id": "label62",
+    "text": "$\\mathcal R_{\\mathrm{cls}}$",
+    "font_pt": 11,
+    "center_cm": [
+      14.85,
+      8.12
+    ]
+  },
+  {
+    "id": "label63",
+    "text": "Penalize only the increase",
+    "font_pt": 8.8,
+    "center_cm": [
+      14.85,
+      8.66
+    ]
+  },
+  {
+    "id": "label64",
+    "text": "$+$",
+    "font_pt": 12,
+    "center_cm": [
+      10.24,
+      9.31
+    ]
+  },
+  {
+    "id": "label65",
+    "text": "Bounded correction: 3 updates",
+    "font_pt": 9.5,
+    "center_cm": [
+      6.39,
+      9.31
+    ]
+  },
+  {
+    "id": "label66",
+    "text": "Update $A$ only",
+    "font_pt": 9,
+    "center_cm": [
+      1.67,
+      10.27
+    ]
+  },
+  {
+    "id": "label67",
+    "text": "$B$ and CLIP fixed",
+    "font_pt": 9,
+    "center_cm": [
+      5.16,
+      10.27
+    ]
+  },
+  {
+    "id": "label68",
+    "text": "Schematic bars; no empirical results",
+    "font_pt": 8.8,
+    "center_cm": [
+      13.69,
+      10.27
+    ]
+  }
+]

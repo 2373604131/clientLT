@@ -1,0 +1,3 @@
+method,seed,gamma,run,origin,repetitions,last20_overall_acc,last20_head20_acc,last20_middle60_acc,last20_bottom20_tail_acc,last20_non_tail_acc,final_tail,tail_change_90_to_100,tail_peak_to_final
+s,42,0.0,G:\桌面\CAPT\output\ab_decision_42_0_3407_analysis\ab_decision_42_0_3407\runs\s\seed42\client-longtail\s\baseline_protocol42_fast_v2_f128_c4,reused,1,70.91,76.8375,69.68333333333334,68.6625,71.471875,68.35,-0.30000000000001137,3.450000000000003
+full-cp,42,0.0,G:\桌面\CAPT\output\ab_decision_42_0_3407_analysis\ab_decision_42_0_3407\runs\a\seed42\client-longtail\full-cp\lambda10_mu1_protocol42_fast_v2_f128_c4,reused,1,70.633,76.105,68.70833333333333,70.935,70.5575,70.65,-0.3999999999999915,1.0

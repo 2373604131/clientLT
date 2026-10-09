@@ -1,0 +1,20 @@
+[
+  {
+    "class": "apple",
+    "train_index": 2,
+    "source": "data/cifar-100/cifar-100-python/train",
+    "usage": "Illustrative input only; not an identified feedback subset."
+  },
+  {
+    "class": "bicycle",
+    "train_index": 16,
+    "source": "data/cifar-100/cifar-100-python/train",
+    "usage": "Illustrative input only; not an identified feedback subset."
+  },
+  {
+    "class": "butterfly",
+    "train_index": 51,
+    "source": "data/cifar-100/cifar-100-python/train",
+    "usage": "Illustrative input only; not an identified feedback subset."
+  }
+]

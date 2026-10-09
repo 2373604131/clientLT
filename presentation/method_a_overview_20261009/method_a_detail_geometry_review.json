@@ -1,0 +1,20 @@
+{
+  "zh": {
+    "labels_measured": 69,
+    "text_overlaps": [],
+    "outside_canvas": [],
+    "min_font_pt": 8.8,
+    "min_font_at_177_8mm_pt": 8.64,
+    "overfull": false,
+    "missing_glyph": false
+  },
+  "en": {
+    "labels_measured": 69,
+    "text_overlaps": [],
+    "outside_canvas": [],
+    "min_font_pt": 8.8,
+    "min_font_at_177_8mm_pt": 8.64,
+    "overfull": false,
+    "missing_glyph": false
+  }
+}

@@ -1,0 +1,413 @@
+
+\documentclass[tikz,border=1.5pt]{standalone}
+\usepackage{fontspec,xeCJK,amsmath,amssymb,lmodern,graphicx}
+\setmainfont{Arial}
+\setsansfont{Arial}
+\setCJKmainfont{Microsoft YaHei}
+\renewcommand{\familydefault}{\sfdefault}
+\usetikzlibrary{arrows.meta,calc}
+\definecolor{Blue}{HTML}{1479E0}
+\definecolor{Orange}{HTML}{F28E2B}
+\definecolor{Green}{HTML}{159B75}
+\definecolor{Ink}{HTML}{24344A}
+\definecolor{Gray}{HTML}{8392A5}
+\definecolor{Pale}{HTML}{E4EBF3}
+\tikzset{
+ every node/.style={font=\fontsize{8.8}{10.2}\selectfont,text=Ink,inner sep=0pt,outer sep=0pt},
+ arr/.style={-{Stealth[length=4.6pt,width=3.6pt]},line width=.85pt,draw=Ink},
+ grad/.style={arr,draw=Orange,line width=1.1pt,dash pattern=on 3pt off 1.8pt},
+ info/.style={arr,draw=Gray,line width=.7pt},
+}
+\begin{document}
+\begin{tikzpicture}[x=1cm,y=-1cm]
+\path[use as bounding box] (0,0) rectangle (18,8.65);
+
+\draw[fill=Blue!2,draw=Blue!50,line width=.7pt,rounded corners=2pt] (0.025000000000000355,0.029999999999999805) rectangle (6.3,8.0);
+\path[fill=Blue!10] (0.035,.045) rectangle (6.29,.75);
+\node[align=center,font={\fontsize{11.8}{13.806}\selectfont\bfseries},text=Blue,] (label0) at (3.1625,0.395) {Local CLIP Training};
+\path let \p1=(label0.south west),\p2=(label0.north east) in \pgfextra{\typeout{NODEBOUNDS|label0|\x1|\y1|\x2|\y2}};
+\draw[fill=Blue!2,draw=Blue!50,line width=.7pt,rounded corners=2pt] (6.449999999999999,0.029999999999999805) rectangle (9.45,8.0);
+\path[fill=Blue!10] (6.46,.045) rectangle (9.44,.75);
+\node[align=center,font={\fontsize{10.5}{12.285}\selectfont\bfseries},text=Blue,] (label1) at (7.949999999999999,0.395) {Aggregation};
+\path let \p1=(label1.south west),\p2=(label1.north east) in \pgfextra{\typeout{NODEBOUNDS|label1|\x1|\y1|\x2|\y2}};
+\draw[fill=Green!2,draw=Green!50,line width=.7pt,rounded corners=2pt] (9.600000000000001,0.029999999999999805) rectangle (17.975,8.0);
+\path[fill=Green!10] (9.61,.045) rectangle (17.965,.75);
+\node[align=center,font={\fontsize{11.6}{13.572}\selectfont\bfseries},text=Green,] (label2) at (13.787500000000001,0.395) {Post-aggregation Correction};
+\path let \p1=(label2.south west),\p2=(label2.north east) in \pgfextra{\typeout{NODEBOUNDS|label2|\x1|\y1|\x2|\y2}};
+\node[align=center,font={\fontsize{8.8}{10.296}\selectfont},text=Ink,] (label3) at (1.6,1.05) {Local images};
+\path let \p1=(label3.south west),\p2=(label3.north east) in \pgfextra{\typeout{NODEBOUNDS|label3|\x1|\y1|\x2|\y2}};
+\begin{scope}[shift={(1.25,1.6300000000000001)},rotate=9]
+\draw[fill=white,draw=Gray,line width=.5pt,rounded corners=0pt] (-0.38,-0.38) rectangle (0.38,0.38);
+\node[inner sep=0pt] at (0,0) {\includegraphics[width=0.7cm,height=0.7cm]{assets/apple.png}};
+\end{scope}
+\begin{scope}[shift={(1.9500000000000002,1.6050000000000002)},rotate=-7]
+\draw[fill=white,draw=Gray,line width=.5pt,rounded corners=0pt] (-0.38,-0.38) rectangle (0.38,0.38);
+\node[inner sep=0pt] at (0,0) {\includegraphics[width=0.7cm,height=0.7cm]{assets/bicycle.png}};
+\end{scope}
+\begin{scope}[shift={(1.6,1.75)},rotate=0]
+\draw[fill=white,draw=Gray,line width=.5pt,rounded corners=0pt] (-0.38,-0.38) rectangle (0.38,0.38);
+\node[inner sep=0pt] at (0,0) {\includegraphics[width=0.7cm,height=0.7cm]{assets/butterfly.png}};
+\end{scope}
+\draw[fill=Green!9,draw=Green,line width=.8pt,rounded corners=.8pt] (3.6450000000000005,1.32) rectangle (5.995,1.9000000000000001);
+\node[align=center,font={\fontsize{8.8}{10.296}\selectfont},text=Ink,] (label4) at (4.82,1.61) {a photo of [class]};
+\path let \p1=(label4.south west),\p2=(label4.north east) in \pgfextra{\typeout{NODEBOUNDS|label4|\x1|\y1|\x2|\y2}};
+\draw[draw=Blue,line width=.95pt] (5.71,1.33) -- (5.97,1.33);
+\draw[draw=Blue,line width=.8pt] (5.7568,1.33) -- (5.7902249557037,1.2901656889578133);
+\draw[draw=Blue,line width=.8pt] (5.7568,1.33) -- (5.7902249557037,1.369834311042187);
+\draw[draw=Blue,line width=.8pt] (5.9232,1.33) -- (5.889775044296299,1.369834311042187);
+\draw[draw=Blue,line width=.8pt] (5.9232,1.33) -- (5.889775044296299,1.2901656889578133);
+\draw[draw=Blue,line width=.95pt] (5.7749999999999995,1.217416697508023) -- (5.905,1.4425833024919772);
+\draw[draw=Blue,line width=.8pt] (5.7984,1.2579466864051347) -- (5.849610003156635,1.266976391643815);
+\draw[draw=Blue,line width=.8pt] (5.7984,1.2579466864051347) -- (5.780614952547065,1.306810702686002);
+\draw[draw=Blue,line width=.8pt] (5.8816,1.4020533135948654) -- (5.830389996843365,1.393023608356185);
+\draw[draw=Blue,line width=.8pt] (5.8816,1.4020533135948654) -- (5.899385047452935,1.3531892973139983);
+\draw[draw=Blue,line width=.95pt] (5.905,1.217416697508023) -- (5.7749999999999995,1.4425833024919772);
+\draw[draw=Blue,line width=.8pt] (5.8816,1.2579466864051347) -- (5.899385047452935,1.306810702686002);
+\draw[draw=Blue,line width=.8pt] (5.8816,1.2579466864051347) -- (5.830389996843365,1.266976391643815);
+\draw[draw=Blue,line width=.8pt] (5.7984,1.4020533135948654) -- (5.780614952547065,1.353189297313998);
+\draw[draw=Blue,line width=.8pt] (5.7984,1.4020533135948654) -- (5.849610003156635,1.393023608356185);
+\draw[arr] (1.6,2.09) -- (1.6,2.33);
+\draw[arr] (4.82,1.92) -- (4.82,2.33);
+\draw[fill=Blue!9,draw=Blue,line width=1.05pt] (0.5350000000000001,2.345) -- (2.665,2.345) -- (2.3029,3.595) -- (0.8971000000000001,3.595) -- cycle;
+\node[align=center,font={\fontsize{9.3}{10.881}\selectfont\bfseries},text=Blue,] (label5) at (1.6,2.91) {Image\\encoder};
+\path let \p1=(label5.south west),\p2=(label5.north east) in \pgfextra{\typeout{NODEBOUNDS|label5|\x1|\y1|\x2|\y2}};
+\draw[draw=Blue,line width=.95pt] (2.4485,2.4050000000000002) -- (2.7215,2.4050000000000002);
+\draw[draw=Blue,line width=.8pt] (2.49764,2.4050000000000002) -- (2.532736203488885,2.3631739734057042);
+\draw[draw=Blue,line width=.8pt] (2.49764,2.4050000000000002) -- (2.532736203488885,2.4468260265942963);
+\draw[draw=Blue,line width=.8pt] (2.67236,2.4050000000000002) -- (2.6372637965111148,2.4468260265942963);
+\draw[draw=Blue,line width=.8pt] (2.67236,2.4050000000000002) -- (2.6372637965111148,2.3631739734057042);
+\draw[draw=Blue,line width=.95pt] (2.51675,2.2867875323834244) -- (2.65325,2.523212467616576);
+\draw[draw=Blue,line width=.8pt] (2.54132,2.3293440207253915) -- (2.5950905033144664,2.338825211226006);
+\draw[draw=Blue,line width=.8pt] (2.54132,2.3293440207253915) -- (2.5226457001744182,2.380651237820302);
+\draw[draw=Blue,line width=.8pt] (2.62868,2.480655979274609) -- (2.5749094966855335,2.4711747887739945);
+\draw[draw=Blue,line width=.8pt] (2.62868,2.480655979274609) -- (2.6473542998255817,2.4293487621796985);
+\draw[draw=Blue,line width=.95pt] (2.65325,2.2867875323834244) -- (2.51675,2.523212467616576);
+\draw[draw=Blue,line width=.8pt] (2.62868,2.3293440207253915) -- (2.6473542998255817,2.380651237820302);
+\draw[draw=Blue,line width=.8pt] (2.62868,2.3293440207253915) -- (2.5749094966855335,2.338825211226006);
+\draw[draw=Blue,line width=.8pt] (2.54132,2.480655979274609) -- (2.5226457001744182,2.4293487621796985);
+\draw[draw=Blue,line width=.8pt] (2.54132,2.480655979274609) -- (2.5950905033144664,2.4711747887739945);
+\draw[fill=Blue!9,draw=Blue,line width=1.05pt] (3.83,2.345) -- (5.8100000000000005,2.345) -- (5.4734,3.595) -- (4.166600000000001,3.595) -- cycle;
+\node[align=center,font={\fontsize{9.3}{10.881}\selectfont\bfseries},text=Blue,] (label6) at (4.82,2.91) {Text\\encoder};
+\path let \p1=(label6.south west),\p2=(label6.north east) in \pgfextra{\typeout{NODEBOUNDS|label6|\x1|\y1|\x2|\y2}};
+\draw[draw=Blue,line width=.95pt] (5.593500000000001,2.4050000000000002) -- (5.8665,2.4050000000000002);
+\draw[draw=Blue,line width=.8pt] (5.64264,2.4050000000000002) -- (5.677736203488885,2.3631739734057042);
+\draw[draw=Blue,line width=.8pt] (5.64264,2.4050000000000002) -- (5.677736203488885,2.4468260265942963);
+\draw[draw=Blue,line width=.8pt] (5.817360000000001,2.4050000000000002) -- (5.782263796511116,2.4468260265942963);
+\draw[draw=Blue,line width=.8pt] (5.817360000000001,2.4050000000000002) -- (5.782263796511116,2.3631739734057042);
+\draw[draw=Blue,line width=.95pt] (5.6617500000000005,2.2867875323834244) -- (5.79825,2.523212467616576);
+\draw[draw=Blue,line width=.8pt] (5.68632,2.3293440207253915) -- (5.740090503314467,2.338825211226006);
+\draw[draw=Blue,line width=.8pt] (5.68632,2.3293440207253915) -- (5.667645700174419,2.380651237820302);
+\draw[draw=Blue,line width=.8pt] (5.773680000000001,2.480655979274609) -- (5.719909496685534,2.4711747887739945);
+\draw[draw=Blue,line width=.8pt] (5.773680000000001,2.480655979274609) -- (5.792354299825582,2.4293487621796985);
+\draw[draw=Blue,line width=.95pt] (5.79825,2.2867875323834244) -- (5.6617500000000005,2.523212467616576);
+\draw[draw=Blue,line width=.8pt] (5.773680000000001,2.3293440207253915) -- (5.792354299825582,2.380651237820302);
+\draw[draw=Blue,line width=.8pt] (5.773680000000001,2.3293440207253915) -- (5.719909496685534,2.338825211226006);
+\draw[draw=Blue,line width=.8pt] (5.68632,2.480655979274609) -- (5.667645700174419,2.4293487621796985);
+\draw[draw=Blue,line width=.8pt] (5.68632,2.480655979274609) -- (5.740090503314467,2.4711747887739945);
+\node[align=center,font={\fontsize{8.8}{10.296}\selectfont\bfseries},text=Ink,] (label7) at (3.1,2.13) {LoRA};
+\path let \p1=(label7.south west),\p2=(label7.north east) in \pgfextra{\typeout{NODEBOUNDS|label7|\x1|\y1|\x2|\y2}};
+\draw[fill=Orange!20,draw=Orange,line width=.8pt,rounded corners=.8pt] (2.775,2.4) rectangle (3.4250000000000003,2.8000000000000003);
+\node[align=center,font={\fontsize{11}{12.87}\selectfont\bfseries},text=Ink,] (label8) at (3.1,2.6) {$A$};
+\path let \p1=(label8.south west),\p2=(label8.north east) in \pgfextra{\typeout{NODEBOUNDS|label8|\x1|\y1|\x2|\y2}};
+\begin{scope}[shift={(3.42,2.4)},scale=0.93]
+\path[fill=Orange,draw=Orange!80!Ink,line width=.3pt] (0,-.18) .. controls (.04,-.02) and (.17,-.08) .. (.14,.065) .. controls (.12,.2) and (-.13,.2) .. (-.14,.06) .. controls (-.17,-.04) and (-.04,-.065) .. (0,-.18) -- cycle;
+\path[fill=yellow!65!white] (.014,-.02) .. controls (.07,.06) and (.085,.09) .. (.038,.14) .. controls (-.02,.17) and (-.075,.12) .. (-.043,.057) -- cycle;
+\end{scope}
+\draw[arr] (3.1,2.8200000000000003) -- (3.1,3.0300000000000002);
+\draw[fill=Blue!9,draw=Blue,line width=.8pt,rounded corners=.8pt] (2.775,3.07) rectangle (3.4250000000000003,3.47);
+\node[align=center,font={\fontsize{11}{12.87}\selectfont\bfseries},text=Ink,] (label9) at (3.1,3.27) {$B$};
+\path let \p1=(label9.south west),\p2=(label9.north east) in \pgfextra{\typeout{NODEBOUNDS|label9|\x1|\y1|\x2|\y2}};
+\draw[draw=Blue,line width=.95pt] (3.2965,3.08) -- (3.5435,3.08);
+\draw[draw=Blue,line width=.8pt] (3.34096,3.08) -- (3.372713707918515,3.0421574045099224);
+\draw[draw=Blue,line width=.8pt] (3.34096,3.08) -- (3.372713707918515,3.1178425954900777);
+\draw[draw=Blue,line width=.8pt] (3.49904,3.08) -- (3.467286292081485,3.1178425954900777);
+\draw[draw=Blue,line width=.8pt] (3.49904,3.08) -- (3.467286292081485,3.0421574045099224);
+\draw[draw=Blue,line width=.95pt] (3.35825,2.9730458626326217) -- (3.48175,3.1869541373673784);
+\draw[draw=Blue,line width=.8pt] (3.38048,3.011549352084878) -- (3.429129502998803,3.0201275720616243);
+\draw[draw=Blue,line width=.8pt] (3.38048,3.011549352084878) -- (3.3635842049197118,3.057970167551702);
+\draw[draw=Blue,line width=.8pt] (3.45952,3.148450647915122) -- (3.4108704970011967,3.1398724279383754);
+\draw[draw=Blue,line width=.8pt] (3.45952,3.148450647915122) -- (3.476415795080288,3.102029832448298);
+\draw[draw=Blue,line width=.95pt] (3.48175,2.9730458626326217) -- (3.35825,3.1869541373673784);
+\draw[draw=Blue,line width=.8pt] (3.45952,3.011549352084878) -- (3.476415795080288,3.057970167551702);
+\draw[draw=Blue,line width=.8pt] (3.45952,3.011549352084878) -- (3.4108704970011967,3.0201275720616247);
+\draw[draw=Blue,line width=.8pt] (3.38048,3.148450647915122) -- (3.3635842049197118,3.102029832448298);
+\draw[draw=Blue,line width=.8pt] (3.38048,3.148450647915122) -- (3.429129502998803,3.1398724279383754);
+\draw[arr,draw=Orange] (2.76,3.27) -- (2.38,3.27);
+\draw[arr] (1.6,3.61) -- (1.6,3.96);
+\draw[arr] (4.82,3.61) -- (4.82,3.96);
+\draw[fill=Blue!20,draw=Blue!65,line width=.35pt,rounded corners=0pt] (1.01,4.0) rectangle (1.1614285714285713,4.220000000000001);
+\draw[fill=Blue!70,draw=Blue!65,line width=.35pt,rounded corners=0pt] (1.1814285714285715,4.0) rectangle (1.3328571428571427,4.220000000000001);
+\draw[fill=Blue!35,draw=Blue!65,line width=.35pt,rounded corners=0pt] (1.352857142857143,4.0) rectangle (1.5042857142857142,4.220000000000001);
+\draw[fill=Blue!90,draw=Blue!65,line width=.35pt,rounded corners=0pt] (1.5242857142857145,4.0) rectangle (1.6757142857142857,4.220000000000001);
+\draw[fill=Blue!45,draw=Blue!65,line width=.35pt,rounded corners=0pt] (1.6957142857142857,4.0) rectangle (1.847142857142857,4.220000000000001);
+\draw[fill=Blue!65,draw=Blue!65,line width=.35pt,rounded corners=0pt] (1.8671428571428572,4.0) rectangle (2.0185714285714287,4.220000000000001);
+\draw[fill=Blue!30,draw=Blue!65,line width=.35pt,rounded corners=0pt] (2.0385714285714287,4.0) rectangle (2.19,4.220000000000001);
+\draw[fill=Green!20,draw=Green!65,line width=.35pt,rounded corners=0pt] (4.23,4.0) rectangle (4.381428571428572,4.220000000000001);
+\draw[fill=Green!70,draw=Green!65,line width=.35pt,rounded corners=0pt] (4.401428571428572,4.0) rectangle (4.552857142857143,4.220000000000001);
+\draw[fill=Green!35,draw=Green!65,line width=.35pt,rounded corners=0pt] (4.572857142857144,4.0) rectangle (4.724285714285715,4.220000000000001);
+\draw[fill=Green!90,draw=Green!65,line width=.35pt,rounded corners=0pt] (4.744285714285715,4.0) rectangle (4.895714285714286,4.220000000000001);
+\draw[fill=Green!45,draw=Green!65,line width=.35pt,rounded corners=0pt] (4.915714285714286,4.0) rectangle (5.067142857142858,4.220000000000001);
+\draw[fill=Green!65,draw=Green!65,line width=.35pt,rounded corners=0pt] (5.087142857142858,4.0) rectangle (5.238571428571429,4.220000000000001);
+\draw[fill=Green!30,draw=Green!65,line width=.35pt,rounded corners=0pt] (5.258571428571429,4.0) rectangle (5.41,4.220000000000001);
+\node[align=center,font={\fontsize{8.8}{10.296}\selectfont},text=Ink,] (label10) at (1.6,4.45) {Image features};
+\path let \p1=(label10.south west),\p2=(label10.north east) in \pgfextra{\typeout{NODEBOUNDS|label10|\x1|\y1|\x2|\y2}};
+\node[align=center,font={\fontsize{8.8}{10.296}\selectfont},text=Ink,] (label11) at (4.82,4.45) {Class text features};
+\path let \p1=(label11.south west),\p2=(label11.north east) in \pgfextra{\typeout{NODEBOUNDS|label11|\x1|\y1|\x2|\y2}};
+\draw[arr] (1.6,4.63) -- (1.6,4.96) -- (2.94,4.96);
+\draw[arr] (4.82,4.63) -- (4.82,4.96) -- (3.42,4.96);
+\draw[fill=white,draw=Ink,line width=.8pt] (3.18,4.96) circle (.22);
+\node[align=center,font={\fontsize{13}{15.209999999999999}\selectfont},text=Ink,] (label12) at (3.18,4.945) {$\odot$};
+\path let \p1=(label12.south west),\p2=(label12.north east) in \pgfextra{\typeout{NODEBOUNDS|label12|\x1|\y1|\x2|\y2}};
+\node[align=center,font={\fontsize{8.8}{10.296}\selectfont},text=Ink,] (label13) at (3.18,5.35) {Cosine similarity};
+\path let \p1=(label13.south west),\p2=(label13.north east) in \pgfextra{\typeout{NODEBOUNDS|label13|\x1|\y1|\x2|\y2}};
+\draw[arr] (3.18,5.54) -- (3.18,5.82);
+\draw[fill=Gray!65,draw=Gray,line width=.4pt,rounded corners=0pt] (2.6850000000000005,6.460000000000001) rectangle (2.865,6.73);
+\draw[fill=Green!85,draw=Green,line width=.4pt,rounded corners=0pt] (2.9550000000000005,6.01) rectangle (3.1350000000000002,6.73);
+\draw[fill=Gray!65,draw=Gray,line width=.4pt,rounded corners=0pt] (3.2250000000000005,6.200000000000001) rectangle (3.4050000000000002,6.73);
+\draw[fill=Gray!65,draw=Gray,line width=.4pt,rounded corners=0pt] (3.4950000000000006,6.52) rectangle (3.6750000000000003,6.73);
+\draw[draw=Ink,line width=.6pt] (2.6050000000000004,5.87) -- (2.6050000000000004,6.765000000000001) -- (3.7450000000000006,6.765000000000001);
+\draw[arr] (3.18,6.87) -- (3.18,7.09);
+\node[align=center,font={\fontsize{9.3}{10.881}\selectfont\bfseries},text=Ink,] (label14) at (3.18,7.39) {Classification loss $\mathcal L_{\mathrm{LA}}$};
+\path let \p1=(label14.south west),\p2=(label14.north east) in \pgfextra{\typeout{NODEBOUNDS|label14|\x1|\y1|\x2|\y2}};
+\node[align=center,font={\fontsize{9.3}{10.881}\selectfont\bfseries},text=Ink,] (label15) at (7.95,1.26) {Sample-weighted\\aggregation};
+\path let \p1=(label15.south west),\p2=(label15.north east) in \pgfextra{\typeout{NODEBOUNDS|label15|\x1|\y1|\x2|\y2}};
+\draw[fill=Blue!12,draw=Blue,line width=.8pt,rounded corners=.7pt] (7.41,2.56) rectangle (8.49,2.78);
+\fill[Green] (7.57,2.67) circle (.028);
+\fill[Green] (7.69,2.67) circle (.028);
+\draw[draw=Blue,line width=.7pt] (8.0,2.67) -- (8.31,2.67);
+\draw[fill=Blue!12,draw=Blue,line width=.8pt,rounded corners=.7pt] (7.41,2.83) rectangle (8.49,3.05);
+\fill[Green] (7.57,2.94) circle (.028);
+\fill[Green] (7.69,2.94) circle (.028);
+\draw[draw=Blue,line width=.7pt] (8.0,2.94) -- (8.31,2.94);
+\draw[fill=Blue!12,draw=Blue,line width=.8pt,rounded corners=.7pt] (7.41,3.1) rectangle (8.49,3.32);
+\fill[Green] (7.57,3.21) circle (.028);
+\fill[Green] (7.69,3.21) circle (.028);
+\draw[draw=Blue,line width=.7pt] (8.0,3.21) -- (8.31,3.21);
+\node[align=center,font={\fontsize{9.3}{10.881}\selectfont\bfseries},text=Blue,] (label16) at (7.95,2.24) {Server};
+\path let \p1=(label16.south west),\p2=(label16.north east) in \pgfextra{\typeout{NODEBOUNDS|label16|\x1|\y1|\x2|\y2}};
+\draw[fill=white,draw=Blue,line width=.8pt,rounded corners=1pt] (6.615,5.33) rectangle (7.285,5.77);
+\draw[fill=Blue!12,draw=Blue!12,line width=.8pt,rounded corners=0pt] (6.68,5.385) rectangle (7.220000000000001,5.6850000000000005);
+\draw[draw=Blue,fill=Blue!15,line width=.6pt] (6.55,5.82) -- (7.3500000000000005,5.82) -- (7.29,5.88) -- (6.61,5.88) -- (6.55,5.82);
+\draw[fill=Green!20,draw=Green,line width=.4pt,rounded corners=.8pt] (7.13,5.8825) rectangle (7.37,5.9575);
+\draw[fill=Green!20,draw=Green,line width=.4pt,rounded corners=.8pt] (7.13,5.9375) rectangle (7.37,6.012499999999999);
+\draw[fill=Green!20,draw=Green,line width=.4pt,rounded corners=.8pt] (7.13,5.992500000000001) rectangle (7.37,6.0675);
+\draw[fill=Orange!17,draw=Orange,line width=.8pt,rounded corners=.4pt] (6.735,4.505) rectangle (7.165,4.835);
+\node[align=center,font={\fontsize{9.2}{10.764}\selectfont},text=Ink,] (label17) at (6.95,4.67) {$A_1$};
+\path let \p1=(label17.south west),\p2=(label17.north east) in \pgfextra{\typeout{NODEBOUNDS|label17|\x1|\y1|\x2|\y2}};
+\draw[arr,draw=Blue] (6.95,5.26) -- (6.95,4.88);
+\draw[arr,draw=Blue] (6.95,4.46) -- (6.95,4.0) -- (7.56,3.38);
+\draw[fill=white,draw=Blue,line width=.8pt,rounded corners=1pt] (7.615,5.33) rectangle (8.285,5.77);
+\draw[fill=Blue!12,draw=Blue!12,line width=.8pt,rounded corners=0pt] (7.68,5.385) rectangle (8.22,5.6850000000000005);
+\draw[draw=Blue,fill=Blue!15,line width=.6pt] (7.55,5.82) -- (8.35,5.82) -- (8.290000000000001,5.88) -- (7.61,5.88) -- (7.55,5.82);
+\draw[fill=Green!20,draw=Green,line width=.4pt,rounded corners=.8pt] (8.13,5.8825) rectangle (8.37,5.9575);
+\draw[fill=Green!20,draw=Green,line width=.4pt,rounded corners=.8pt] (8.13,5.9375) rectangle (8.37,6.012499999999999);
+\draw[fill=Green!20,draw=Green,line width=.4pt,rounded corners=.8pt] (8.13,5.992500000000001) rectangle (8.37,6.0675);
+\draw[fill=Orange!17,draw=Orange,line width=.8pt,rounded corners=.4pt] (7.735,4.505) rectangle (8.165000000000001,4.835);
+\node[align=center,font={\fontsize{9.2}{10.764}\selectfont},text=Ink,] (label18) at (7.95,4.67) {$A_j$};
+\path let \p1=(label18.south west),\p2=(label18.north east) in \pgfextra{\typeout{NODEBOUNDS|label18|\x1|\y1|\x2|\y2}};
+\draw[arr,draw=Blue] (7.95,5.26) -- (7.95,4.88);
+\draw[arr,draw=Blue] (7.95,4.46) -- (7.95,4.0) -- (7.949999999999999,3.38);
+\draw[fill=white,draw=Blue,line width=.8pt,rounded corners=1pt] (8.614999999999998,5.33) rectangle (9.285,5.77);
+\draw[fill=Blue!12,draw=Blue!12,line width=.8pt,rounded corners=0pt] (8.68,5.385) rectangle (9.219999999999999,5.6850000000000005);
+\draw[draw=Blue,fill=Blue!15,line width=.6pt] (8.549999999999999,5.82) -- (9.35,5.82) -- (9.29,5.88) -- (8.61,5.88) -- (8.549999999999999,5.82);
+\draw[fill=Green!20,draw=Green,line width=.4pt,rounded corners=.8pt] (9.13,5.8825) rectangle (9.37,5.9575);
+\draw[fill=Green!20,draw=Green,line width=.4pt,rounded corners=.8pt] (9.13,5.9375) rectangle (9.37,6.012499999999999);
+\draw[fill=Green!20,draw=Green,line width=.4pt,rounded corners=.8pt] (9.13,5.992500000000001) rectangle (9.37,6.0675);
+\draw[fill=Orange!17,draw=Orange,line width=.8pt,rounded corners=.4pt] (8.735,4.505) rectangle (9.165,4.835);
+\node[align=center,font={\fontsize{9.2}{10.764}\selectfont},text=Ink,] (label19) at (8.95,4.67) {$A_K$};
+\path let \p1=(label19.south west),\p2=(label19.north east) in \pgfextra{\typeout{NODEBOUNDS|label19|\x1|\y1|\x2|\y2}};
+\draw[arr,draw=Blue] (8.95,5.26) -- (8.95,4.88);
+\draw[arr,draw=Blue] (8.95,4.46) -- (8.95,4.0) -- (8.34,3.38);
+\node[align=center,font={\fontsize{9.2}{10.764}\selectfont},text=Ink,] (label20) at (7.95,6.32) {Client $1,\ldots,K$};
+\path let \p1=(label20.south west),\p2=(label20.north east) in \pgfextra{\typeout{NODEBOUNDS|label20|\x1|\y1|\x2|\y2}};
+\node[align=center,font={\fontsize{9.3}{10.881}\selectfont\bfseries},text=Orange,] (label21) at (7.95,6.93) {Upload LoRA $A$};
+\path let \p1=(label21.south west),\p2=(label21.north east) in \pgfextra{\typeout{NODEBOUNDS|label21|\x1|\y1|\x2|\y2}};
+\draw[arr,draw=Orange,line width=1.2pt] (8.54,2.94) -- (10.08,2.94);
+\node[align=center,font={\fontsize{10.2}{11.934}\selectfont},text=Orange,fill=white,inner sep=1pt] (label22) at (9.3,2.62) {$A^{\mathrm{ord}}$};
+\path let \p1=(label22.south west),\p2=(label22.north east) in \pgfextra{\typeout{NODEBOUNDS|label22|\x1|\y1|\x2|\y2}};
+\node[align=center,font={\fontsize{8.8}{10.296}\selectfont},text=Ink,] (label23) at (11.18,1.05) {Fixed local images};
+\path let \p1=(label23.south west),\p2=(label23.north east) in \pgfextra{\typeout{NODEBOUNDS|label23|\x1|\y1|\x2|\y2}};
+\begin{scope}[shift={(10.83,1.6300000000000001)},rotate=9]
+\draw[fill=white,draw=Gray,line width=.5pt,rounded corners=0pt] (-0.33499999999999996,-0.33499999999999996) rectangle (0.33499999999999996,0.33499999999999996);
+\node[inner sep=0pt] at (0,0) {\includegraphics[width=0.61cm,height=0.61cm]{assets/apple.png}};
+\end{scope}
+\begin{scope}[shift={(11.53,1.6050000000000002)},rotate=-7]
+\draw[fill=white,draw=Gray,line width=.5pt,rounded corners=0pt] (-0.33499999999999996,-0.33499999999999996) rectangle (0.33499999999999996,0.33499999999999996);
+\node[inner sep=0pt] at (0,0) {\includegraphics[width=0.61cm,height=0.61cm]{assets/bicycle.png}};
+\end{scope}
+\begin{scope}[shift={(11.18,1.75)},rotate=0]
+\draw[fill=white,draw=Gray,line width=.5pt,rounded corners=0pt] (-0.33499999999999996,-0.33499999999999996) rectangle (0.33499999999999996,0.33499999999999996);
+\node[inner sep=0pt] at (0,0) {\includegraphics[width=0.61cm,height=0.61cm]{assets/butterfly.png}};
+\end{scope}
+\draw[arr] (11.18,2.055) -- (11.18,2.33);
+\draw[fill=Blue!9,draw=Blue,line width=1.05pt] (10.115,2.345) -- (12.245,2.345) -- (11.8829,3.595) -- (10.4771,3.595) -- cycle;
+\node[align=center,font={\fontsize{9.3}{10.881}\selectfont\bfseries},text=Blue,] (label24) at (11.18,2.91) {Image\\encoder};
+\path let \p1=(label24.south west),\p2=(label24.north east) in \pgfextra{\typeout{NODEBOUNDS|label24|\x1|\y1|\x2|\y2}};
+\draw[draw=Blue,line width=.95pt] (12.0285,2.4050000000000002) -- (12.301499999999999,2.4050000000000002);
+\draw[draw=Blue,line width=.8pt] (12.077639999999999,2.4050000000000002) -- (12.112736203488884,2.3631739734057042);
+\draw[draw=Blue,line width=.8pt] (12.077639999999999,2.4050000000000002) -- (12.112736203488884,2.4468260265942963);
+\draw[draw=Blue,line width=.8pt] (12.25236,2.4050000000000002) -- (12.217263796511114,2.4468260265942963);
+\draw[draw=Blue,line width=.8pt] (12.25236,2.4050000000000002) -- (12.217263796511114,2.3631739734057042);
+\draw[draw=Blue,line width=.95pt] (12.096749999999998,2.2867875323834244) -- (12.23325,2.523212467616576);
+\draw[draw=Blue,line width=.8pt] (12.121319999999999,2.3293440207253915) -- (12.175090503314465,2.338825211226006);
+\draw[draw=Blue,line width=.8pt] (12.121319999999999,2.3293440207253915) -- (12.102645700174417,2.380651237820302);
+\draw[draw=Blue,line width=.8pt] (12.20868,2.480655979274609) -- (12.154909496685534,2.4711747887739945);
+\draw[draw=Blue,line width=.8pt] (12.20868,2.480655979274609) -- (12.227354299825581,2.4293487621796985);
+\draw[draw=Blue,line width=.95pt] (12.23325,2.2867875323834244) -- (12.096749999999998,2.523212467616576);
+\draw[draw=Blue,line width=.8pt] (12.20868,2.3293440207253915) -- (12.227354299825581,2.380651237820302);
+\draw[draw=Blue,line width=.8pt] (12.20868,2.3293440207253915) -- (12.154909496685534,2.338825211226006);
+\draw[draw=Blue,line width=.8pt] (12.121319999999999,2.480655979274609) -- (12.102645700174417,2.4293487621796985);
+\draw[draw=Blue,line width=.8pt] (12.121319999999999,2.480655979274609) -- (12.175090503314465,2.4711747887739945);
+\node[align=center,font={\fontsize{8.8}{10.296}\selectfont\bfseries},text=Ink,] (label25) at (12.78,2.13) {LoRA};
+\path let \p1=(label25.south west),\p2=(label25.north east) in \pgfextra{\typeout{NODEBOUNDS|label25|\x1|\y1|\x2|\y2}};
+\draw[fill=Orange!20,draw=Orange,line width=.8pt,rounded corners=.8pt] (12.455,2.4) rectangle (13.104999999999999,2.8000000000000003);
+\node[align=center,font={\fontsize{11}{12.87}\selectfont\bfseries},text=Ink,] (label26) at (12.78,2.6) {$A$};
+\path let \p1=(label26.south west),\p2=(label26.north east) in \pgfextra{\typeout{NODEBOUNDS|label26|\x1|\y1|\x2|\y2}};
+\begin{scope}[shift={(13.1,2.4)},scale=0.93]
+\path[fill=Orange,draw=Orange!80!Ink,line width=.3pt] (0,-.18) .. controls (.04,-.02) and (.17,-.08) .. (.14,.065) .. controls (.12,.2) and (-.13,.2) .. (-.14,.06) .. controls (-.17,-.04) and (-.04,-.065) .. (0,-.18) -- cycle;
+\path[fill=yellow!65!white] (.014,-.02) .. controls (.07,.06) and (.085,.09) .. (.038,.14) .. controls (-.02,.17) and (-.075,.12) .. (-.043,.057) -- cycle;
+\end{scope}
+\draw[arr] (12.78,2.8200000000000003) -- (12.78,3.0300000000000002);
+\draw[fill=Blue!9,draw=Blue,line width=.8pt,rounded corners=.8pt] (12.455,3.07) rectangle (13.104999999999999,3.47);
+\node[align=center,font={\fontsize{11}{12.87}\selectfont\bfseries},text=Ink,] (label27) at (12.78,3.27) {$B$};
+\path let \p1=(label27.south west),\p2=(label27.north east) in \pgfextra{\typeout{NODEBOUNDS|label27|\x1|\y1|\x2|\y2}};
+\draw[draw=Blue,line width=.95pt] (12.9765,3.08) -- (13.2235,3.08);
+\draw[draw=Blue,line width=.8pt] (13.020959999999999,3.08) -- (13.052713707918514,3.0421574045099224);
+\draw[draw=Blue,line width=.8pt] (13.020959999999999,3.08) -- (13.052713707918514,3.1178425954900777);
+\draw[draw=Blue,line width=.8pt] (13.17904,3.08) -- (13.147286292081485,3.1178425954900777);
+\draw[draw=Blue,line width=.8pt] (13.17904,3.08) -- (13.147286292081485,3.0421574045099224);
+\draw[draw=Blue,line width=.95pt] (13.03825,2.9730458626326217) -- (13.16175,3.1869541373673784);
+\draw[draw=Blue,line width=.8pt] (13.06048,3.011549352084878) -- (13.109129502998803,3.0201275720616243);
+\draw[draw=Blue,line width=.8pt] (13.06048,3.011549352084878) -- (13.043584204919712,3.057970167551702);
+\draw[draw=Blue,line width=.8pt] (13.13952,3.148450647915122) -- (13.090870497001196,3.1398724279383754);
+\draw[draw=Blue,line width=.8pt] (13.13952,3.148450647915122) -- (13.156415795080287,3.102029832448298);
+\draw[draw=Blue,line width=.95pt] (13.16175,2.9730458626326217) -- (13.03825,3.1869541373673784);
+\draw[draw=Blue,line width=.8pt] (13.13952,3.011549352084878) -- (13.156415795080287,3.057970167551702);
+\draw[draw=Blue,line width=.8pt] (13.13952,3.011549352084878) -- (13.090870497001196,3.0201275720616247);
+\draw[draw=Blue,line width=.8pt] (13.06048,3.148450647915122) -- (13.043584204919712,3.102029832448298);
+\draw[draw=Blue,line width=.8pt] (13.06048,3.148450647915122) -- (13.109129502998803,3.1398724279383754);
+\draw[arr,draw=Orange] (12.43,3.27) -- (11.94,3.27);
+\draw[arr] (11.18,3.61) -- (11.18,3.91);
+\draw[fill=Blue!20,draw=Blue!65,line width=.35pt,rounded corners=0pt] (10.59,3.97) rectangle (10.741428571428571,4.19);
+\draw[fill=Blue!70,draw=Blue!65,line width=.35pt,rounded corners=0pt] (10.761428571428572,3.97) rectangle (10.912857142857144,4.19);
+\draw[fill=Blue!35,draw=Blue!65,line width=.35pt,rounded corners=0pt] (10.932857142857143,3.97) rectangle (11.084285714285715,4.19);
+\draw[fill=Blue!90,draw=Blue!65,line width=.35pt,rounded corners=0pt] (11.104285714285714,3.97) rectangle (11.255714285714285,4.19);
+\draw[fill=Blue!45,draw=Blue!65,line width=.35pt,rounded corners=0pt] (11.275714285714285,3.97) rectangle (11.427142857142856,4.19);
+\draw[fill=Blue!65,draw=Blue!65,line width=.35pt,rounded corners=0pt] (11.447142857142858,3.97) rectangle (11.598571428571429,4.19);
+\draw[fill=Blue!30,draw=Blue!65,line width=.35pt,rounded corners=0pt] (11.618571428571428,3.97) rectangle (11.77,4.19);
+\node[align=center,font={\fontsize{9.2}{10.764}\selectfont},text=Ink,] (label28) at (15.46,1.92) {Fixed class text features};
+\path let \p1=(label28.south west),\p2=(label28.north east) in \pgfextra{\typeout{NODEBOUNDS|label28|\x1|\y1|\x2|\y2}};
+\draw[fill=Green!20,draw=Green!65,line width=.35pt,rounded corners=0pt] (14.69,2.2800000000000002) rectangle (14.898571428571428,2.5);
+\draw[fill=Green!70,draw=Green!65,line width=.35pt,rounded corners=0pt] (14.918571428571429,2.2800000000000002) rectangle (15.127142857142857,2.5);
+\draw[fill=Green!35,draw=Green!65,line width=.35pt,rounded corners=0pt] (15.147142857142857,2.2800000000000002) rectangle (15.355714285714285,2.5);
+\draw[fill=Green!90,draw=Green!65,line width=.35pt,rounded corners=0pt] (15.375714285714286,2.2800000000000002) rectangle (15.584285714285715,2.5);
+\draw[fill=Green!45,draw=Green!65,line width=.35pt,rounded corners=0pt] (15.604285714285714,2.2800000000000002) rectangle (15.812857142857142,2.5);
+\draw[fill=Green!65,draw=Green!65,line width=.35pt,rounded corners=0pt] (15.832857142857144,2.2800000000000002) rectangle (16.041428571428572,2.5);
+\draw[fill=Green!30,draw=Green!65,line width=.35pt,rounded corners=0pt] (16.06142857142857,2.2800000000000002) rectangle (16.270000000000003,2.5);
+\draw[draw=Blue,line width=.95pt] (16.36,2.38) -- (16.619999999999997,2.38);
+\draw[draw=Blue,line width=.8pt] (16.406799999999997,2.38) -- (16.440224955703698,2.340165688957813);
+\draw[draw=Blue,line width=.8pt] (16.406799999999997,2.38) -- (16.440224955703698,2.419834311042187);
+\draw[draw=Blue,line width=.8pt] (16.5732,2.38) -- (16.5397750442963,2.419834311042187);
+\draw[draw=Blue,line width=.8pt] (16.5732,2.38) -- (16.5397750442963,2.340165688957813);
+\draw[draw=Blue,line width=.95pt] (16.424999999999997,2.2674166975080228) -- (16.555,2.492583302491977);
+\draw[draw=Blue,line width=.8pt] (16.4484,2.307946686405135) -- (16.499610003156633,2.316976391643815);
+\draw[draw=Blue,line width=.8pt] (16.4484,2.307946686405135) -- (16.430614952547064,2.356810702686002);
+\draw[draw=Blue,line width=.8pt] (16.531599999999997,2.452053313594865) -- (16.480389996843364,2.4430236083561847);
+\draw[draw=Blue,line width=.8pt] (16.531599999999997,2.452053313594865) -- (16.549385047452933,2.4031892973139977);
+\draw[draw=Blue,line width=.95pt] (16.555,2.2674166975080228) -- (16.424999999999997,2.492583302491977);
+\draw[draw=Blue,line width=.8pt] (16.531599999999997,2.307946686405135) -- (16.549385047452933,2.356810702686002);
+\draw[draw=Blue,line width=.8pt] (16.531599999999997,2.307946686405135) -- (16.480389996843364,2.316976391643815);
+\draw[draw=Blue,line width=.8pt] (16.4484,2.452053313594865) -- (16.430614952547064,2.4031892973139977);
+\draw[draw=Blue,line width=.8pt] (16.4484,2.452053313594865) -- (16.499610003156633,2.4430236083561847);
+\draw[arr] (15.48,2.56) -- (15.48,3.12) -- (13.72,3.12) -- (13.72,3.84);
+\draw[arr] (11.86,4.08) -- (13.47,4.08);
+\draw[fill=white,draw=Ink,line width=.8pt] (13.72,4.08) circle (.22);
+\node[align=center,font={\fontsize{13}{15.209999999999999}\selectfont},text=Ink,] (label29) at (13.72,4.065) {$\odot$};
+\path let \p1=(label29.south west),\p2=(label29.north east) in \pgfextra{\typeout{NODEBOUNDS|label29|\x1|\y1|\x2|\y2}};
+\draw[arr] (13.96,4.08) -- (14.85,4.08);
+\draw[fill=Gray!65,draw=Gray,line width=.4pt,rounded corners=0pt] (14.97,4.11) rectangle (15.15,4.38);
+\draw[fill=Green!85,draw=Green,line width=.4pt,rounded corners=0pt] (15.350000000000001,3.6599999999999997) rectangle (15.530000000000001,4.38);
+\draw[fill=Gray!65,draw=Gray,line width=.4pt,rounded corners=0pt] (15.73,3.85) rectangle (15.91,4.38);
+\draw[fill=Gray!65,draw=Gray,line width=.4pt,rounded corners=0pt] (16.11,4.169999999999999) rectangle (16.29,4.38);
+\draw[draw=Ink,line width=.6pt] (14.89,3.52) -- (14.89,4.415) -- (16.36,4.415);
+\node[align=center,font={\fontsize{8.8}{10.296}\selectfont},text=Ink,] (label30) at (15.415000000000001,4.6) {$s_c$};
+\path let \p1=(label30.south west),\p2=(label30.north east) in \pgfextra{\typeout{NODEBOUNDS|label30|\x1|\y1|\x2|\y2}};
+\node[align=center,font={\fontsize{8.8}{10.296}\selectfont},text=Ink,] (label31) at (15.845,4.6) {$s_{c'}$};
+\path let \p1=(label31.south west),\p2=(label31.north east) in \pgfextra{\typeout{NODEBOUNDS|label31|\x1|\y1|\x2|\y2}};
+\draw[draw=Green,line width=1pt] (16.490000000000002,3.66) -- (16.61,3.66) -- (16.55,3.66) -- (16.55,3.8499999999999996) -- (16.490000000000002,3.8499999999999996) -- (16.61,3.8499999999999996);
+\node[align=center,font={\fontsize{9.2}{10.764}\selectfont},text=Green,] (label32) at (16.77,3.7399999999999998) {$F_q$};
+\path let \p1=(label32.south west),\p2=(label32.north east) in \pgfextra{\typeout{NODEBOUNDS|label32|\x1|\y1|\x2|\y2}};
+\draw[arr] (15.63,4.78) -- (15.63,4.99);
+\node[align=center,font={\fontsize{11.5}{13.454999999999998}\selectfont\bfseries},text=Ink,] (label33) at (15.63,5.26) {$\mathcal L_{\mathrm{ret}}+\mathcal L_{\mathrm{cls}}$};
+\path let \p1=(label33.south west),\p2=(label33.north east) in \pgfextra{\typeout{NODEBOUNDS|label33|\x1|\y1|\x2|\y2}};
+\draw[grad] (16.55,5.26) -- (17.58,5.26) -- (17.58,1.09) -- (13.39,1.09) -- (13.39,2.6) -- (13.12,2.6);
+\node[align=center,font={\fontsize{9.4}{10.998}\selectfont\bfseries},text=Orange,fill=white,inner sep=2pt] (label34) at (15.13,1.09) {Update $A$: 3 steps};
+\path let \p1=(label34.south west),\p2=(label34.north east) in \pgfextra{\typeout{NODEBOUNDS|label34|\x1|\y1|\x2|\y2}};
+\draw[draw=Green!24,line width=.65pt] (9.84,5.66) -- (17.73,5.66);
+\node[align=center,font={\fontsize{8.9}{10.413}\selectfont\bfseries},text=Green,] (label35) at (11.8,5.96) {Effects of client updates};
+\path let \p1=(label35.south west),\p2=(label35.north east) in \pgfextra{\typeout{NODEBOUNDS|label35|\x1|\y1|\x2|\y2}};
+\node[align=center,font={\fontsize{8.9}{10.413}\selectfont\bfseries},text=Green,] (label36) at (15.88,5.96) {Historical margins};
+\path let \p1=(label36.south west),\p2=(label36.north east) in \pgfextra{\typeout{NODEBOUNDS|label36|\x1|\y1|\x2|\y2}};
+\fill[Ink] (10.39,7.12) circle (.038);
+\draw[arr,draw=Green,line width=1.4pt] (10.39,7.12) -- (11.33,6.33);
+\node[align=center,font={\fontsize{9.2}{10.764}\selectfont},text=Green,anchor=west] (label37) at (11.45,6.4) {$g_q$};
+\path let \p1=(label37.south west),\p2=(label37.north east) in \pgfextra{\typeout{NODEBOUNDS|label37|\x1|\y1|\x2|\y2}};
+\draw[arr,draw=Blue,line width=1.1pt] (10.39,7.12) -- (11.78,6.94);
+\draw[arr,draw=Blue,line width=1.1pt] (10.39,7.12) -- (10.88,6.39);
+\draw[arr,draw=Gray,line width=1.1pt] (10.39,7.12) -- (10.01,6.49);
+\node[align=center,font={\fontsize{9.3}{10.881}\selectfont},text=Blue,] (label38) at (11.42,7.25) {$\Delta A_j$};
+\path let \p1=(label38.south west),\p2=(label38.north east) in \pgfextra{\typeout{NODEBOUNDS|label38|\x1|\y1|\x2|\y2}};
+\node[align=center,font={\fontsize{11}{12.87}\selectfont},text=Orange,] (label39) at (12.64,6.48) {$\omega_q$};
+\path let \p1=(label39.south west),\p2=(label39.north east) in \pgfextra{\typeout{NODEBOUNDS|label39|\x1|\y1|\x2|\y2}};
+\node[align=center,font={\fontsize{10.2}{11.934}\selectfont},text=Green,] (label40) at (12.62,7.25) {$T_q^{\mathrm{cur}}$};
+\path let \p1=(label40.south west),\p2=(label40.north east) in \pgfextra{\typeout{NODEBOUNDS|label40|\x1|\y1|\x2|\y2}};
+\draw[info] (11.81,6.7) -- (12.23,6.48);
+\draw[info] (11.87,7.07) -- (12.19,7.23);
+\draw[arr,draw=Orange] (12.99,6.48) -- (13.79,6.48) -- (13.79,5.26) -- (14.66,5.26);
+\draw[fill=Green!40,draw=Green,line width=.4pt,rounded corners=0pt] (14.014999999999999,6.619999999999999) rectangle (14.225,7.26);
+\draw[fill=Green!70,draw=Green,line width=.4pt,rounded corners=0pt] (14.395,6.379999999999999) rectangle (14.605,7.26);
+\draw[fill=Green!55,draw=Green,line width=.4pt,rounded corners=0pt] (14.774999999999999,6.49) rectangle (14.985,7.26);
+\draw[fill=Green!45,draw=Green,line width=.4pt,rounded corners=0pt] (15.155,6.57) rectangle (15.365,7.26);
+\draw[fill=Green!85,draw=Green,line width=.4pt,rounded corners=0pt] (15.534999999999998,6.32) rectangle (15.745,7.26);
+\draw[draw=Gray,line width=.6pt] (13.94,7.29) -- (15.87,7.29);
+\draw[draw=Green,dash pattern=on 2pt off 1.5pt,line width=.9pt] (13.95,6.62) -- (16.06,6.62);
+\node[align=center,font={\fontsize{9.8}{11.466}\selectfont},text=Green,] (label41) at (16.25,6.5) {$H_q$};
+\path let \p1=(label41.south west),\p2=(label41.north east) in \pgfextra{\typeout{NODEBOUNDS|label41|\x1|\y1|\x2|\y2}};
+\node[align=center,font={\fontsize{8.8}{10.296}\selectfont},text=Ink,] (label42) at (14.94,7.57) {5-round block};
+\path let \p1=(label42.south west),\p2=(label42.north east) in \pgfextra{\typeout{NODEBOUNDS|label42|\x1|\y1|\x2|\y2}};
+\draw[fill=Green!8,draw=Green,line width=.9pt] (17.09,6.86) circle (.34);
+\node[align=center,font={\fontsize{10.5}{12.285}\selectfont\bfseries},text=Green,] (label43) at (17.09,6.86) {$T_q$};
+\path let \p1=(label43.south west),\p2=(label43.north east) in \pgfextra{\typeout{NODEBOUNDS|label43|\x1|\y1|\x2|\y2}};
+\draw[arr,draw=Green] (16.03,6.62) -- (16.5,6.62) -- (16.76,6.77);
+\draw[arr,draw=Green] (13.01,7.25) -- (13.26,7.25) -- (13.26,7.81) -- (17.09,7.81) -- (17.09,7.22);
+\draw[arr,draw=Green] (17.09,6.49) -- (17.09,5.62) -- (16.03,5.62) -- (16.03,5.48);
+\begin{scope}[shift={(0.42,8.34)},scale=1]
+\path[fill=Orange,draw=Orange!80!Ink,line width=.3pt] (0,-.18) .. controls (.04,-.02) and (.17,-.08) .. (.14,.065) .. controls (.12,.2) and (-.13,.2) .. (-.14,.06) .. controls (-.17,-.04) and (-.04,-.065) .. (0,-.18) -- cycle;
+\path[fill=yellow!65!white] (.014,-.02) .. controls (.07,.06) and (.085,.09) .. (.038,.14) .. controls (-.02,.17) and (-.075,.12) .. (-.043,.057) -- cycle;
+\end{scope}
+\node[align=center,font={\fontsize{9}{10.53}\selectfont},text=Ink,] (label44) at (1.3,8.34) {Trainable};
+\path let \p1=(label44.south west),\p2=(label44.north east) in \pgfextra{\typeout{NODEBOUNDS|label44|\x1|\y1|\x2|\y2}};
+\draw[draw=Blue,line width=.95pt] (2.27,8.34) -- (2.53,8.34);
+\draw[draw=Blue,line width=.8pt] (2.3167999999999997,8.34) -- (2.3502249557036996,8.300165688957813);
+\draw[draw=Blue,line width=.8pt] (2.3167999999999997,8.34) -- (2.3502249557036996,8.379834311042186);
+\draw[draw=Blue,line width=.8pt] (2.4832,8.34) -- (2.4497750442963,8.379834311042186);
+\draw[draw=Blue,line width=.8pt] (2.4832,8.34) -- (2.4497750442963,8.300165688957813);
+\draw[draw=Blue,line width=.95pt] (2.335,8.227416697508023) -- (2.465,8.452583302491977);
+\draw[draw=Blue,line width=.8pt] (2.3584,8.267946686405134) -- (2.4096100031566348,8.276976391643814);
+\draw[draw=Blue,line width=.8pt] (2.3584,8.267946686405134) -- (2.340614952547065,8.316810702686);
+\draw[draw=Blue,line width=.8pt] (2.4415999999999998,8.412053313594866) -- (2.390389996843365,8.403023608356186);
+\draw[draw=Blue,line width=.8pt] (2.4415999999999998,8.412053313594866) -- (2.4593850474529346,8.363189297314);
+\draw[draw=Blue,line width=.95pt] (2.465,8.227416697508023) -- (2.335,8.452583302491977);
+\draw[draw=Blue,line width=.8pt] (2.4415999999999998,8.267946686405134) -- (2.4593850474529346,8.316810702686);
+\draw[draw=Blue,line width=.8pt] (2.4415999999999998,8.267946686405134) -- (2.390389996843365,8.276976391643814);
+\draw[draw=Blue,line width=.8pt] (2.3584,8.412053313594866) -- (2.340614952547065,8.363189297314);
+\draw[draw=Blue,line width=.8pt] (2.3584,8.412053313594866) -- (2.4096100031566348,8.403023608356186);
+\node[align=center,font={\fontsize{9}{10.53}\selectfont},text=Ink,] (label45) at (3.08,8.34) {Frozen};
+\path let \p1=(label45.south west),\p2=(label45.north east) in \pgfextra{\typeout{NODEBOUNDS|label45|\x1|\y1|\x2|\y2}};
+\draw[grad] (3.98,8.34) -- (4.55,8.34);
+\node[align=center,font={\fontsize{9}{10.53}\selectfont},text=Ink,] (label46) at (5.66,8.34) {Loss gradient};
+\path let \p1=(label46.south west),\p2=(label46.north east) in \pgfextra{\typeout{NODEBOUNDS|label46|\x1|\y1|\x2|\y2}};
+\node[align=center,font={\fontsize{9.2}{10.764}\selectfont},text=Ink,] (label47) at (12.3,8.34) {$A$ stage: $B$ already trained and aggregated};
+\path let \p1=(label47.south west),\p2=(label47.north east) in \pgfextra{\typeout{NODEBOUNDS|label47|\x1|\y1|\x2|\y2}};
+\end{tikzpicture}
+\end{document}
