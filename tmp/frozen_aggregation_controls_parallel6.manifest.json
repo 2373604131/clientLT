@@ -1,0 +1,16 @@
+{
+  "scripts/run_cliplora_frozen_aggregation.py": "b8f7326f6f3beb68147343ddc70cae65d79c2e5890339ae088cf4b076e19ca8a",
+  "scripts/run_cliplora_joint_aggregation.py": "41ba09c5252727fe2d0ca2080ee637a0ca2df4d286c51d8c33d3c4fb8b528fd6",
+  "scripts/train_cliplora_joint_aggregation.py": "211fe50a6e26cb550ed6e2660b6ac2a3f8685d1cde2b9c5efe43aed9eff1106a",
+  "tools/client_aggregation/protocol.py": "78ae3aa5c27f2ff4216401138db500bcea20e56f962f226b862e6170f1c13f42",
+  "tools/client_aggregation/runtime.py": "b049cd6a88f514caab9bd61bff6d849e03a7852d6c126880d7ae2b0f6ed695b1",
+  "tools/client_aggregation/parallel.py": "f128116071b25fb0844456b27145ba38aea7f3fb89437008f867c54377258e2f",
+  "tools/client_aggregation/analysis.py": "4e25114d91a735dee2f23b77969647b2a5e22957cb610ed4565d8a7773d5e080",
+  "tools/client_aggregation/frozen_tailrw.py": "ca04a7ac4d42f64fb4b5f2585f3722b67798384edaefba7e57c2c5d61fda75db",
+  "tools/client_aggregation/frozen_controls.py": "855c5020c05a10dd1948ebb4cb991e66f46f41c1c25ee32cd465d46f806b3eec",
+  "tests/test_joint_aggregation.py": "0286df3f88d7b5b4bd7a4d28f1b274c3323f61b9f2592308e7152ddc865c5c49",
+  "tests/test_joint_client_parallel.py": "6f3c65f605661d9a17b68a2313123781eb03d9cb5aba973216e174ced2db23f6",
+  "tests/test_frozen_aggregation_controls.py": "55ea04f4577243337b1cb10b3a73e5a5798505e61d9f1b1cf3c3457368fe1f32",
+  "docs/frozen_tailrw16_seed42.md": "dc3f76f1939e257fc5ff9638f4f165756b0995594d58043d49596da1b08a7122",
+  "docs/frozen_aggregation_controls_seed42.md": "5fd8824148ed851f83a5680801b7607722ab69679b9053f45073cc4717335ea8"
+}

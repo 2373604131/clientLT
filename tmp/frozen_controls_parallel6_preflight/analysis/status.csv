@@ -1,0 +1,4 @@
+method,status,completed_round,reason,root
+tailrw16,missing,0,,G:\桌面\CAPT\tmp\frozen_controls_parallel6_preflight\tailrw16
+fedavg,missing,0,,G:\桌面\CAPT\tmp\frozen_controls_parallel6_preflight\fedavg
+joint,complete,100,,G:\桌面\CAPT\output\client_aggregation_v2_parallel4_results\client_aggregation_v2_parallel4

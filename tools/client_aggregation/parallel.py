@@ -1,4 +1,4 @@
-"""Independent LoRA clients on one GPU, with an unpadded four-slot work queue.
+"""Independent LoRA clients on one GPU, with an unpadded work queue.
 
 Plan loader RNG on the main thread, then execute deterministic local batches.
 Only immutable non-LoRA parameters share storage. Both A and B are private,
@@ -28,7 +28,7 @@ EXECUTION = dict(version=1, backend='threads_with_private_cuda_streams',
 
 
 def ordered_queue(clients, slots, work):
-    """No barrier assumes four arrivals: 1/2/3 remaining clients simply drain."""
+    """No fixed-size barrier: any remaining clients simply drain."""
     clients = list(clients)
     if slots < 1 or len(set(clients)) != len(clients):
         raise ValueError('Positive slots and distinct client identities are required')
@@ -173,8 +173,11 @@ class LoRAClientPool:
     def __init__(self, runtime):
         self.runtime = runtime
         self.device = torch.device(runtime.trainer.device)
+        self.slots = runtime.job['settings']['client_concurrency']
+        if self.slots not in (4, 6):
+            raise ValueError('Expected four or six concurrent clients')
         if self.device.type != 'cuda' or torch.cuda.device_count() != 1:
-            raise ValueError('Four-client execution needs exactly one visible CUDA GPU per experiment')
+            raise ValueError('Parallel execution needs exactly one visible CUDA GPU per experiment')
         self.keys = runtime.keys
         self.loaders = runtime.trainer.fed_train_loader_x_dict
         for loader in self.loaders.values():
@@ -194,18 +197,19 @@ class LoRAClientPool:
                 lr=runtime.config['extra_a_lr'], momentum=.9, weight_decay=0.), None
 
         self.optimizer_factory = optimizer_factory
-        self.models = clone_models(runtime.trainer.model, self.keys, 4)
+        self.models = clone_models(runtime.trainer.model, self.keys, self.slots)
         from utils.sfra_execution import enable_model_execution
         # Build each private cache on the main stream before threaded use.
         for model in self.models:
             enable_model_execution(model)
             model._sfra_text_cache.get()
-        self.streams = [torch.cuda.Stream(device=self.device) for _ in range(4)]
+        self.streams = [torch.cuda.Stream(device=self.device) for _ in range(self.slots)]
         torch.cuda.synchronize(self.device)
 
-    def run(self, state, clients, plans, factor, slots=4):
-        if slots not in (1, 4):
-            raise ValueError('This execution attempt compares one and four slots')
+    def run(self, state, clients, plans, factor, slots=None):
+        slots = self.slots if slots is None else slots
+        if slots not in (1, self.slots):
+            raise ValueError('Pilot execution must use one or the registered number of slots')
         torch.cuda.synchronize(self.device)
         allocated_before = torch.cuda.memory_allocated(self.device)
         started = time.perf_counter()
@@ -232,18 +236,18 @@ class LoRAClientPool:
             process_peak_reserved_bytes=torch.cuda.max_memory_reserved(self.device))
 
     def benchmark(self, state, clients, plans, factor):
-        """Uncommitted six-client pilot, including a final queue of <4 clients."""
-        chosen = list(clients[:6])
+        """Uncommitted same-batch pilot: slots+2 clients, then a two-client queue."""
+        chosen = list(clients[:self.slots+2])
         with isolated_rng():
-            # A short warm-up for all four streams, excluded from both timings.
-            warm = {c: [[plans[c][0][0]]] for c in chosen[:4]}
-            self.run(state, chosen[:4], warm, factor)
+            # Warm every stream before comparing serial and concurrent work.
+            warm = {c: [[plans[c][0][0]]] for c in chosen[:self.slots]}
+            self.run(state, chosen[:self.slots], warm, factor)
             before = state_hash(self.runtime.trainer.model.state_dict(), self.keys)
             serial, serial_cost = self.run(state, chosen, plans, factor, slots=1)
-            parallel, parallel_cost = self.run(state, chosen, plans, factor, slots=4)
+            parallel, parallel_cost = self.run(state, chosen, plans, factor)
             comparisons = [dict(client_id=c, **compare_states(serial[c][0], parallel[c][0])) for c in chosen]
             # A two-client submission explicitly exercises the short final group.
-            short, short_cost = self.run(state, chosen[-2:], plans, factor, slots=4)
+            short, short_cost = self.run(state, chosen[-2:], plans, factor)
             short_comparisons = [dict(client_id=c, **compare_states(serial[c][0], short[c][0])) for c in chosen[-2:]]
             if state_hash(self.runtime.trainer.model.state_dict(), self.keys) != before:
                 raise RuntimeError('Benchmark modified the server LoRA')
@@ -252,11 +256,11 @@ class LoRAClientPool:
                 speedup=serial_cost['seconds']/max(parallel_cost['seconds'], 1e-12), comparisons=comparisons,
                 passed=(all(r['close'] and serial[r['client_id']][1] == parallel[r['client_id']][1] for r in comparisons)
                         and all(r['close'] and serial[r['client_id']][1] == short[r['client_id']][1] for r in short_comparisons)),
-                scope='one uncommitted pilot, same local batches/updates; excludes planning and server feedback; not fourfold speed claim')
+                scope='one uncommitted pilot, same local batches/updates; excludes planning and server feedback; not a full-run speed claim')
             from scripts.run_ab_validation import write_json
             write_json(self.runtime.root/'parallel_benchmark'/('factor_'+factor+'.json'), record)
             if not record['passed']:
-                raise ValueError('Serial/four-client numerical comparison failed; see parallel_benchmark')
+                raise ValueError('Serial/concurrent numerical comparison failed; see parallel_benchmark')
             print(f'PARALLEL PILOT factor={factor} clients={len(chosen)} '
                   f'speedup={record["speedup"]:.3f}x max_abs={max(r["max_abs"] for r in comparisons):.3g}', flush=True)
             return record
@@ -319,5 +323,5 @@ def parallel_phase(runtime, state, rnd, factor, extra, branch, candidate):
         write_json(runtime.root/'events'/event_id/'event.json', event)
     runtime.load_training_state(after)
     train_only(runtime.trainer.model, 'B')
-    print(f'PARALLEL phase complete: {event_id}; clients={len(selected)}; slots=4', flush=True)
+    print(f'PARALLEL phase complete: {event_id}; clients={len(selected)}; slots={execution["slots"]}', flush=True)
     return after, deltas

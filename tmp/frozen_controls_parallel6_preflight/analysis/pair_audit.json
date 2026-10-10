@@ -1,0 +1,24 @@
+{
+  "pairs": [
+    {
+      "left": "tailrw16",
+      "right": "fedavg",
+      "status": "unavailable",
+      "reason": "Both completed runs are required"
+    },
+    {
+      "left": "joint",
+      "right": "fedavg",
+      "status": "unavailable",
+      "reason": "Both completed runs are required"
+    },
+    {
+      "left": "tailrw16",
+      "right": "joint",
+      "status": "unavailable",
+      "reason": "Both completed runs are required"
+    }
+  ],
+  "independent_seeds": 1,
+  "primary": "rounds81..100 Overall; Head20/Middle60/Tail20 reported jointly"
+}

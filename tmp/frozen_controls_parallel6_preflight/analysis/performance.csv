@@ -1,0 +1,2 @@
+method,seed,last20_overall_acc,last20_head20_acc,last20_middle60_acc,last20_bottom20_tail_acc,last20_non_tail_acc
+joint,42,67.86,70.705,66.33083333333333,69.6025,67.424375

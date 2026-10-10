@@ -1,4 +1,4 @@
-"""Seed42 joint aggregation experiments and the opt-in frozen-A TailRW16 control."""
+"""Seed42 joint aggregation experiments and opt-in frozen-A aggregation controls."""
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import os
@@ -21,8 +21,8 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--stage', choices=('plan', 'preflight', 'smoke', 'run', 'server', 'status', 'summary', 'pack'), default='plan')
     parser.add_argument('--arms', nargs='+', choices=ARMS)
-    parser.add_argument('--aggregation-rule', choices=('joint', 'tailrw16'), default='joint',
-                        help='tailrw16 is one additional run: frozen A, ordinary B only, historical gamma=16 weights')
+    parser.add_argument('--aggregation-rule', choices=('joint', 'tailrw16', 'fedavg'), default='joint',
+                        help='tailrw16/fedavg keep A frozen and train ordinary B only')
     parser.add_argument('--seed', type=int, choices=(42,), default=42)
     parser.add_argument('--aggregation-lambda', type=float, default=.1)
     parser.add_argument('--reference-run', type=Path, default=Path('references/full10_clientlt'))
@@ -32,19 +32,19 @@ def parse_args(argv=None):
     parser.add_argument('--compare-root', type=Path,
                         help='For TailRW16 status/summary/pack: completed joint-aggregation root; read-only')
     parser.add_argument('--num-workers', type=int, default=8)
-    parser.add_argument('--client-concurrency', type=int, choices=(1, 4), default=4,
-                        help='4 independent clients on each experiment GPU; 1 retains original serial training')
+    parser.add_argument('--client-concurrency', type=int, choices=(1, 4, 6), default=4,
+                        help='Maximum independent clients on each experiment GPU; 1 retains serial training')
     parser.add_argument('--gpus', type=int, nargs=2, default=[2, 3], metavar=('FROZEN_GPU', 'AB_GPU'),
                         help='Physical GPU IDs for --stage server, mapped as frozen then ab')
     parser.add_argument('--stop-after-round', type=int, default=0, help='Pause a formal run at a committed round; rerun with 0 to continue')
     args = parser.parse_args(argv)
     if args.arms is None:
-        args.arms = ['frozen'] if args.aggregation_rule == 'tailrw16' else list(ARMS)
+        args.arms = list(ARMS) if args.aggregation_rule == 'joint' else ['frozen']
     if args.output_root is None:
-        args.output_root = Path('output/cifar100_LT/' + (
-            'frozen_tailrw16_v1' if args.aggregation_rule == 'tailrw16' else 'client_aggregation_v2_parallel4'))
-    if args.aggregation_rule == 'tailrw16' and (args.arms != ['frozen'] or args.aggregation_lambda != .1):
-        parser.error('TailRW16 supports only --arms frozen; --aggregation-lambda does not apply')
+        args.output_root = Path('output/cifar100_LT/' + dict(joint='client_aggregation_v2_parallel4',
+            tailrw16='frozen_tailrw16_v1', fedavg='frozen_fedavg_v1')[args.aggregation_rule])
+    if args.aggregation_rule != 'joint' and (args.arms != ['frozen'] or args.aggregation_lambda != .1):
+        parser.error('Aggregation controls support only --arms frozen; --aggregation-lambda does not apply')
     if len(set(args.arms)) != len(args.arms) or args.num_workers < 0 or not 0 <= args.stop_after_round <= 100:
         parser.error('Duplicate arms, negative workers or invalid stopping round')
     if len(set(args.gpus)) != 2 or min(args.gpus) < 0:
@@ -58,10 +58,10 @@ def register(args):
         reference_run=str(args.reference_run.resolve()), data_root=str(args.data_root.resolve()),
         num_workers=args.num_workers, client_concurrency=args.client_concurrency)
     contract = CONTRACT
-    if args.aggregation_rule == 'tailrw16':
-        from tools.client_aggregation.frozen_tailrw import CONTRACT as tailrw_contract
-        contract = tailrw_contract
-        settings.update(aggregation_rule='tailrw16', lambda_value=None)
+    if args.aggregation_rule != 'joint':
+        from tools.client_aggregation.frozen_tailrw import control_contract
+        contract = control_contract(args.aggregation_rule)
+        settings.update(aggregation_rule=args.aggregation_rule, lambda_value=None)
     fingerprint, counts, matrix = count_matrix(args.reference_run)
     hashes = code_hashes(REPO)
     with file_lock(root / 'locks/plan.lock'):
@@ -82,8 +82,8 @@ def register(args):
 
 
 def make_job(plan, arm, mode='formal'):
-    if plan['aggregation'].get('rule') == 'tailrw16' and arm != 'frozen':
-        raise ValueError('TailRW16 supplement only runs frozen A')
+    if plan['aggregation'].get('rule') in ('tailrw16', 'fedavg') and arm != 'frozen':
+        raise ValueError('Aggregation controls only run frozen A')
     return dict(schema=SCHEMA, arm=arm, mode=mode, settings=plan['settings'], contract=plan['contract'],
         aggregation=plan['aggregation'], code_sha256=plan['code_sha256'],
         run=('smoke' if mode == 'smoke' else 'runs') + '/seed42/' + arm)
@@ -251,7 +251,7 @@ def main(argv=None):
         run_server(args)
         return
     for arm in args.arms:
-        if args.stage == 'run' and args.client_concurrency == 4:
+        if args.stage == 'run' and args.client_concurrency > 1:
             execute(make_job(plan, arm, 'smoke'), root)
         execute(make_job(plan, arm, 'smoke' if args.stage == 'smoke' else 'formal'), root, args.stop_after_round)
 

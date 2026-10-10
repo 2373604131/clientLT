@@ -71,18 +71,19 @@ class TestParallelClients(unittest.TestCase):
         torch.set_num_threads(cls.threads)
 
     def test_work_queue_accepts_remainders_and_returns_schedule_order(self):
-        for count in (0, 1, 2, 3, 4, 5, 6, 30, 31):
-            seen, lock = [], threading.Lock()
-            def work(slot, client):
-                time.sleep(.001*(client%3))
-                with lock:
-                    seen.append(client)
-                self.assertLess(slot, 4)
-                return client*2
-            result = ordered_queue(list(range(count)), 4, work)
-            self.assertEqual(list(result), list(range(count)))
-            self.assertEqual(sorted(seen), list(range(count)))
-            self.assertEqual(list(result.values()), [c*2 for c in range(count)])
+        for slots in (4, 6):
+            for count in (0, 1, 2, 3, 4, 5, 6, 7, 8, 30, 31, 35):
+                seen, lock = [], threading.Lock()
+                def work(slot, client):
+                    time.sleep(.001*(client%3))
+                    with lock:
+                        seen.append(client)
+                    self.assertLess(slot, slots)
+                    return client*2
+                result = ordered_queue(list(range(count)), slots, work)
+                self.assertEqual(list(result), list(range(count)))
+                self.assertEqual(sorted(seen), list(range(count)))
+                self.assertEqual(list(result.values()), [c*2 for c in range(count)])
 
     def test_failure_is_propagated_without_partial_aggregation(self):
         def work(slot, client):
@@ -119,11 +120,11 @@ class TestParallelClients(unittest.TestCase):
     def test_private_A_even_when_frozen_and_backbone_shared(self):
         model = Model()
         keys = [n for n, _ in model.named_parameters() if '_lora_' in n]
-        replicas = clone_models(model, keys, 4)
+        replicas = clone_models(model, keys, 6)
         for name, p in model.named_parameters():
             pointers = [dict(m.named_parameters())[name].data_ptr() for m in replicas]
             if name in keys:
-                self.assertEqual(len(set([p.data_ptr()]+pointers)), 5)
+                self.assertEqual(len(set([p.data_ptr()]+pointers)), 7)
             else:
                 self.assertEqual(set(pointers), {p.data_ptr()})
         model.dropout = nn.Dropout(.1)
@@ -134,10 +135,10 @@ class TestParallelClients(unittest.TestCase):
         torch.manual_seed(1)
         model = Model()
         keys = sorted(n for n, _ in model.named_parameters() if '_lora_' in n)
-        replicas = clone_models(model, keys, 4)
+        replicas = clone_models(model, keys, 6)
         initial = snapshot(model)
         loaders = {i: DataLoader(Data(n, i), batch_size=4, shuffle=True, drop_last=False)
-                   for i, n in enumerate((2, 6, 9, 3, 1, 7))}
+                   for i, n in enumerate((2, 6, 9, 3, 1, 7, 5, 8))}
         step = canonical_step()
         def optimizer(m, factor):
             opt = torch.optim.SGD([p for p in m.parameters() if p.requires_grad],
@@ -161,16 +162,17 @@ class TestParallelClients(unittest.TestCase):
             def work(slot, c):
                 return train_local(replicas[slot], initial, keys, loaders[c].dataset, plans[c], factor,
                                    'cpu', optimizer, step, torch.tensor([-.2, -.4]))
-            for clients in (list(loaders), [4, 5], [5]):
-                results = ordered_queue(clients, 4, work)
-                for c in clients:
-                    self.assertTrue(compare_states(reference[c], results[c][0])['bitwise_equal'])
-                    self.assertEqual(results[c][1]['sample_presentations'], len(loaders[c].dataset)*(3 if factor=='B' else 1))
+            for slots in (4, 6):
+                for clients in (list(loaders), [4, 5], [5], list(range(5))):
+                    results = ordered_queue(clients, slots, work)
+                    for c in clients:
+                        self.assertTrue(compare_states(reference[c], results[c][0])['bitwise_equal'])
+                        self.assertEqual(results[c][1]['sample_presentations'], len(loaders[c].dataset)*(3 if factor=='B' else 1))
             self.assertTrue(torch.equal(before_rng, torch.get_rng_state()))
             for key, value in model.state_dict().items():
                 self.assertTrue(torch.equal(value, initial[key]))
             selected = list(loaders)
-            weights = {c:(c+1)/21 for c in selected}
+            weights = {c:(c+1)/36 for c in selected}
             actual = aggregate_lora_state(initial, {c:work(0,c)[0] for c in selected}, selected, list(reference[0]), weights)
             expected = aggregate_lora_state(initial, reference, selected, list(reference[0]), weights)
             self.assertTrue(compare_states(expected, actual)['bitwise_equal'])

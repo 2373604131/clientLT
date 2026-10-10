@@ -1,5 +1,7 @@
 # 冻结 LoRA A 的16倍加权补充实验
 
+如需同时补充严格匹配的FedAvg，并使用GPU2/GPU3、每卡最多六客户端并行，请使用[双实验启动说明](frozen_aggregation_controls_seed42.md)。下文保留原单组四并行入口。
+
 本次只增加一个 seed42 的100轮正式实验：全程冻结初始 LoRA A，只训练 B。它补齐之前 `tailrw-g16` 没有覆盖的条件，不包含保持修正、来源 C 或额外 A/B 训练。
 
 | 设置 | 本次 TailRW16 | 已完成的新聚合 frozen |

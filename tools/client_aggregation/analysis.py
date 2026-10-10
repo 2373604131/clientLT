@@ -107,20 +107,23 @@ def audit_run(run, job, completed=100):
             raise ValueError('Bad event client identities')
         if not np.allclose(event['server_weights'], [job['aggregation']['weights'][j] for j in event['selected_client_ids']], rtol=0, atol=1e-12):
             raise ValueError('Bridge recorded different aggregation weights')
-        if job.get('settings', {}).get('client_concurrency', 1) == 4:
+        slots = job.get('settings', {}).get('client_concurrency', 1)
+        if slots > 1:
             execution = load_json(run / 'parallel_execution' / f'r{rnd:03d}_{factor}.json')
             clients = execution['selected_client_ids']
-            if (execution['round'] != rnd or execution['factor'] != factor or execution['slots'] != 4
+            if (execution['round'] != rnd or execution['factor'] != factor or execution['slots'] != slots
                     or execution['clients'] != 30 or clients != event['selected_client_ids']
                     or [r['client_id'] for r in execution['client_audits']] != clients
-                    or any(not 0 <= r['slot'] < 4 for r in execution['client_audits'])):
+                    or any(not 0 <= r['slot'] < slots for r in execution['client_audits'])):
                 raise ValueError('Invalid parallel client execution record')
-    if job.get('settings', {}).get('client_concurrency', 1) == 4 and job['mode'] == 'smoke' and completed:
+    slots = job.get('settings', {}).get('client_concurrency', 1)
+    if slots > 1 and job['mode'] == 'smoke' and completed:
         for factor in (('B',) if frozen else ('B', 'A')):
             bench = load_json(run / 'parallel_benchmark' / ('factor_'+factor+'.json'))
-            if (not bench['passed'] or len(bench['comparisons']) != 6 or bench['short_group']['clients'] != 2
+            if (not bench['passed'] or len(bench['comparisons']) != slots+2 or bench['short_group']['clients'] != 2
+                    or bench['parallel']['slots'] != slots or bench['short_group']['slots'] != slots
                     or not all(r['close'] for r in bench['comparisons'] + bench['short_comparisons'])):
-                raise ValueError('Four-client pilot or final short group failed numerical validation')
+                raise ValueError('Concurrent pilot or final short group failed numerical validation')
     from tools.sfra.simple_controls import partition_counts
     actual_counts = partition_counts(read_csv(run / 'partition_manifest.csv'), job['aggregation']['counts']['tail_ids'])
     if partition_signature(read_csv(run / 'partition_manifest.csv')) != job['aggregation']['partition_sha256']:
@@ -255,7 +258,7 @@ def summarize(root, compare_root=None):
     from scripts.run_cliplora_joint_aggregation import make_job
     root = Path(root)
     plan = load_json(root / 'experiment_plan.json')
-    if plan['aggregation'].get('rule') == 'tailrw16':
+    if plan['aggregation'].get('rule') in ('tailrw16', 'fedavg'):
         from tools.client_aggregation.frozen_tailrw import summarize as summarize_tailrw
         return summarize_tailrw(root, compare_root)
     out = root / 'analysis'; out.mkdir(exist_ok=True)

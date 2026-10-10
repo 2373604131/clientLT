@@ -24,9 +24,9 @@ def main(argv=None):
     payload, replay = probe_manifest_replay(run / 'protocol/probe_manifest.csv', expected)
     if replay['newline_conversion'] != 'unchanged':
         raise ValueError('Prepared probe bytes differ; use the launcher to prepare the protocol')
-    if job.get('settings', {}).get('client_concurrency', 1) == 4:
+    if job.get('settings', {}).get('client_concurrency', 1) > 1:
         import torch
-        # Four CPU feeders should not each launch a full intra-op thread pool.
+        # Concurrent CPU feeders must not each launch a full intra-op thread pool.
         torch.set_num_threads(1)
     from tools.client_aggregation.runtime import runtime_class
     from utils import cliplora_sfra

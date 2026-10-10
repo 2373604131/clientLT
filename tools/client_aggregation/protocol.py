@@ -20,7 +20,8 @@ FILES = ('tools/client_aggregation/__init__.py', 'tools/client_aggregation/weigh
     'scripts/run_method_a_simple_controls.py', 'Dassl/dassl/data/data_manager.py',
     'Dassl/dassl/data/samplers.py', 'Dassl/dassl/optim/optimizer.py',
     'Dassl/dassl/optim/lr_scheduler.py', 'utils/cliplora_loss.py',
-    'tools/client_aggregation/frozen_tailrw.py')
+    'tools/client_aggregation/frozen_tailrw.py',
+    'scripts/run_cliplora_frozen_aggregation.py', 'tools/client_aggregation/frozen_controls.py')
 CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='client-longtail',
     arms=list(ARMS), aggregation='KL(uniform || R.T @ w) + lambda/2 * chi_square(w || sample_weights)',
     scope='ordinary B aggregation every round; ordinary A aggregation when A is opened',
@@ -61,6 +62,8 @@ def aggregation_name(spec):
         return 'joint_class_distribution_client_weights'
     if rule == 'tailrw16':
         return 'tail_count_reweighted_clients_gamma16'
+    if rule == 'fedavg':
+        return 'sample_count_weighted_fedavg'
     raise ValueError('Unknown aggregation rule: ' + str(rule))
 
 
@@ -80,10 +83,11 @@ def tailrw_statistics(matrix, tail_ids):
 
 def aggregation_spec(reference, strength, rule='joint'):
     fingerprint, counts, matrix = count_matrix(reference)
-    if rule not in ('joint', 'tailrw16'):
+    if rule not in ('joint', 'tailrw16', 'fedavg'):
         raise ValueError('Unknown aggregation rule: ' + str(rule))
-    solution = (solve_weights(matrix, strength) if rule == 'joint'
-                else tailrw_statistics(matrix, counts['tail_ids']))
+    solution = (solve_weights(matrix, strength) if rule == 'joint' else
+                fedavg_statistics(matrix) if rule == 'fedavg' else
+                tailrw_statistics(matrix, counts['tail_ids']))
     weights = solution['weights']
     spec = dict(input_fingerprint=fingerprint, counts=counts, matrix=matrix.tolist(),
         partition_sha256=partition_signature(read_csv(Path(reference) / 'partition_manifest.csv')),
@@ -91,13 +95,29 @@ def aggregation_spec(reference, strength, rule='joint'):
         matrix_sha256=digest(matrix.tolist()), solver=solution)
     if rule == 'tailrw16':
         spec.update(rule=rule, gamma=16.)
+    elif rule == 'fedavg':
+        spec.update(rule=rule)
     return spec
+
+
+def fedavg_statistics(matrix):
+    from tools.client_aggregation.weights import problem
+    q, local, target = problem(matrix, 1.)
+    return dict(weights=q.tolist(), sample_weights=q.tolist(), mixture=(local.T @ q).tolist(),
+        target=target.tolist(), solver='closed-form sample counts', formula='n_j/N')
 
 
 def check_aggregation(spec):
     if digest(spec['weights']) != spec['weights_sha256'] or digest(spec['matrix']) != spec['matrix_sha256']:
         raise ValueError('Frozen weights/counts digest mismatch')
     aggregation_name(spec)  # Reject unrecognized policies, including in archived jobs.
+    if spec.get('rule') == 'fedavg':
+        expected = fedavg_statistics(spec['matrix'])
+        if (spec['lambda_value'] is not None or spec.get('gamma') is not None
+                or np.asarray(spec['weights']).shape != np.asarray(expected['weights']).shape
+                or not np.allclose(spec['weights'], expected['weights'], rtol=0, atol=1e-12)):
+            raise ValueError('FedAvg weights differ from n_j/N')
+        return expected
     if spec.get('rule') == 'tailrw16':
         expected = tailrw_statistics(spec['matrix'], spec['counts']['tail_ids'])
         if (spec.get('gamma') != 16. or spec['lambda_value'] is not None
@@ -110,11 +130,11 @@ def check_aggregation(spec):
 
 def client_execution_config(job):
     slots = job.get('settings', {}).get('client_concurrency', 1)
-    if slots == 4:
+    if slots in (4, 6):
         from tools.client_aggregation.parallel import EXECUTION
-        return dict(EXECUTION)
+        return dict(EXECUTION, max_concurrent_clients=slots)
     if slots != 1:
-        raise ValueError('Only the original serial path or four-client attempt is supported')
+        raise ValueError('Only serial, four-client or six-client execution is supported')
     return dict(version=1, backend='original_serial', max_concurrent_clients=1)
 
 
@@ -125,8 +145,8 @@ def audit_runtime_config(run, job):
             or load_json(Path(run) / 'client_execution.json') != expected_execution):
         raise ValueError('Client execution mode differs from the registered experiment')
     frozen = job['arm'] == 'frozen'
-    if job['aggregation'].get('rule') == 'tailrw16' and not frozen:
-        raise ValueError('TailRW16 supplement only supports permanently frozen A')
+    if job['aggregation'].get('rule') in ('tailrw16', 'fedavg') and not frozen:
+        raise ValueError('Aggregation controls only support permanently frozen A')
     if cfg.get('joint_aggregation') != dict(schema=SCHEMA, arm=job['arm'], mode=job['mode'],
             lambda_value=job['aggregation']['lambda_value'], weights_sha256=job['aggregation']['weights_sha256']):
         raise ValueError('Runtime aggregation differs from registered job')

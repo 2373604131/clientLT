@@ -1,0 +1,2 @@
+method,factor,passed,slots,clients,speedup,short_group_clients,max_parameter_error
+joint,B,True,4,6,1.2737973583908437,2,1.862645149230957e-09

@@ -1,4 +1,4 @@
-"""One frozen-A TailRW16 supplement and a read-only comparison to the joint frozen arm."""
+"""Frozen-A count-based controls and a read-only comparison to the joint frozen arm."""
 from pathlib import Path
 import statistics
 
@@ -21,6 +21,17 @@ CONTRACT = dict(schema=SCHEMA, experiment='frozen_tailrw16_v1', seed=42, rounds=
     selection='gamma16 requested as a fixed control; no new parameter sweep')
 
 
+def control_contract(rule):
+    if rule == 'tailrw16':
+        return dict(CONTRACT)
+    if rule == 'fedavg':
+        contract = dict(CONTRACT, experiment='frozen_fedavg_v1', aggregation='n_j/N',
+                        selection='sample-count FedAvg; no extra B epochs and no parameter sweep')
+        contract.pop('gamma')
+        return contract
+    raise ValueError('Unknown frozen control: ' + rule)
+
+
 def load_frozen(root, required_rule):
     """Audit a completed run without writing anything under its experiment root."""
     from scripts.run_cliplora_joint_aggregation import make_job
@@ -33,7 +44,7 @@ def load_frozen(root, required_rule):
     return audit_run(root / job['run'], job)
 
 
-def paired_audit(tailrw, joint):
+def paired_audit(tailrw, joint, allow_execution_difference=False):
     """Same data, initialization, ordinary training, budget and execution; only weights differ."""
     mismatches = [k for k in PAIR_HASHES if tailrw['metadata'][k] != joint['metadata'][k]]
     a, b = tailrw['config']['base_training_config'], joint['config']['base_training_config']
@@ -41,9 +52,21 @@ def paired_audit(tailrw, joint):
     for key in ('counts', 'matrix_sha256', 'partition_sha256'):
         if tailrw['job']['aggregation'][key] != joint['job']['aggregation'][key]:
             mismatches.append('aggregation.'+key)
-    for key in ('client_execution', 'variant', 'refresh_rounds'):
+    execution_a = tailrw['config'].get('client_execution')
+    execution_b = joint['config'].get('client_execution')
+    execution_differs = execution_a != execution_b
+    for key in ('variant', 'refresh_rounds'):
         if tailrw['config'].get(key) != joint['config'].get(key):
             mismatches.append(key)
+    if execution_differs:
+        # Only the registered queue width may differ in the historical comparison.
+        comparable = (execution_a and execution_b
+            and execution_a.get('max_concurrent_clients') in (4, 6)
+            and execution_b.get('max_concurrent_clients') in (4, 6)
+            and {k:v for k,v in execution_a.items() if k != 'max_concurrent_clients'}
+                == {k:v for k,v in execution_b.items() if k != 'max_concurrent_clients'})
+        if not allow_execution_difference or not comparable:
+            mismatches.append('client_execution')
     for key in ('sample_id', 'class_id', 'prediction', 'correct'):
         if not np.array_equal(tailrw['predictions'][0][key], joint['predictions'][0][key]):
             mismatches.append('initial.'+key)
@@ -55,20 +78,28 @@ def paired_audit(tailrw, joint):
     code_differences = sorted(k for k in set(codes[0]) | set(codes[1]) if codes[0].get(k) != codes[1].get(k))
     extension_files = {'tools/client_aggregation/protocol.py', 'tools/client_aggregation/runtime.py',
         'tools/client_aggregation/analysis.py', 'tools/client_aggregation/frozen_tailrw.py',
-        'scripts/run_cliplora_joint_aggregation.py'}
+        'scripts/run_cliplora_joint_aggregation.py', 'scripts/train_cliplora_joint_aggregation.py',
+        'tools/client_aggregation/parallel.py', 'scripts/run_cliplora_frozen_aggregation.py',
+        'tools/client_aggregation/frozen_controls.py'}
     mismatches += ['code.'+k for k in code_differences if k not in extension_files]
     environment_keys = ('python', 'torch', 'cuda', 'cudnn', 'gpu')
     same_environment = all(tailrw['metadata'].get('environment', {}).get(k)
         == joint['metadata'].get('environment', {}).get(k) for k in environment_keys)
-    return dict(status='mismatch' if mismatches else 'eligible', mismatches=mismatches,
+    return dict(status='mismatch' if mismatches else 'execution_differs' if execution_differs else 'eligible', mismatches=mismatches,
         budget_matched=not any(x.startswith('budget.') for x in mismatches),
         same_recorded_environment=same_environment, source_differences=code_differences,
-        independent_seeds=1, contrast='frozen TailRW16 minus frozen joint aggregation')
+        independent_seeds=1, client_execution_left=execution_a, client_execution_right=execution_b,
+        contrast='frozen '+tailrw['job']['aggregation'].get('rule', 'joint')+' minus frozen '
+            +joint['job']['aggregation'].get('rule', 'joint'))
 
 
 def summarize(root, compare_root=None):
     from tools.client_aggregation.analysis import METRICS, sample_dynamics, stage_comparisons
     root = Path(root).resolve()
+    plan_path = root / 'experiment_plan.json'
+    rule = load_json(plan_path)['aggregation'].get('rule', 'joint') if plan_path.is_file() else 'tailrw16'
+    label = '16倍加权' if rule == 'tailrw16' else 'FedAvg'
+    method_name = rule+'_frozen'
     compare_root = Path(compare_root).resolve() if compare_root else root.parent / 'client_aggregation_v2_parallel4'
     out = root / 'analysis'
     out.mkdir(parents=True, exist_ok=True)
@@ -79,17 +110,17 @@ def summarize(root, compare_root=None):
     result = None
     if (run / 'completion.json').is_file():
         try:
-            result = load_frozen(root, 'tailrw16')
+            result = load_frozen(root, rule)
             status.update(status='complete', completed_round=100)
         except (ValueError, OSError, KeyError, TypeError, AssertionError) as error:
             status.update(status='invalid', reason=str(error))
-    results = {'tailrw16_frozen': result} if result else {}
+    results = {method_name: result} if result else {}
     pair = dict(status='unavailable', comparison_root=str(compare_root),
-                reason='TailRW16 or the joint frozen reference is not complete')
+                reason=rule+' or the joint frozen reference is not complete')
     if result and (compare_root / 'runs/seed42/frozen/completion.json').is_file():
         try:
             reference = load_frozen(compare_root, 'joint')
-            pair = dict(paired_audit(result, reference), comparison_root=str(compare_root))
+            pair = dict(paired_audit(result, reference, allow_execution_difference=True), comparison_root=str(compare_root))
             results['joint_frozen'] = reference
         except (ValueError, OSError, KeyError, TypeError, AssertionError) as error:
             pair.update(status='mismatch', reason=str(error))
@@ -110,9 +141,9 @@ def summarize(root, compare_root=None):
             transfer_steps=done.get('b_transfer_optimizer_steps', 0), elapsed_seconds=done['elapsed_seconds'],
             stage_test_seconds=done['stage_diagnostic_seconds'],
             local_images=sum(int(x['sample_presentations']) for x in r['budgets'])))
-    if pair['status'] == 'eligible':
+    if pair['status'] in ('eligible', 'execution_differs'):
         p = {row['method']: row for row in performance}
-        pair['tailrw16_minus_joint'] = {m:p['tailrw16_frozen']['last20_'+m]-p['joint_frozen']['last20_'+m] for m in METRICS}
+        pair[rule+'_minus_joint'] = {m:p[method_name]['last20_'+m]-p['joint_frozen']['last20_'+m] for m in METRICS}
     for path in (root / 'smoke/seed42/frozen/parallel_benchmark').glob('factor_*.json'):
         pilot = load_json(path)
         pilots.append(dict(factor=pilot['factor'], passed=pilot['passed'], speedup=pilot['speedup'],
@@ -122,9 +153,10 @@ def summarize(root, compare_root=None):
             stage_effects=stages, curves=curves, costs=costs, parallel_pilot=pilots).items():
         write_table(out / (name+'.csv'), rows)
     write_json(out / 'pair_audit.json', pair)
-    lines = ['# 冻结 LoRA A：16倍加权补充实验', '',
+    lines = ['# 冻结 LoRA A：'+label+'补充实验', '',
         '全程只训练 B；100轮，每轮每客户端3个epoch，105600步；无额外B训练、无A训练、无保持修正、无来源C。',
-        '权重沿用历史公式 (n_j + 16*n_j_tail)/(N + 16*N_tail)。LA、划分、初始化、客户端日程不变。',
+        ('权重沿用历史公式 (n_j + 16*n_j_tail)/(N + 16*N_tail)。' if rule == 'tailrw16' else '权重使用 n_j/N。')
+            +'LA、划分、初始化、客户端日程不变。',
         '固定终点为第81—100轮均值，只有seed42；不作跨种子显著性结论。', '',
         '| 方案 | Overall | Head20 | Middle60 | Tail20 |', '|---|---:|---:|---:|---:|']
     for row in performance:
@@ -132,9 +164,11 @@ def summarize(root, compare_root=None):
     lines += ['', '运行状态：'+status['status']+'，round='+str(status['completed_round'])+'。']
     if status['reason']:
         lines.append('审计失败：'+status['reason'])
-    if pair['status'] == 'eligible':
-        lines += ['', '预算、数据、初始预测和训练设置配对通过。16倍加权减新聚合：',
-            ', '.join(f'{m}={v:+.4f} pp' for m,v in pair['tailrw16_minus_joint'].items())+'。']
+    if pair['status'] in ('eligible', 'execution_differs'):
+        lines += ['', '预算、数据、初始预测和本地训练配置配对通过。'+label+'减新聚合：',
+            ', '.join(f'{m}={v:+.4f} pp' for m,v in pair[rule+'_minus_joint'].items())+'。']
+        if pair['status'] == 'execution_differs':
+            lines.append('执行并行数不同（4/6）：这里只作历史对照，不能视为完全相同执行条件的重复，也不能据此计算加速比。')
         if not pair['same_recorded_environment']:
             lines.append('两次记录的软硬件环境不同；小差异与耗时需谨慎解释。')
     else:

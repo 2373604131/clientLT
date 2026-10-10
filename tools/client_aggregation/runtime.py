@@ -20,7 +20,7 @@ def runtime_class(job):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.client_pool = None
-            if job.get('settings', {}).get('client_concurrency', 1) == 4:
+            if job.get('settings', {}).get('client_concurrency', 1) > 1:
                 from tools.client_aggregation.parallel import LoRAClientPool
                 self.client_pool = LoRAClientPool(self)
             if self.b_transfer is not None:
@@ -41,8 +41,8 @@ def runtime_class(job):
         def configure_experiment(self):
             self.job = job
             self.is_frozen = job['arm'] == 'frozen'
-            if job['aggregation'].get('rule') == 'tailrw16' and not self.is_frozen:
-                raise ValueError('TailRW16 supplement must keep A permanently frozen')
+            if job['aggregation'].get('rule') in ('tailrw16', 'fedavg') and not self.is_frozen:
+                raise ValueError('Aggregation controls must keep A permanently frozen')
             self.joint_weights = dict(enumerate(job['aggregation']['weights']))
             check_aggregation(job['aggregation'])
             actual = self.audit.counts.cpu().numpy()
