@@ -175,8 +175,8 @@ class LoRAClientPool:
         self.runtime = runtime
         self.device = torch.device(runtime.trainer.device)
         self.slots = runtime.job['settings']['client_concurrency']
-        if self.slots not in (4, 6):
-            raise ValueError('Expected four or six concurrent clients')
+        if self.slots not in (4, 6, 8):
+            raise ValueError('Expected 4, 6 or 8 concurrent clients')
         if self.device.type != 'cuda' or torch.cuda.device_count() != 1:
             raise ValueError('Parallel execution needs exactly one visible CUDA GPU per experiment')
         self.keys = runtime.keys

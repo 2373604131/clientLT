@@ -32,7 +32,7 @@ def parse_args(argv=None):
     parser.add_argument('--compare-root', type=Path,
                         help='For TailRW16 status/summary/pack: completed joint-aggregation root; read-only')
     parser.add_argument('--num-workers', type=int, default=8)
-    parser.add_argument('--client-concurrency', type=int, choices=(1, 4, 6), default=4,
+    parser.add_argument('--client-concurrency', type=int, choices=(1, 4, 6, 8), default=4,
                         help='Maximum independent clients on each experiment GPU; 1 retains serial training')
     parser.add_argument('--cuda-policy', choices=('legacy', 'deterministic'), default='legacy',
                         help='Original CUDA execution by default; deterministic is an explicit opt-in')

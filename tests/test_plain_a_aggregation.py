@@ -16,7 +16,8 @@ from tests import test_joint_aggregation as fixtures
 from tests.test_joint_aggregation import TinyModel
 from tools.client_aggregation.analysis import audit_run, stage_comparisons, pack_results
 from tools.client_aggregation.plain_a import summarize
-from tools.client_aggregation.protocol import PLAIN_A_CONTRACT, PAIR_HASHES, load_json, write_table
+from tools.client_aggregation.protocol import (PLAIN_A_CONTRACT, PAIR_HASHES, load_json, write_table,
+    client_execution_config, digest)
 from tools.client_aggregation.runtime import runtime_class
 from utils.cliplora_functional_feedback import snapshot
 
@@ -24,6 +25,38 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 class TestPlainAAggregation(unittest.TestCase):
+    def test_eight_slots_propagate_to_child_and_both_phase_audits(self):
+        self.assertEqual(suite.parse_args(['--client-concurrency','8']).output_root.name,
+                         'plain_a_aggregation_v1_parallel8')
+        self.assertEqual(suite.parse_args([]).output_root.name, 'plain_a_aggregation_v1_parallel6')
+        with tempfile.TemporaryDirectory() as temp:
+            args=suite.parse_args(['--client-concurrency','8','--output-root',temp])
+            plans=suite.register(args)
+            for rule,plan in plans.items():
+                self.assertEqual(plan['settings']['client_concurrency'],8)
+                cmd=suite.child_command(args,rule)
+                self.assertEqual(cmd[cmd.index('--client-concurrency')+1],'8')
+            run=Path(temp)/'synthetic'
+            job=fixtures.TestJointAggregation().audit_fixture(run,'plain_a','fedavg')
+            job['settings']=dict(client_concurrency=8)
+            write_json(run/'joint_job.json',job)
+            receipt=load_json(run/'joint_receipt.json');receipt['job_digest']=digest(job)
+            write_json(run/'joint_receipt.json',receipt)
+            cfg=load_json(run/'sfra_config.json');cfg['client_execution']=client_execution_config(job)
+            self.assertEqual(cfg['client_execution']['max_concurrent_clients'],8)
+            write_json(run/'sfra_config.json',cfg);write_json(run/'client_execution.json',cfg['client_execution'])
+            for factor in ('B','A'):
+                write_json(run/'parallel_execution'/f'r001_{factor}.json',dict(
+                    round=1,factor=factor,slots=8,clients=30,selected_client_ids=list(range(30)),
+                    client_audits=[dict(client_id=j,slot=j%8) for j in range(30)]))
+            result=audit_run(run,job,1)
+            self.assertEqual(len(result['budgets']),60)
+            record=load_json(run/'parallel_execution/r001_A.json')
+            record['client_audits'][-1]['slot']=8
+            write_json(run/'parallel_execution/r001_A.json',record)
+            with self.assertRaisesRegex(ValueError,'parallel client execution'):
+                audit_run(run,job,1)
+
     def test_three_registered_policies_and_no_transfer_or_correction(self):
         with tempfile.TemporaryDirectory() as temp:
             args = suite.parse_args(['--output-root', temp])

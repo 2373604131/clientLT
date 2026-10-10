@@ -71,7 +71,7 @@ class TestParallelClients(unittest.TestCase):
         torch.set_num_threads(cls.threads)
 
     def test_work_queue_accepts_remainders_and_returns_schedule_order(self):
-        for slots in (4, 6):
+        for slots in (4, 6, 8):
             for count in (0, 1, 2, 3, 4, 5, 6, 7, 8, 30, 31, 35):
                 seen, lock = [], threading.Lock()
                 def work(slot, client):
@@ -120,11 +120,11 @@ class TestParallelClients(unittest.TestCase):
     def test_private_A_even_when_frozen_and_backbone_shared(self):
         model = Model()
         keys = [n for n, _ in model.named_parameters() if '_lora_' in n]
-        replicas = clone_models(model, keys, 6)
+        replicas = clone_models(model, keys, 8)
         for name, p in model.named_parameters():
             pointers = [dict(m.named_parameters())[name].data_ptr() for m in replicas]
             if name in keys:
-                self.assertEqual(len(set([p.data_ptr()]+pointers)), 7)
+                self.assertEqual(len(set([p.data_ptr()]+pointers)), 9)
             else:
                 self.assertEqual(set(pointers), {p.data_ptr()})
         model.dropout = nn.Dropout(.1)
@@ -135,10 +135,11 @@ class TestParallelClients(unittest.TestCase):
         torch.manual_seed(1)
         model = Model()
         keys = sorted(n for n, _ in model.named_parameters() if '_lora_' in n)
-        replicas = clone_models(model, keys, 6)
+        replicas = clone_models(model, keys, 8)
         initial = snapshot(model)
-        loaders = {i: DataLoader(Data(n, i), batch_size=4, shuffle=True, drop_last=False)
-                   for i, n in enumerate((2, 6, 9, 3, 1, 7, 5, 8))}
+        sizes = (2, 6, 9, 3, 1, 7, 5, 8)
+        loaders = {i: DataLoader(Data(sizes[i % len(sizes)], i), batch_size=4, shuffle=True, drop_last=False)
+                   for i in range(30)}
         step = canonical_step()
         def optimizer(m, factor):
             opt = torch.optim.SGD([p for p in m.parameters() if p.requires_grad],
@@ -162,8 +163,8 @@ class TestParallelClients(unittest.TestCase):
             def work(slot, c):
                 return train_local(replicas[slot], initial, keys, loaders[c].dataset, plans[c], factor,
                                    'cpu', optimizer, step, torch.tensor([-.2, -.4]))
-            for slots in (4, 6):
-                for clients in (list(loaders), [4, 5], [5], list(range(5))):
+            for slots in (4, 6, 8):
+                for clients in (list(loaders), [4, 5], [5], list(range(5)), list(range(6))):
                     results = ordered_queue(clients, slots, work)
                     for c in clients:
                         self.assertTrue(compare_states(reference[c], results[c][0])['bitwise_equal'])
@@ -172,7 +173,7 @@ class TestParallelClients(unittest.TestCase):
             for key, value in model.state_dict().items():
                 self.assertTrue(torch.equal(value, initial[key]))
             selected = list(loaders)
-            weights = {c:(c+1)/36 for c in selected}
+            weights = {c:(c+1)/sum(j+1 for j in selected) for c in selected}
             actual = aggregate_lora_state(initial, {c:work(0,c)[0] for c in selected}, selected, list(reference[0]), weights)
             expected = aggregate_lora_state(initial, reference, selected, list(reference[0]), weights)
             self.assertTrue(compare_states(expected, actual)['bitwise_equal'])

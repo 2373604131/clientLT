@@ -61,8 +61,8 @@ def paired_audit(tailrw, joint, allow_execution_difference=False):
     if execution_differs:
         # Label changes in queue width/numerical policy as historical execution differences.
         comparable = (execution_a and execution_b
-            and execution_a.get('max_concurrent_clients') in (4, 6)
-            and execution_b.get('max_concurrent_clients') in (4, 6)
+            and execution_a.get('max_concurrent_clients') in (4, 6, 8)
+            and execution_b.get('max_concurrent_clients') in (4, 6, 8)
             and {k:v for k,v in execution_a.items() if k not in ('max_concurrent_clients', 'cuda_numerics', 'parallel_validation')}
                 == {k:v for k,v in execution_b.items() if k not in ('max_concurrent_clients', 'cuda_numerics', 'parallel_validation')})
         if not allow_execution_difference or not comparable:

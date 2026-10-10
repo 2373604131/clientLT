@@ -160,13 +160,13 @@ def check_aggregation(spec):
 def client_execution_config(job):
     from tools.client_aggregation.numerics import policy_for, DETERMINISTIC
     slots = job.get('settings', {}).get('client_concurrency', 1)
-    if slots in (4, 6):
+    if slots in (4, 6, 8):
         from tools.client_aggregation.parallel import EXECUTION
         result = dict(EXECUTION, max_concurrent_clients=slots)
     elif slots == 1:
         result = dict(version=1, backend='original_serial', max_concurrent_clients=1)
     else:
-        raise ValueError('Only serial, four-client or six-client execution is supported')
+        raise ValueError('Only 1, 4, 6 or 8 concurrent clients are supported')
     if policy_for(job) == 'deterministic':
         result['cuda_numerics'] = dict(DETERMINISTIC)
     if job.get('settings', {}).get('parallel_validation') == 'off':

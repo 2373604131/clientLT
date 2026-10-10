@@ -30,14 +30,17 @@ def parse_args(argv=None):
     parser.add_argument('--methods', nargs='+', choices=METHODS, default=list(METHODS))
     parser.add_argument('--seed', type=int, choices=(42,), default=42)
     parser.add_argument('--gpus', nargs='+', type=int, default=[2, 3], help='One queued experiment per GPU; order is physical GPU order')
-    parser.add_argument('--client-concurrency', type=int, choices=(1, 4, 6), default=6)
+    parser.add_argument('--client-concurrency', type=int, choices=(1, 4, 6, 8), default=6)
     parser.add_argument('--cuda-policy', choices=('legacy', 'deterministic'), default='legacy')
     parser.add_argument('--reference-run', type=Path, default=Path('references/full10_clientlt'))
     parser.add_argument('--data-root', type=Path, default=Path('DATA'))
-    parser.add_argument('--output-root', type=Path, default=Path('output/cifar100_LT/plain_a_aggregation_v1_parallel6'))
+    parser.add_argument('--output-root', type=Path,
+                        help='Default: output/cifar100_LT/plain_a_aggregation_v1_parallel<client-concurrency>')
     parser.add_argument('--num-workers', type=int, default=8)
     parser.add_argument('--stop-after-round', type=int, default=0)
     args = parser.parse_args(argv)
+    if args.output_root is None:
+        args.output_root = Path(f'output/cifar100_LT/plain_a_aggregation_v1_parallel{args.client_concurrency}')
     if len(set(args.methods)) != len(args.methods) or len(set(args.gpus)) != len(args.gpus) or min(args.gpus) < 0:
         parser.error('Use distinct methods and distinct nonnegative GPU IDs')
     if args.num_workers < 0 or not 0 <= args.stop_after_round <= 100:
