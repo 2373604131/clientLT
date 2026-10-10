@@ -47,8 +47,8 @@ def expected_stages(job, completed):
     for rnd in rounds:
         for stage in ('ordinary_B', 'sample_weighted_B_counterfactual'):
             yield rnd, stage
-        if job['arm'] == 'ab':
-            if rnd in transfers:
+        if job['arm'] in ('ab', 'plain_a'):
+            if job['arm'] == 'ab' and rnd in transfers:
                 yield rnd, 'after_B_transfer'
             if rnd <= 90:
                 yield rnd, 'ordinary_A'
@@ -57,7 +57,7 @@ def expected_stages(job, completed):
 
 def audit_run(run, job, completed=100):
     run = Path(run)
-    if not 0 <= completed <= 100 or job['arm'] not in ARMS:
+    if not 0 <= completed <= 100 or job['arm'] not in (*ARMS, 'plain_a'):
         raise ValueError('Invalid run request')
     check_aggregation(job['aggregation'])
     if load_json(run / 'joint_job.json') != job:
@@ -132,13 +132,17 @@ def audit_run(run, job, completed=100):
     if prior['counts'] != matrix.sum(0).tolist() or not np.allclose(prior['prior'], matrix.sum(0) / matrix.sum(), rtol=0, atol=1e-12):
         raise ValueError('LA prior was changed with the aggregation weights')
     corrections = read_csv(run / 'sfra_rounds.csv')
-    if frozen and (corrections or progress['functional_correction_steps']):
-        raise ValueError('Frozen arm executed functional correction')
+    if job['arm'] in ('frozen', 'plain_a') and (corrections or progress['functional_correction_steps']):
+        raise ValueError('Frozen/plain-A arm executed functional correction')
+    if job['arm'] == 'plain_a' and (progress.get('b_transfer_events', 0)
+            or progress.get('b_transfer_optimizer_steps', 0)
+            or ((run / 'b_transfer_rounds.csv').is_file() and read_csv(run / 'b_transfer_rounds.csv'))):
+        raise ValueError('Plain A executed source B transfer')
     if frozen and (progress.get('b_transfer_events', 0) or progress.get('b_transfer_optimizer_steps', 0)
             or any(row.get('trainable_factor', 'B') != 'B' or int(row.get('a_optimizer_steps') or 0)
                    for row in budgets)):
         raise ValueError('Frozen arm executed A training or source B transfer')
-    if not frozen:
+    if job['arm'] == 'ab':
         if [int(r['round']) for r in corrections] != list(range(1, completed + 1)):
             raise ValueError('Missing A functional records')
         total = 0
@@ -163,7 +167,7 @@ def audit_run(run, job, completed=100):
     if [int(r['round']) for r in curves] != list(range(completed + 1)):
         raise ValueError('Missing/duplicate committed rounds')
     predictions, stages = {}, {}
-    initial_labels = initial_a = None
+    initial_labels = initial_a = last_a = None
     for rnd in range(completed + 1):
         sample = prediction(run / 'predictions' / f'r{rnd:03d}.npz')
         record = load_json(run / 'predictions' / f'r{rnd:03d}.json')
@@ -171,6 +175,9 @@ def audit_run(run, job, completed=100):
             initial_labels, initial_a = sample['class_id'], record['a_sha256']
         if not np.array_equal(sample['class_id'], initial_labels) or frozen and record['a_sha256'] != initial_a:
             raise ValueError('Test identities or frozen A changed')
+        if job['arm'] == 'plain_a' and rnd > 90 and record['a_sha256'] != last_a:
+            raise ValueError('Plain A changed after round 90')
+        last_a = record['a_sha256']
         actual = metrics_from_prediction(sample, groups)
         for metric in METRICS:
             if not math.isclose(actual[metric], float(curves[rnd][metric]), abs_tol=1e-8):
@@ -191,6 +198,10 @@ def audit_run(run, job, completed=100):
         if any(not math.isclose(actual[m], float(record[m]), abs_tol=1e-8) for m in METRICS):
             raise ValueError('Stage metadata differs from predictions')
         stages[rnd, stage] = sample
+        if job['arm'] == 'plain_a' and stage == ('ordinary_A' if rnd <= 90 else 'ordinary_B'):
+            committed = load_json(run / 'predictions' / f'r{rnd:03d}.json')
+            if any(not record.get(k) or record[k] != committed.get(k) for k in ('a_sha256', 'b_sha256')):
+                raise ValueError('Plain-A committed state differs from its ordinary phase')
     return dict(job=job, run=run, config=cfg, progress=progress, curves=curves,
         predictions=predictions, stages=stages, groups=groups, budgets=budgets,
         metadata=load_json(run / 'bridge_metadata.json'))
@@ -231,8 +242,9 @@ def stage_comparisons(result):
             pairs.append(('after_B_transfer', 'ordinary_B', 'B_shared_transfer'))
         if 'ordinary_A' in stages:
             pairs += [('ordinary_A', 'after_B_transfer' if 'after_B_transfer' in stages else 'ordinary_B', 'ordinary_A_learning'),
-                ('ordinary_A', 'sample_weighted_A_counterfactual', 'A_aggregation_same_local_updates'),
-                ('committed', 'ordinary_A', 'A_functional_correction')]
+                ('ordinary_A', 'sample_weighted_A_counterfactual', 'A_aggregation_same_local_updates')]
+            if result['job']['arm'] != 'plain_a':
+                pairs.append(('committed', 'ordinary_A', 'A_functional_correction'))
         for left, right, operation in pairs:
             a, b = stages[left], stages[right]
             for group, ids in result['groups'].items():

@@ -16,7 +16,7 @@ from scripts import run_cliplora_joint_aggregation as launcher
 from scripts.run_ab_validation import write_json
 from tools.client_aggregation.analysis import audit_run, expected_stages, metrics_from_prediction, prediction, sample_dynamics, stage_comparisons, summarize, pack_results
 from tools.client_aggregation.protocol import (CONTRACT, SCHEMA, aggregation_spec, check_aggregation,
-    count_matrix, digest, load_json, write_table, audit_runtime_config)
+    count_matrix, digest, load_json, write_table, audit_runtime_config, PLAIN_A_CONTRACT)
 from tools.sfra.maintext import FROZEN, PAIR_HASHES
 from tools.client_aggregation.runtime import runtime_class
 from tools.client_aggregation.weights import audit_weights, objective_gradient, solve_weights
@@ -211,14 +211,17 @@ class TestJointAggregation(unittest.TestCase):
     def audit_fixture(self, root, arm, rule='joint'):
         """Synthetic one-round artifact fixture, not model training or research evidence."""
         root=Path(root);root.mkdir(parents=True,exist_ok=True)
-        job=dict(schema=SCHEMA,arm=arm,mode='smoke',contract=CONTRACT,
+        job=dict(schema=SCHEMA,arm=arm,mode='smoke',contract=PLAIN_A_CONTRACT if arm=='plain_a' else CONTRACT,
             aggregation=aggregation_spec(REPO/'references/full10_clientlt',.1,rule))
         cls=runtime_class(job);rt=object.__new__(cls)
-        rt.root=root;rt.variant='s' if arm=='frozen' else 'full-cp'
+        rt.root=root;rt.variant='full-cp' if arm=='ab' else 's'
         sizes=job['aggregation']['counts']['sizes']
         rt.q={j:n/10847 for j,n in enumerate(sizes)}
         rt.config=dict(seed=42,protocol_seed=42,topology='client-longtail',la_tau=1.,
             aggregation='sample',normal_steps_expected=105600,extra_steps_expected=31680)
+        if arm=='plain_a':
+            rt.config.update(normal_trainable_factor='B', control_enabled=False,
+                a_lr_mult=1., extra_a_lr=.001, extra_weight_decay=0., normal_b_lr=.001)
         rt.sfra_config=dict(FROZEN,variant=rt.variant,base_training_config=rt.config)
         if arm=='ab':rt.sfra_config.update(classification_weight=1.,b_transfer=dict(CONTRACT['B'],mode='shared'))
         rt.audit=SimpleNamespace(counts=torch.tensor(job['aggregation']['matrix']),meta={})
@@ -232,11 +235,11 @@ class TestJointAggregation(unittest.TestCase):
         write_json(root/'class_prior.json',dict(counts=counts.tolist(),prior=(counts/counts.sum()).tolist(),tail_ids=list(range(80,100))))
         steps=sum((n+31)//32 for n in sizes)
         progress=dict(completed_round=1,official_test_passes=2,weights_sha256=job['aggregation']['weights_sha256'],
-            arm=arm,mode='smoke',normal_optimizer_steps=steps*3,extra_optimizer_steps=steps if arm=='ab' else 0,
+            arm=arm,mode='smoke',normal_optimizer_steps=steps*3,extra_optimizer_steps=0 if arm=='frozen' else steps,
             functional_correction_steps=3 if arm=='ab' else 0,b_transfer_events=1 if arm=='ab' else 0)
         write_json(root/'progress.json',progress)
         budget=[]
-        for factor,phase,epochs in ([('B','normal_B',3),('A','refresh_A',1)] if arm=='ab' else [('B','normal_B',3)]):
+        for factor,phase,epochs in ([('B','normal_B',3),('A','refresh_A',1)] if arm!='frozen' else [('B','normal_B',3)]):
             for j,n in enumerate(sizes):
                 budget.append(dict(round=1,phase=phase,client_id=j,optimizer_steps=epochs*((n+31)//32),sample_presentations=epochs*n))
             rt.phase_aggregation_weights(list(range(30)),1,factor,factor=='A')
@@ -254,13 +257,15 @@ class TestJointAggregation(unittest.TestCase):
         (root/'predictions').mkdir()
         for rnd in (0,1):
             np.savez_compressed(root/'predictions'/f'r{rnd:03d}.npz',**arrays)
-            write_json(root/'predictions'/f'r{rnd:03d}.json',dict(a_sha256='initial' if arm=='frozen' or rnd==0 else 'updated',**metrics))
+            write_json(root/'predictions'/f'r{rnd:03d}.json',dict(a_sha256='initial' if arm=='frozen' or rnd==0 else 'updated',
+                **(dict(b_sha256='synthetic_B') if arm=='plain_a' else {}), **metrics))
             write_table(root/f'per_class_accuracy_epoch_{rnd-1}.csv',[dict(class_id=c,per_class_acc=100.) for c in range(100)])
         write_table(root/'round_metrics.csv',[dict(round=rnd,**metrics) for rnd in (0,1)])
         for rnd,stage in expected_stages(job,1):
             folder=root/'stage_predictions'/stage;folder.mkdir(parents=True,exist_ok=True)
             np.savez_compressed(folder/f'r{rnd:03d}.npz',**arrays)
-            write_json(folder/f'r{rnd:03d}.json',metrics)
+            write_json(folder/f'r{rnd:03d}.json',dict(metrics,
+                **(dict(a_sha256='updated', b_sha256='synthetic_B') if arm=='plain_a' else {})))
         return job
 
     def test_tailrw16_uses_exact_historical_weights_without_convex_solver(self):

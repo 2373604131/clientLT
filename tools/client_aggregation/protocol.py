@@ -22,7 +22,8 @@ FILES = ('tools/client_aggregation/__init__.py', 'tools/client_aggregation/weigh
     'Dassl/dassl/optim/lr_scheduler.py', 'utils/cliplora_loss.py',
     'tools/client_aggregation/frozen_tailrw.py',
     'scripts/run_cliplora_frozen_aggregation.py', 'tools/client_aggregation/frozen_controls.py',
-    'tools/client_aggregation/numerics.py')
+    'tools/client_aggregation/numerics.py',
+    'scripts/run_cliplora_plain_a_aggregation.py', 'tools/client_aggregation/plain_a.py')
 CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='client-longtail',
     arms=list(ARMS), aggregation='KL(uniform || R.T @ w) + lambda/2 * chi_square(w || sample_weights)',
     scope='ordinary B aggregation every round; ordinary A aggregation when A is opened',
@@ -35,6 +36,33 @@ CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='clien
     diagnostics='read-only official test; never fed to optimizer, weights, history, gates, or checkpoint selection',
     diagnostics_rounds=list(DIAGNOSTIC_ROUNDS), lambda_policy='default0.1 is a fixed exploratory setting, not test-selected',
     unchanged='LA training prior, local loss, optimizer, source priority, CP sample weighting and B recipient objective')
+
+# Separate opt-in experiment; ARMS and the legacy two-arm default stay unchanged.
+PLAIN_A_CONTRACT = dict(schema=SCHEMA, experiment='plain_a_aggregation_v1', seed=42,
+    rounds=100, clients=30, arms=['plain_a'], partition='client-longtail',
+    phase_order='local B, aggregate B, local A, aggregate A, official evaluation',
+    B_rounds=list(range(1, 101)), B_epochs=3,
+    A_rounds=list(range(1, 91)), A_epochs=1, A_lr=.001, A_momentum=.9, A_weight_decay=0.,
+    A_optimizer='fresh SGD per client per phase; fixed lr; B frozen during A training',
+    final_rounds='91..100: B only, retain round90 A',
+    aggregation_scope='same static client weights for both B and A phases',
+    local_loss='unchanged global-count LA, tau=1',
+    normal_B_steps=105600, extra_A_steps=31680, total_local_steps=137280,
+    functional_correction=False, source_C_transfer=False, adaptive_A_schedule=False,
+    primary='rounds81..100 mean Overall; Head20/Middle60/Tail20 jointly',
+    diagnostics_rounds=list(DIAGNOSTIC_ROUNDS),
+    diagnostics='read-only test; no feedback, scheduling, weight fitting or checkpoint selection',
+    interpretation='aggregation-only contrast among three ordinary-A runs; not a budget-matched frozen-A contrast')
+
+
+def validate_arm(job):
+    if job['arm'] == 'plain_a':
+        if job.get('contract') != PLAIN_A_CONTRACT:
+            raise ValueError('Plain A requires its separate fixed-schedule contract')
+    elif job['arm'] not in ARMS:
+        raise ValueError('Unknown experiment arm: ' + str(job['arm']))
+    elif job['aggregation'].get('rule') in ('tailrw16', 'fedavg') and job['arm'] != 'frozen':
+        raise ValueError('Legacy aggregation controls only support permanently frozen A')
 
 
 def code_hashes(repo):
@@ -147,6 +175,7 @@ def client_execution_config(job):
 
 
 def audit_runtime_config(run, job):
+    validate_arm(job)
     cfg = load_json(Path(run) / 'sfra_config.json')
     expected_execution = client_execution_config(job)
     if (cfg.get('client_execution') != expected_execution
@@ -156,14 +185,15 @@ def audit_runtime_config(run, job):
         from tools.client_aggregation.numerics import verify_record
         verify_record(load_json(Path(run) / 'cuda_numerics.json'))
     frozen = job['arm'] == 'frozen'
-    if job['aggregation'].get('rule') in ('tailrw16', 'fedavg') and not frozen:
-        raise ValueError('Aggregation controls only support permanently frozen A')
+    plain = job['arm'] == 'plain_a'
     if cfg.get('joint_aggregation') != dict(schema=SCHEMA, arm=job['arm'], mode=job['mode'],
             lambda_value=job['aggregation']['lambda_value'], weights_sha256=job['aggregation']['weights_sha256']):
         raise ValueError('Runtime aggregation differs from registered job')
-    expected = dict(FROZEN, variant='s' if frozen else 'full-cp',
+    expected = dict(FROZEN, variant='s' if frozen or plain else 'full-cp',
         refresh_rounds=[] if frozen else list(range(1, 91)))
-    if not frozen:
+    if plain:
+        expected.update(retention_weight=0., correction_steps=0, commit_rule='ordinary_A_without_correction')
+    elif not frozen:
         expected['classification_weight'] = 1.
     for key, value in expected.items():
         if cfg.get(key) != value:
@@ -172,13 +202,17 @@ def audit_runtime_config(run, job):
     expected_base = dict(seed=42, protocol_seed=42, topology='client-longtail', la_tau=1.,
         aggregation=aggregation_name(job['aggregation']), normal_steps_expected=105600,
         extra_steps_expected=0 if frozen else 31680)
+    if plain:
+        expected_base.update(normal_trainable_factor='B', extra_trainable_factor='A',
+            candidate_rounds=list(range(1, 91)), control_enabled=False,
+            a_lr_mult=1., extra_a_lr=.001, extra_weight_decay=0., normal_b_lr=.001)
     for key, value in expected_base.items():
         if base.get(key) != value:
             raise ValueError('Base training mismatch: ' + key)
     transfer = cfg.get('b_transfer')
-    if frozen and transfer:
-        raise ValueError('Frozen arm must not execute B transfer')
-    if not frozen:
+    if (frozen or plain) and transfer:
+        raise ValueError('Frozen/plain-A arm must not execute B transfer')
+    if job['arm'] == 'ab':
         wanted = dict(CONTRACT['B'], rounds=[1] if job['mode'] == 'smoke' else list(B_ROUNDS), mode='shared')
         if not transfer or any(transfer.get(k) != v for k, v in wanted.items()):
             raise ValueError('Shared B does not match the frozen AB method')

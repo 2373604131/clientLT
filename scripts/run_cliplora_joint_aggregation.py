@@ -86,11 +86,12 @@ def register(args):
 
 
 def make_job(plan, arm, mode='formal'):
-    if plan['aggregation'].get('rule') in ('tailrw16', 'fedavg') and arm != 'frozen':
-        raise ValueError('Aggregation controls only run frozen A')
-    return dict(schema=SCHEMA, arm=arm, mode=mode, settings=plan['settings'], contract=plan['contract'],
+    from tools.client_aggregation.protocol import validate_arm
+    job = dict(schema=SCHEMA, arm=arm, mode=mode, settings=plan['settings'], contract=plan['contract'],
         aggregation=plan['aggregation'], code_sha256=plan['code_sha256'],
         run=('smoke' if mode == 'smoke' else 'runs') + '/seed42/' + arm)
+    validate_arm(job)
+    return job
 
 
 def preflight(plan, check_cuda=False):
@@ -124,8 +125,8 @@ def command_for(job, root, resume=False, stop_after=0):
     extra = ['--joint-spec', str(run / 'joint_job.json'), '--lac_method', 's',
         '--lac_partition_manifest', str(run / 'protocol/partition_source.csv'),
         '--lac_la_tau', '1', '--lac_a_lr_mult', '1',
-        '--sfra_variant', 's' if job['arm'] == 'frozen' else 'full-cp',
-        '--sfra_retention_weight', '10', '--sfra_classification_weight', '1',
+        '--sfra_variant', 'full-cp' if job['arm'] == 'ab' else 's',
+        '--sfra_retention_weight', '0' if job['arm'] == 'plain_a' else '10', '--sfra_classification_weight', '1',
         '--sfra_witness_batch_size', '8', '--sfra_fast_execution_v2',
         '--sfra_feedback_batch_size', '128', '--sfra_feedback_cache_gib', '4',
         '--sfra_resume', str(run / 'checkpoints/sfra_last.pt') if resume else '',

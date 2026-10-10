@@ -7,7 +7,7 @@ import torch
 
 from scripts.run_ab_validation import write_json
 from tools.client_aggregation.protocol import (SCHEMA, DIAGNOSTIC_ROUNDS, check_aggregation,
-    load_json, read_csv, partition_signature, write_table, write_weight_tables, aggregation_name)
+    load_json, read_csv, partition_signature, write_table, write_weight_tables, aggregation_name, validate_arm)
 from utils.cliplora_a_refresh import aggregate_refresh_deltas, append_rows, state_hash, train_only
 from utils.cliplora_functional_feedback import observational_model, snapshot
 from utils.cliplora_sfra import SFRARuntime
@@ -40,13 +40,15 @@ def runtime_class(job):
 
                 self.b_transfer.apply_shared = measured_transfer
             print('CLIENT AGGREGATION:', aggregation_name(job['aggregation']), job['arm'],
-                  '; frozen A has no refresh' if self.is_frozen else '; Full-CP + original shared C', flush=True)
+                  '; frozen A has no refresh' if self.is_frozen else
+                  '; ordinary A rounds1..90; no correction or transfer' if job['arm'] == 'plain_a' else
+                  '; Full-CP + original shared C', flush=True)
 
         def configure_experiment(self):
+            validate_arm(job)
             self.job = job
             self.is_frozen = job['arm'] == 'frozen'
-            if job['aggregation'].get('rule') in ('tailrw16', 'fedavg') and not self.is_frozen:
-                raise ValueError('Aggregation controls must keep A permanently frozen')
+            plain = job['arm'] == 'plain_a'
             self.joint_weights = dict(enumerate(job['aggregation']['weights']))
             check_aggregation(job['aggregation'])
             actual = self.audit.counts.cpu().numpy()
@@ -56,8 +58,8 @@ def runtime_class(job):
                 raise ValueError('Runtime sample allocation differs from the frozen partition')
             if self.sfra_config.get('b_aggregation'):
                 raise ValueError('Do not combine joint aggregation with other aggregation overrides')
-            if (self.variant != ('s' if self.is_frozen else 'full-cp')
-                    or bool(self.sfra_config.get('b_transfer')) == self.is_frozen):
+            if (self.variant != ('full-cp' if job['arm'] == 'ab' else 's')
+                    or bool(self.sfra_config.get('b_transfer')) != (job['arm'] == 'ab')):
                 raise ValueError('Wrong frozen/AB runtime variant')
             self.config['aggregation'] = aggregation_name(job['aggregation'])
             if self.is_frozen:
@@ -65,6 +67,12 @@ def runtime_class(job):
                 self.periodic = False
                 self.config.update(candidate_rounds=[], extra_trainable_factor=None, extra_steps_expected=0)
                 self.sfra_config['refresh_rounds'] = []
+            elif plain:
+                self.rounds = list(range(1, 91))
+                self.periodic = True
+                self.config.update(candidate_rounds=self.rounds, extra_trainable_factor='A', extra_steps_expected=31680)
+                self.sfra_config.update(refresh_rounds=self.rounds, retention_weight=0., correction_steps=0,
+                                        commit_rule='ordinary_A_without_correction')
             else:
                 transfer = self.sfra_config['b_transfer']
                 transfer.update(aggregation='ordinary_joint_class_weighted_B_then_one_shared_residual',
