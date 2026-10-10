@@ -34,6 +34,8 @@ def parse_args(argv=None):
     parser.add_argument('--num-workers', type=int, default=8)
     parser.add_argument('--client-concurrency', type=int, choices=(1, 4, 6), default=4,
                         help='Maximum independent clients on each experiment GPU; 1 retains serial training')
+    parser.add_argument('--cuda-policy', choices=('legacy', 'deterministic'), default='legacy',
+                        help='Original CUDA execution by default; deterministic is an explicit opt-in')
     parser.add_argument('--gpus', type=int, nargs=2, default=[2, 3], metavar=('FROZEN_GPU', 'AB_GPU'),
                         help='Physical GPU IDs for --stage server, mapped as frozen then ab')
     parser.add_argument('--stop-after-round', type=int, default=0, help='Pause a formal run at a committed round; rerun with 0 to continue')
@@ -56,7 +58,9 @@ def register(args):
     root = args.output_root.resolve()
     settings = dict(seed=42, lambda_value=args.aggregation_lambda,
         reference_run=str(args.reference_run.resolve()), data_root=str(args.data_root.resolve()),
-        num_workers=args.num_workers, client_concurrency=args.client_concurrency)
+        num_workers=args.num_workers, client_concurrency=args.client_concurrency, parallel_validation='off')
+    if args.cuda_policy != 'legacy':
+        settings['cuda_policy'] = args.cuda_policy
     contract = CONTRACT
     if args.aggregation_rule != 'joint':
         from tools.client_aggregation.frozen_tailrw import control_contract
@@ -175,7 +179,7 @@ def execute(job, root, stop_after=0):
             if completed != 1:
                 raise ValueError('Smoke did not commit exactly one round')
             write_json(run / 'smoke_complete.json', dict(schema=SCHEMA, completed_round=1,
-                note='Separate smoke trajectory; shared B is scheduled at round1 only; excluded from formal analysis'))
+                note='Separate one-round smoke; no serial/parallel comparison; excluded from formal analysis'))
         print('DONE', job['arm'], 'completed_round=' + str(completed), flush=True)
 
 
@@ -185,7 +189,7 @@ def server_commands(args, arm):
         '--aggregation-rule', args.aggregation_rule,
         '--reference-run', str(args.reference_run.resolve()), '--data-root', str(args.data_root.resolve()),
         '--output-root', str(args.output_root.resolve()), '--num-workers', str(args.num_workers),
-        '--client-concurrency', str(args.client_concurrency)]
+        '--client-concurrency', str(args.client_concurrency), '--cuda-policy', args.cuda_policy]
     return [common + ['--stage', 'smoke'],
             common + ['--stage', 'run', '--stop-after-round', str(args.stop_after_round)]]
 

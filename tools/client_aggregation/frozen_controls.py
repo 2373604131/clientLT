@@ -89,14 +89,14 @@ def summarize(root, compare_root):
         if pair.get('mismatches'):
             lines.append('  不匹配项：'+', '.join(pair['mismatches']))
         if pair['status'] == 'execution_differs':
-            lines.append('  训练预算与数据配置匹配，但历史新聚合为4并行、本次为6并行；保留此执行差异，不能当作完全相同执行设置或全程加速对照。')
+            lines.append('  训练预算与数据配置匹配，但并行数或CUDA数值策略不同（历史4并行、本次默认6并行）；保留此执行差异，不能当作完全相同执行设置或全程加速对照。')
         if pair.get('same_recorded_environment') is False:
             lines.append('  记录的软件或GPU环境不同，小幅精度差异及耗时须结合环境解读。')
     lines += ['', '运行状态：']
     lines += ['- '+r['method']+'：'+r['status']+'，round='+str(r['completed_round'])+' '+r['reason'] for r in statuses]
     lines += ['', 'sample_dynamics.csv 区分初始能力保持、新答对、逐轮遗忘与始终未答对；per_class.csv 保存每类结果。',
         'stage_effects.csv 是同状态同客户端更新的即时对照，不代替完整训练轨迹。',
-        'parallel_pilot.csv 是同批次串行/并行试跑；六并行不代表六倍加速。历史新聚合只读，未重新训练。',
+        '本版不做串行/并行数值对比或阈值拦截。parallel_pilot.csv 若有内容，仅来自历史对照；本版smoke只执行一轮正常训练。历史新聚合只读，未重新训练。',
         '历史E2额外训练过B，旧16倍实验训练过A，均不放入此表。',
         '新聚合参考目录：'+str(compare_root)]
     (out/'report.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')

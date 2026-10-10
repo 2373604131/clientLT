@@ -58,6 +58,8 @@ class TestFrozenControls(unittest.TestCase):
                 self.assertEqual(a['aggregation'][key], b['aggregation'][key])
             self.assertNotEqual(a['aggregation']['weights'], b['aggregation']['weights'])
             self.assertEqual(a['code_sha256'], b['code_sha256'])
+            self.assertEqual(a['settings']['parallel_validation'], 'off')
+            self.assertNotIn('cuda_policy', a['settings'])
             args.client_concurrency = 4
             with self.assertRaisesRegex(ValueError, 'changed'): suite.register(args)
 
@@ -94,17 +96,16 @@ class TestFrozenControls(unittest.TestCase):
                 client_audits=[dict(client_id=c, slot=c%6) for c in range(30)])
             path = root/'parallel_execution/r001_B.json'
             write_json(path, execution)
-            pilot = dict(passed=True, comparisons=[dict(close=True)]*8, short_comparisons=[dict(close=True)]*2,
-                parallel=dict(slots=6), short_group=dict(clients=2, slots=6))
-            write_json(root/'parallel_benchmark/factor_B.json', pilot)
+            # No parity-pilot file is needed for a successful one-round smoke.
             self.assertEqual(audit_run(root, job, 1)['progress']['extra_optimizer_steps'], 0)
             execution['client_audits'][0]['slot'] = 6
             write_json(path, execution)
             with self.assertRaisesRegex(ValueError, 'execution record'): audit_run(root, job, 1)
             execution['client_audits'][0]['slot'] = 0; write_json(path, execution)
-            pilot['comparisons'] = pilot['comparisons'][:6]
-            write_json(root/'parallel_benchmark/factor_B.json', pilot)
-            with self.assertRaisesRegex(ValueError, 'pilot'): audit_run(root, job, 1)
+            # Even a retained failure report cannot become a numerical acceptance gate.
+            write_json(root/'parallel_benchmark/factor_B.json', dict(passed=False,
+                comparisons=[dict(close=False, max_abs=7.840804755687714e-6)]))
+            self.assertEqual(audit_run(root, job, 1)['progress']['completed_round'], 1)
 
     def test_summary_matches_new_controls_and_labels_historical_execution_difference(self):
         with tempfile.TemporaryDirectory() as temp, patch('builtins.print'):

@@ -212,7 +212,9 @@ class TestParallelClients(unittest.TestCase):
                 return dict(ordinary, **{k:ordinary[k]+.2 for k in rt.b_keys})
             rt.b_transfer = SimpleNamespace(scheduled=lambda r: r==30, apply_shared=shared,
                 cache_updates=lambda d,s: cached.append((d,s)))
+            local_calls = []
             def local_run(state, clients, plans, factor):
+                local_calls.append((list(clients), factor))
                 keys = rt.a_keys if factor=='A' else rt.b_keys
                 results = {c:({k:state[k]+(c+1)*.001 for k in keys},
                     dict(optimizer_steps=len(plans[c]),sample_presentations=len(plans[c]),
@@ -239,6 +241,13 @@ class TestParallelClients(unittest.TestCase):
             for k in rt.b_keys:
                 self.assertTrue(torch.equal(after_A[k],committed[k]))
             self.assertEqual(len(rt.events),2)
+            # Smoke must perform exactly one ordinary phase; there is no benchmark method.
+            rt.job['mode'] = 'smoke'
+            rt.train_phase(after_A, 1, 'B')
+            self.assertEqual(len(local_calls), 3)
+            self.assertEqual(local_calls[-1], (rt.schedule[0], 'B'))
+            self.assertEqual(len(rt.budget), 90)
+            self.assertFalse((rt.root/'parallel_benchmark').exists())
 
 
 if __name__ == '__main__':

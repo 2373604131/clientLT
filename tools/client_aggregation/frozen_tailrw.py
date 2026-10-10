@@ -59,12 +59,12 @@ def paired_audit(tailrw, joint, allow_execution_difference=False):
         if tailrw['config'].get(key) != joint['config'].get(key):
             mismatches.append(key)
     if execution_differs:
-        # Only the registered queue width may differ in the historical comparison.
+        # Label changes in queue width/numerical policy as historical execution differences.
         comparable = (execution_a and execution_b
             and execution_a.get('max_concurrent_clients') in (4, 6)
             and execution_b.get('max_concurrent_clients') in (4, 6)
-            and {k:v for k,v in execution_a.items() if k != 'max_concurrent_clients'}
-                == {k:v for k,v in execution_b.items() if k != 'max_concurrent_clients'})
+            and {k:v for k,v in execution_a.items() if k not in ('max_concurrent_clients', 'cuda_numerics', 'parallel_validation')}
+                == {k:v for k,v in execution_b.items() if k not in ('max_concurrent_clients', 'cuda_numerics', 'parallel_validation')})
         if not allow_execution_difference or not comparable:
             mismatches.append('client_execution')
     for key in ('sample_id', 'class_id', 'prediction', 'correct'):
@@ -80,7 +80,7 @@ def paired_audit(tailrw, joint, allow_execution_difference=False):
         'tools/client_aggregation/analysis.py', 'tools/client_aggregation/frozen_tailrw.py',
         'scripts/run_cliplora_joint_aggregation.py', 'scripts/train_cliplora_joint_aggregation.py',
         'tools/client_aggregation/parallel.py', 'scripts/run_cliplora_frozen_aggregation.py',
-        'tools/client_aggregation/frozen_controls.py'}
+        'tools/client_aggregation/frozen_controls.py', 'tools/client_aggregation/numerics.py'}
     mismatches += ['code.'+k for k in code_differences if k not in extension_files]
     environment_keys = ('python', 'torch', 'cuda', 'cudnn', 'gpu')
     same_environment = all(tailrw['metadata'].get('environment', {}).get(k)
@@ -168,7 +168,7 @@ def summarize(root, compare_root=None):
         lines += ['', '预算、数据、初始预测和本地训练配置配对通过。'+label+'减新聚合：',
             ', '.join(f'{m}={v:+.4f} pp' for m,v in pair[rule+'_minus_joint'].items())+'。']
         if pair['status'] == 'execution_differs':
-            lines.append('执行并行数不同（4/6）：这里只作历史对照，不能视为完全相同执行条件的重复，也不能据此计算加速比。')
+            lines.append('并行数或CUDA数值策略不同：这里只作历史对照，不能视为完全相同执行条件的重复，也不能据此计算加速比。')
         if not pair['same_recorded_environment']:
             lines.append('两次记录的软硬件环境不同；小差异与耗时需谨慎解释。')
     else:

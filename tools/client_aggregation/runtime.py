@@ -18,6 +18,10 @@ from utils.sfra_math import require_finite
 def runtime_class(job):
     class JointAggregationRuntime(SFRARuntime):
         def __init__(self, *args, **kwargs):
+            from tools.client_aggregation.numerics import apply_policy, policy_for
+            # federated_main turns cuDNN benchmarking back on during setup.
+            # Restore our registered policy before runtime feedback/evaluation.
+            apply_policy(policy_for(job))
             super().__init__(*args, **kwargs)
             self.client_pool = None
             if job.get('settings', {}).get('client_concurrency', 1) > 1:
@@ -71,6 +75,9 @@ def runtime_class(job):
                 lambda_value=job['aggregation']['lambda_value'], weights_sha256=job['aggregation']['weights_sha256'])
             from tools.client_aggregation.protocol import client_execution_config
             self.sfra_config['client_execution'] = client_execution_config(job)
+            from tools.client_aggregation.numerics import policy_for, verify_active
+            if policy_for(job) == 'deterministic':
+                write_json(self.root / 'cuda_numerics.json', verify_active('deterministic'))
             write_json(self.root / 'client_execution.json', self.sfra_config['client_execution'])
             self.method = 'joint_' + job['arm']
             write_json(self.root / 'control_config.json', self.config)
@@ -101,6 +108,9 @@ def runtime_class(job):
 
         def train_phase(self, state, rnd, factor='B', extra=False, branch='main', candidate=0,
                         return_deltas=False):
+            from tools.client_aggregation.numerics import policy_for, verify_active
+            if policy_for(job) == 'deterministic':
+                verify_active('deterministic')
             if self.is_frozen and (factor != 'B' or extra):
                 raise ValueError('Frozen arm must never train A or execute extra local training')
             if getattr(self, 'client_pool', None) is not None:

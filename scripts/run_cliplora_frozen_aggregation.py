@@ -23,9 +23,10 @@ def parse_args(argv=None):
     parser.add_argument('--seed', type=int, choices=(42,), default=42)
     parser.add_argument('--gpus', nargs=2, type=int, default=[2, 3], metavar=('TAILRW_GPU', 'FEDAVG_GPU'))
     parser.add_argument('--client-concurrency', type=int, choices=(1, 4, 6), default=6)
+    parser.add_argument('--cuda-policy', choices=('legacy', 'deterministic'), default='legacy')
     parser.add_argument('--reference-run', type=Path, default=Path('references/full10_clientlt'))
     parser.add_argument('--data-root', type=Path, default=Path('DATA'))
-    parser.add_argument('--output-root', type=Path, default=Path('output/cifar100_LT/frozen_aggregation_controls_v1_parallel6'))
+    parser.add_argument('--output-root', type=Path, default=Path('output/cifar100_LT/frozen_aggregation_controls_v3_parallel6'))
     parser.add_argument('--compare-root', type=Path, default=Path('output/cifar100_LT/client_aggregation_v2_parallel4'),
                         help='Read-only historical joint frozen reference; never launched')
     parser.add_argument('--num-workers', type=int, default=8)
@@ -42,7 +43,7 @@ def child_options(args, rule):
     return ['--aggregation-rule', rule, '--arms', 'frozen', '--seed', str(args.seed),
         '--reference-run', str(args.reference_run.resolve()), '--data-root', str(args.data_root.resolve()),
         '--output-root', str(args.output_root.resolve()/rule), '--num-workers', str(args.num_workers),
-        '--client-concurrency', str(args.client_concurrency)]
+        '--client-concurrency', str(args.client_concurrency), '--cuda-policy', args.cuda_policy]
 
 
 def register(args):

@@ -16,9 +16,6 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, RandomSampler, default_collate
 
-from utils.cliplora_a_refresh import isolated_rng, state_hash
-
-
 EXECUTION = dict(version=1, backend='threads_with_private_cuda_streams',
     max_concurrent_clients=4, cpu_intraop_threads=1, dispatch='work_queue; no padding or duplicated clients',
     synchronization='all selected clients finish before one round aggregation',
@@ -126,11 +123,15 @@ def clone_models(model, keys, slots):
 
 
 def compare_states(left, right, atol=1e-6, rtol=1e-5):
+    """CPU test utility; never used as a training/smoke acceptance gate."""
     if left.keys() != right.keys():
         raise ValueError('Compared state keys differ')
-    return dict(close=all(torch.allclose(left[k], right[k], atol=atol, rtol=rtol) for k in left),
+    errors = {k: float((left[k].double()-right[k].double()).abs().max()) for k in left}
+    failing = [k for k in left if not torch.allclose(left[k], right[k], atol=atol, rtol=rtol)]
+    return dict(close=not failing,
         bitwise_equal=all(torch.equal(left[k], right[k]) for k in left),
-        max_abs=max(float((left[k].double()-right[k].double()).abs().max()) for k in left),
+        max_abs=max(errors.values()), worst_parameter=max(errors, key=errors.get),
+        failing_parameters={k:errors[k] for k in failing},
         atol=atol, rtol=rtol)
 
 
@@ -209,7 +210,7 @@ class LoRAClientPool:
     def run(self, state, clients, plans, factor, slots=None):
         slots = self.slots if slots is None else slots
         if slots not in (1, self.slots):
-            raise ValueError('Pilot execution must use one or the registered number of slots')
+            raise ValueError('Execution must use one or the registered number of slots')
         torch.cuda.synchronize(self.device)
         allocated_before = torch.cuda.memory_allocated(self.device)
         started = time.perf_counter()
@@ -235,37 +236,6 @@ class LoRAClientPool:
             process_peak_allocated_bytes=torch.cuda.max_memory_allocated(self.device),
             process_peak_reserved_bytes=torch.cuda.max_memory_reserved(self.device))
 
-    def benchmark(self, state, clients, plans, factor):
-        """Uncommitted same-batch pilot: slots+2 clients, then a two-client queue."""
-        chosen = list(clients[:self.slots+2])
-        with isolated_rng():
-            # Warm every stream before comparing serial and concurrent work.
-            warm = {c: [[plans[c][0][0]]] for c in chosen[:self.slots]}
-            self.run(state, chosen[:self.slots], warm, factor)
-            before = state_hash(self.runtime.trainer.model.state_dict(), self.keys)
-            serial, serial_cost = self.run(state, chosen, plans, factor, slots=1)
-            parallel, parallel_cost = self.run(state, chosen, plans, factor)
-            comparisons = [dict(client_id=c, **compare_states(serial[c][0], parallel[c][0])) for c in chosen]
-            # A two-client submission explicitly exercises the short final group.
-            short, short_cost = self.run(state, chosen[-2:], plans, factor)
-            short_comparisons = [dict(client_id=c, **compare_states(serial[c][0], short[c][0])) for c in chosen[-2:]]
-            if state_hash(self.runtime.trainer.model.state_dict(), self.keys) != before:
-                raise RuntimeError('Benchmark modified the server LoRA')
-            record = dict(factor=factor, clients=chosen, serial=serial_cost, parallel=parallel_cost,
-                short_group=short_cost, short_comparisons=short_comparisons,
-                speedup=serial_cost['seconds']/max(parallel_cost['seconds'], 1e-12), comparisons=comparisons,
-                passed=(all(r['close'] and serial[r['client_id']][1] == parallel[r['client_id']][1] for r in comparisons)
-                        and all(r['close'] and serial[r['client_id']][1] == short[r['client_id']][1] for r in short_comparisons)),
-                scope='one uncommitted pilot, same local batches/updates; excludes planning and server feedback; not a full-run speed claim')
-            from scripts.run_ab_validation import write_json
-            write_json(self.runtime.root/'parallel_benchmark'/('factor_'+factor+'.json'), record)
-            if not record['passed']:
-                raise ValueError('Serial/concurrent numerical comparison failed; see parallel_benchmark')
-            print(f'PARALLEL PILOT factor={factor} clients={len(chosen)} '
-                  f'speedup={record["speedup"]:.3f}x max_abs={max(r["max_abs"] for r in comparisons):.3g}', flush=True)
-            return record
-
-
 def parallel_phase(runtime, state, rnd, factor, extra, branch, candidate):
     """The same ordinary aggregation/bridge contract, after all client tasks."""
     from scripts.run_ab_validation import write_json
@@ -281,8 +251,7 @@ def parallel_phase(runtime, state, rnd, factor, extra, branch, candidate):
     started = time.perf_counter()
     pool = runtime.client_pool
     plans = plan_phase(pool.loaders, selected, factor, runtime.args.seed, rnd)
-    if runtime.job['mode'] == 'smoke' and rnd == 1:
-        pool.benchmark(state, selected, plans, factor)
+    # Smoke executes one ordinary round, with no serial/parallel comparison pilot.
     results, execution = pool.run(state, selected, plans, factor)
     keys = runtime.a_keys if factor == 'A' else runtime.b_keys
     local = {c: results[c][0] for c in selected}

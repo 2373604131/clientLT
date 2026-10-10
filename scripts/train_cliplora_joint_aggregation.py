@@ -1,5 +1,6 @@
 """Dedicated worker: patch only this process, never the legacy training source."""
 import argparse
+import json
 from pathlib import Path
 import runpy
 import sys
@@ -12,9 +13,14 @@ def main(argv=None):
     parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
     parser.add_argument('--joint-spec', type=Path, required=True)
     args, remaining = parser.parse_known_args(argv)
+    # Set the cuBLAS workspace before imports that could initialize CUDA.
+    job = json.loads(args.joint_spec.read_text(encoding='utf-8'))
+    from tools.client_aggregation.numerics import policy_for, prepare_environment, apply_policy
+    policy = policy_for(job)
+    prepare_environment(policy)
+    apply_policy(policy)
     from tools.client_aggregation.protocol import SCHEMA, code_hashes, load_json
     from tools.sfra.simple_controls import probe_manifest_replay
-    job = load_json(args.joint_spec)
     if job['schema'] != SCHEMA or job['code_sha256'] != code_hashes(REPO):
         raise ValueError('Worker specification/source mismatch')
     run = args.joint_spec.resolve().parent

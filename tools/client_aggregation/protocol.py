@@ -21,7 +21,8 @@ FILES = ('tools/client_aggregation/__init__.py', 'tools/client_aggregation/weigh
     'Dassl/dassl/data/samplers.py', 'Dassl/dassl/optim/optimizer.py',
     'Dassl/dassl/optim/lr_scheduler.py', 'utils/cliplora_loss.py',
     'tools/client_aggregation/frozen_tailrw.py',
-    'scripts/run_cliplora_frozen_aggregation.py', 'tools/client_aggregation/frozen_controls.py')
+    'scripts/run_cliplora_frozen_aggregation.py', 'tools/client_aggregation/frozen_controls.py',
+    'tools/client_aggregation/numerics.py')
 CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='client-longtail',
     arms=list(ARMS), aggregation='KL(uniform || R.T @ w) + lambda/2 * chi_square(w || sample_weights)',
     scope='ordinary B aggregation every round; ordinary A aggregation when A is opened',
@@ -129,13 +130,20 @@ def check_aggregation(spec):
 
 
 def client_execution_config(job):
+    from tools.client_aggregation.numerics import policy_for, DETERMINISTIC
     slots = job.get('settings', {}).get('client_concurrency', 1)
     if slots in (4, 6):
         from tools.client_aggregation.parallel import EXECUTION
-        return dict(EXECUTION, max_concurrent_clients=slots)
-    if slots != 1:
+        result = dict(EXECUTION, max_concurrent_clients=slots)
+    elif slots == 1:
+        result = dict(version=1, backend='original_serial', max_concurrent_clients=1)
+    else:
         raise ValueError('Only serial, four-client or six-client execution is supported')
-    return dict(version=1, backend='original_serial', max_concurrent_clients=1)
+    if policy_for(job) == 'deterministic':
+        result['cuda_numerics'] = dict(DETERMINISTIC)
+    if job.get('settings', {}).get('parallel_validation') == 'off':
+        result['parallel_validation'] = 'off'
+    return result
 
 
 def audit_runtime_config(run, job):
@@ -144,6 +152,9 @@ def audit_runtime_config(run, job):
     if (cfg.get('client_execution') != expected_execution
             or load_json(Path(run) / 'client_execution.json') != expected_execution):
         raise ValueError('Client execution mode differs from the registered experiment')
+    if 'cuda_numerics' in expected_execution:
+        from tools.client_aggregation.numerics import verify_record
+        verify_record(load_json(Path(run) / 'cuda_numerics.json'))
     frozen = job['arm'] == 'frozen'
     if job['aggregation'].get('rule') in ('tailrw16', 'fedavg') and not frozen:
         raise ValueError('Aggregation controls only support permanently frozen A')

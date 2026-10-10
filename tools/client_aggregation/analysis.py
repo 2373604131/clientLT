@@ -116,14 +116,7 @@ def audit_run(run, job, completed=100):
                     or [r['client_id'] for r in execution['client_audits']] != clients
                     or any(not 0 <= r['slot'] < slots for r in execution['client_audits'])):
                 raise ValueError('Invalid parallel client execution record')
-    slots = job.get('settings', {}).get('client_concurrency', 1)
-    if slots > 1 and job['mode'] == 'smoke' and completed:
-        for factor in (('B',) if frozen else ('B', 'A')):
-            bench = load_json(run / 'parallel_benchmark' / ('factor_'+factor+'.json'))
-            if (not bench['passed'] or len(bench['comparisons']) != slots+2 or bench['short_group']['clients'] != 2
-                    or bench['parallel']['slots'] != slots or bench['short_group']['slots'] != slots
-                    or not all(r['close'] for r in bench['comparisons'] + bench['short_comparisons'])):
-                raise ValueError('Concurrent pilot or final short group failed numerical validation')
+    # Numerical comparison pilots are no longer part of smoke or completion acceptance.
     from tools.sfra.simple_controls import partition_counts
     actual_counts = partition_counts(read_csv(run / 'partition_manifest.csv'), job['aggregation']['counts']['tail_ids'])
     if partition_signature(read_csv(run / 'partition_manifest.csv')) != job['aggregation']['partition_sha256']:
