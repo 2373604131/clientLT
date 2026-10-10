@@ -208,11 +208,11 @@ class TestJointAggregation(unittest.TestCase):
         row=next(r for r in effects if r['operation']=='B_aggregation_same_local_updates' and r['group']=='overall_acc')
         self.assertEqual((row['corrected_examples'],row['damaged_examples'],row['delta_accuracy']),(1,1,0))
 
-    def audit_fixture(self, root, arm):
+    def audit_fixture(self, root, arm, rule='joint'):
         """Synthetic one-round artifact fixture, not model training or research evidence."""
         root=Path(root);root.mkdir(parents=True,exist_ok=True)
         job=dict(schema=SCHEMA,arm=arm,mode='smoke',contract=CONTRACT,
-            aggregation=aggregation_spec(REPO/'references/full10_clientlt',.1))
+            aggregation=aggregation_spec(REPO/'references/full10_clientlt',.1,rule))
         cls=runtime_class(job);rt=object.__new__(cls)
         rt.root=root;rt.variant='s' if arm=='frozen' else 'full-cp'
         sizes=job['aggregation']['counts']['sizes']
@@ -262,6 +262,92 @@ class TestJointAggregation(unittest.TestCase):
             np.savez_compressed(folder/f'r{rnd:03d}.npz',**arrays)
             write_json(folder/f'r{rnd:03d}.json',metrics)
         return job
+
+    def test_tailrw16_uses_exact_historical_weights_without_convex_solver(self):
+        from tools.sfra.simple_controls import tail_weights
+        with patch('tools.client_aggregation.protocol.solve_weights', side_effect=AssertionError('must not solve')):
+            spec=aggregation_spec(REPO/'references/full10_clientlt',.1,'tailrw16')
+        expected=tail_weights(spec['counts']['sizes'],spec['counts']['tail_counts'],16.)
+        self.assertEqual(spec['weights'],expected)
+        self.assertIsNone(spec['lambda_value'])
+        self.assertAlmostEqual(sum(spec['weights']),1.)
+        self.assertTrue(all(w>0 for w in spec['weights']))
+        check_aggregation(spec)
+        broken=copy.deepcopy(spec)
+        broken['weights'][0]+=.001;broken['weights'][1]-=.001
+        broken['weights_sha256']=digest(broken['weights'])
+        with self.assertRaisesRegex(ValueError,'count formula'):check_aggregation(broken)
+
+    def test_tailrw16_launcher_runs_only_frozen_and_propagates_policy(self):
+        args=launcher.parse_args(['--aggregation-rule','tailrw16'])
+        self.assertEqual(args.arms,['frozen'])
+        self.assertEqual(args.output_root.name,'frozen_tailrw16_v1')
+        for cmd in launcher.server_commands(args,'frozen'):
+            self.assertEqual(cmd[cmd.index('--aggregation-rule')+1],'tailrw16')
+        with self.assertRaises(SystemExit),patch('sys.stderr'):
+            launcher.parse_args(['--aggregation-rule','tailrw16','--arms','ab'])
+        with tempfile.TemporaryDirectory() as temp:
+            args.output_root=Path(temp)
+            plan=launcher.register(args)
+            self.assertEqual(plan,launcher.register(args))
+            self.assertEqual(plan['contract']['arms'],['frozen'])
+            job=launcher.make_job(plan,'frozen')
+            cmd=launcher.command_for(job,temp)
+            self.assertNotIn('--b_transfer_enable',cmd)
+            self.assertEqual(cmd[cmd.index('--sfra_variant')+1],'s')
+            self.assertEqual(cmd[cmd.index('--cliplora_freeze_a')+1],'True')
+            with self.assertRaises(ValueError):launcher.make_job(plan,'ab')
+            args.aggregation_rule='joint'
+            with self.assertRaises(ValueError):launcher.register(args)
+
+    def test_tailrw16_runtime_and_pairing_reject_wrong_budgets(self):
+        from tools.client_aggregation.frozen_tailrw import paired_audit
+        with tempfile.TemporaryDirectory() as temp,patch('builtins.print'):
+            results=[]
+            for rule in ('tailrw16','joint'):
+                run=Path(temp)/rule
+                job=self.audit_fixture(run,'frozen',rule)
+                r=audit_run(run,job,1)
+                self.assertEqual(r['config']['refresh_rounds'],[])
+                self.assertEqual(r['config']['base_training_config']['extra_steps_expected'],0)
+                self.assertFalse(r['config'].get('b_transfer'))
+                r['metadata'].update({k:'synthetic-same' for k in PAIR_HASHES})
+                results.append(r)
+            self.assertEqual(paired_audit(*results)['status'],'eligible')
+            results[1]['progress']['normal_optimizer_steps']+=1
+            self.assertEqual(paired_audit(*results)['status'],'mismatch')
+            path=Path(temp)/'tailrw16/progress.json'
+            progress=load_json(path);progress['b_transfer_events']=1;write_json(path,progress)
+            with self.assertRaisesRegex(ValueError,'source B transfer'):
+                audit_run(Path(temp)/'tailrw16',results[0]['job'],1)
+
+    def test_tailrw16_summary_reports_single_run_and_read_only_pair(self):
+        from tools.client_aggregation.frozen_tailrw import summarize as summarize_tailrw
+        with tempfile.TemporaryDirectory() as temp,patch('builtins.print'):
+            roots={rule:Path(temp)/rule for rule in ('tailrw16','joint')}
+            results={}
+            for rule,root in roots.items():
+                run=root/'runs/seed42/frozen'
+                job=self.audit_fixture(run,'frozen',rule)
+                r=audit_run(run,job,1)
+                r['metadata'].update({k:'synthetic-same' for k in PAIR_HASHES})
+                r['predictions']={i:r['predictions'][0] for i in range(101)}
+                r['curves']=[dict(r['curves'][0],round=i) for i in range(101)]
+                r['progress'].update(completed_round=100,elapsed_seconds=1.,stage_diagnostic_seconds=0.)
+                write_json(run/'completion.json',r['progress'])
+                results[rule]=r
+            with patch('tools.client_aggregation.frozen_tailrw.load_frozen',side_effect=lambda root,rule:results[rule]):
+                rows=summarize_tailrw(roots['tailrw16'],roots['joint'])
+            self.assertEqual(len(rows),1)
+            self.assertEqual(rows[0]['status'],'complete')
+            pair=load_json(roots['tailrw16']/'analysis/pair_audit.json')
+            self.assertEqual(pair['status'],'eligible')
+            self.assertEqual(pair['tailrw16_minus_joint']['overall_acc'],0.)
+            self.assertFalse((roots['joint']/'analysis').exists())
+            report=(roots['tailrw16']/'analysis/report.md').read_text(encoding='utf-8')
+            self.assertIn('105600',report)
+            self.assertIn('tailrw16_frozen',report)
+            self.assertIn('joint_frozen',report)
 
     def test_runtime_configuration_and_complete_one_round_artifact_audit(self):
         with tempfile.TemporaryDirectory() as temp:

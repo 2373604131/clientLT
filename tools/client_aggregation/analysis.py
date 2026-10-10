@@ -138,6 +138,10 @@ def audit_run(run, job, completed=100):
     corrections = read_csv(run / 'sfra_rounds.csv')
     if frozen and (corrections or progress['functional_correction_steps']):
         raise ValueError('Frozen arm executed functional correction')
+    if frozen and (progress.get('b_transfer_events', 0) or progress.get('b_transfer_optimizer_steps', 0)
+            or any(row.get('trainable_factor', 'B') != 'B' or int(row.get('a_optimizer_steps') or 0)
+                   for row in budgets)):
+        raise ValueError('Frozen arm executed A training or source B transfer')
     if not frozen:
         if [int(r['round']) for r in corrections] != list(range(1, completed + 1)):
             raise ValueError('Missing A functional records')
@@ -247,10 +251,13 @@ def stage_comparisons(result):
     return rows
 
 
-def summarize(root):
+def summarize(root, compare_root=None):
     from scripts.run_cliplora_joint_aggregation import make_job
     root = Path(root)
     plan = load_json(root / 'experiment_plan.json')
+    if plan['aggregation'].get('rule') == 'tailrw16':
+        from tools.client_aggregation.frozen_tailrw import summarize as summarize_tailrw
+        return summarize_tailrw(root, compare_root)
     out = root / 'analysis'; out.mkdir(exist_ok=True)
     status, results, performance, costs, dynamics, stages, classes, cohorts = [], {}, [], [], [], [], [], []
     for arm in ARMS:

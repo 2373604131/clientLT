@@ -1,4 +1,4 @@
-"""Two seed42 trajectories: permanently frozen LoRA A versus the existing full A+B."""
+"""Seed42 joint aggregation experiments and the opt-in frozen-A TailRW16 control."""
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import os
@@ -20,12 +20,17 @@ from tools.client_aggregation.protocol import (ARMS, CONTRACT, SCHEMA, aggregati
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--stage', choices=('plan', 'preflight', 'smoke', 'run', 'server', 'status', 'summary', 'pack'), default='plan')
-    parser.add_argument('--arms', nargs='+', choices=ARMS, default=list(ARMS))
+    parser.add_argument('--arms', nargs='+', choices=ARMS)
+    parser.add_argument('--aggregation-rule', choices=('joint', 'tailrw16'), default='joint',
+                        help='tailrw16 is one additional run: frozen A, ordinary B only, historical gamma=16 weights')
     parser.add_argument('--seed', type=int, choices=(42,), default=42)
     parser.add_argument('--aggregation-lambda', type=float, default=.1)
     parser.add_argument('--reference-run', type=Path, default=Path('references/full10_clientlt'))
     parser.add_argument('--data-root', type=Path, default=Path('DATA'))
-    parser.add_argument('--output-root', type=Path, default=Path('output/cifar100_LT/client_aggregation_v2_parallel4'))
+    parser.add_argument('--output-root', type=Path,
+                        help='Defaults to a separate frozen_tailrw16_v1 directory for the tailrw16 rule')
+    parser.add_argument('--compare-root', type=Path,
+                        help='For TailRW16 status/summary/pack: completed joint-aggregation root; read-only')
     parser.add_argument('--num-workers', type=int, default=8)
     parser.add_argument('--client-concurrency', type=int, choices=(1, 4), default=4,
                         help='4 independent clients on each experiment GPU; 1 retains original serial training')
@@ -33,6 +38,13 @@ def parse_args(argv=None):
                         help='Physical GPU IDs for --stage server, mapped as frozen then ab')
     parser.add_argument('--stop-after-round', type=int, default=0, help='Pause a formal run at a committed round; rerun with 0 to continue')
     args = parser.parse_args(argv)
+    if args.arms is None:
+        args.arms = ['frozen'] if args.aggregation_rule == 'tailrw16' else list(ARMS)
+    if args.output_root is None:
+        args.output_root = Path('output/cifar100_LT/' + (
+            'frozen_tailrw16_v1' if args.aggregation_rule == 'tailrw16' else 'client_aggregation_v2_parallel4'))
+    if args.aggregation_rule == 'tailrw16' and (args.arms != ['frozen'] or args.aggregation_lambda != .1):
+        parser.error('TailRW16 supports only --arms frozen; --aggregation-lambda does not apply')
     if len(set(args.arms)) != len(args.arms) or args.num_workers < 0 or not 0 <= args.stop_after_round <= 100:
         parser.error('Duplicate arms, negative workers or invalid stopping round')
     if len(set(args.gpus)) != 2 or min(args.gpus) < 0:
@@ -45,26 +57,33 @@ def register(args):
     settings = dict(seed=42, lambda_value=args.aggregation_lambda,
         reference_run=str(args.reference_run.resolve()), data_root=str(args.data_root.resolve()),
         num_workers=args.num_workers, client_concurrency=args.client_concurrency)
+    contract = CONTRACT
+    if args.aggregation_rule == 'tailrw16':
+        from tools.client_aggregation.frozen_tailrw import CONTRACT as tailrw_contract
+        contract = tailrw_contract
+        settings.update(aggregation_rule='tailrw16', lambda_value=None)
     fingerprint, counts, matrix = count_matrix(args.reference_run)
     hashes = code_hashes(REPO)
     with file_lock(root / 'locks/plan.lock'):
         path = root / 'experiment_plan.json'
         if path.is_file():
             plan = load_json(path)
-            if (plan['contract'] != CONTRACT or plan['settings'] != settings or plan['code_sha256'] != hashes
+            if (plan['contract'] != contract or plan['settings'] != settings or plan['code_sha256'] != hashes
                     or plan['aggregation']['input_fingerprint'] != fingerprint
                     or plan['aggregation']['matrix_sha256'] != digest(matrix.tolist())):
                 raise ValueError('Registered inputs/settings/source changed. Use a new output root; existing runs are preserved.')
             check_aggregation(plan['aggregation'])
         else:
-            plan = dict(schema=SCHEMA, contract=CONTRACT, settings=settings, code_sha256=hashes,
-                aggregation=aggregation_spec(args.reference_run, args.aggregation_lambda))
+            plan = dict(schema=SCHEMA, contract=contract, settings=settings, code_sha256=hashes,
+                aggregation=aggregation_spec(args.reference_run, args.aggregation_lambda, args.aggregation_rule))
             write_json(path, plan)
             write_weight_tables(root, plan['aggregation'])
     return plan
 
 
 def make_job(plan, arm, mode='formal'):
+    if plan['aggregation'].get('rule') == 'tailrw16' and arm != 'frozen':
+        raise ValueError('TailRW16 supplement only runs frozen A')
     return dict(schema=SCHEMA, arm=arm, mode=mode, settings=plan['settings'], contract=plan['contract'],
         aggregation=plan['aggregation'], code_sha256=plan['code_sha256'],
         run=('smoke' if mode == 'smoke' else 'runs') + '/seed42/' + arm)
@@ -163,6 +182,7 @@ def execute(job, root, stop_after=0):
 def server_commands(args, arm):
     common = [sys.executable, '-u', str(REPO/'scripts/run_cliplora_joint_aggregation.py'),
         '--arms', arm, '--seed', '42', '--aggregation-lambda', str(args.aggregation_lambda),
+        '--aggregation-rule', args.aggregation_rule,
         '--reference-run', str(args.reference_run.resolve()), '--data-root', str(args.data_root.resolve()),
         '--output-root', str(args.output_root.resolve()), '--num-workers', str(args.num_workers),
         '--client-concurrency', str(args.client_concurrency)]
@@ -211,7 +231,7 @@ def main(argv=None):
     root = args.output_root.resolve()
     if args.stage in ('status', 'summary', 'pack'):
         from tools.client_aggregation.analysis import summarize, pack_results
-        statuses = summarize(root)
+        statuses = summarize(root, compare_root=args.compare_root)
         if args.stage == 'pack':
             print('Archive:', pack_results(root))
         pair = load_json(root / 'analysis/pair_audit.json')
@@ -219,11 +239,11 @@ def main(argv=None):
             raise ValueError('Invalid/mismatched results were excluded. See analysis/status.csv and pair_audit.json.')
         return
     plan = register(args)
-    print('Registered seed42, lambda=' + str(plan['settings']['lambda_value']), root, flush=True)
+    print('Registered seed42, rule=' + args.aggregation_rule, root, flush=True)
     if args.stage == 'plan':
         return
     preflight(plan, check_cuda=args.stage in ('smoke', 'run'))
-    print('File/configuration/convex-solver preflight passed. GPU execution has NOT been tested.', flush=True)
+    print('File/configuration/aggregation-weight preflight passed. GPU execution has NOT been tested.', flush=True)
     if args.stage == 'preflight':
         return
     if args.stage == 'server':

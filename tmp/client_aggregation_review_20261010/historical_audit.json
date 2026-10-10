@@ -1,0 +1,335 @@
+{
+  "old_AB": {
+    "path": "G:\\桌面\\CAPT\\output\\ab_decision_42_0_3407_analysis\\ab_decision_42_0_3407\\runs\\ab\\seed42\\client-longtail\\full-cp\\lambda10_mu1_protocol42_bshared_b_lr0.3_probe0.1_reg0.001_ntclass-cyclic_tw0.35_fast_v2_f128_c4",
+    "hashes": {
+      "pool_sha256": true,
+      "test_sha256": true,
+      "schedule_sha256": true,
+      "frozen_model_sha256": true,
+      "initial_lora_sha256": true,
+      "probe_images_sha256": true,
+      "probe_manifest_sha256": true
+    },
+    "partition_matches": true,
+    "environment_old": {
+      "python": "3.10.20",
+      "torch": "2.12.0+cu126",
+      "cuda": "12.6",
+      "cudnn": 91002,
+      "visible_devices": "3",
+      "gpu": "NVIDIA GeForce RTX 3090"
+    },
+    "environment_new": {
+      "python": "3.10.20",
+      "torch": "2.12.0+cu126",
+      "cuda": "12.6",
+      "cudnn": 91002,
+      "visible_devices": "3",
+      "gpu": "NVIDIA GeForce RTX 3090"
+    },
+    "same_recorded_environment": true,
+    "control_config_differences": {
+      "aggregation": [
+        "sample_weighted_factor_fedavg",
+        "joint_class_distribution_client_weights"
+      ]
+    },
+    "budget_records": 5700,
+    "sfra_top_level_difference_keys": [
+      "b_transfer",
+      "base_training_config",
+      "client_execution",
+      "joint_aggregation"
+    ],
+    "note": "Same data, initialization, schedule, training budget and recorded environment. New run also changes execution from serial to four concurrent clients and adds observational stage tests. Pilot numerical equivalence is not full-trajectory equivalence."
+  },
+  "old_A": {
+    "path": "G:\\桌面\\CAPT\\output\\ab_decision_42_0_3407_analysis\\ab_decision_42_0_3407\\runs\\a\\seed42\\client-longtail\\full-cp\\lambda10_mu1_protocol42_fast_v2_f128_c4",
+    "hashes": {
+      "pool_sha256": true,
+      "test_sha256": true,
+      "schedule_sha256": true,
+      "frozen_model_sha256": true,
+      "initial_lora_sha256": true,
+      "probe_images_sha256": true,
+      "probe_manifest_sha256": true
+    },
+    "partition_matches": true,
+    "environment_old": {
+      "python": "3.10.20",
+      "torch": "2.12.0+cu126",
+      "cuda": "12.6",
+      "cudnn": 91002,
+      "visible_devices": "0",
+      "gpu": "NVIDIA GeForce RTX 3090"
+    },
+    "environment_new": {
+      "python": "3.10.20",
+      "torch": "2.12.0+cu126",
+      "cuda": "12.6",
+      "cudnn": 91002,
+      "visible_devices": "3",
+      "gpu": "NVIDIA GeForce RTX 3090"
+    },
+    "same_recorded_environment": true,
+    "control_config_differences": {
+      "aggregation": [
+        "sample_weighted_factor_fedavg",
+        "joint_class_distribution_client_weights"
+      ]
+    },
+    "budget_records": 5700
+  },
+  "old_S": {
+    "path": "G:\\桌面\\CAPT\\output\\ab_decision_42_0_3407_analysis\\ab_decision_42_0_3407\\runs\\s\\seed42\\client-longtail\\s\\baseline_protocol42_fast_v2_f128_c4",
+    "hashes": {
+      "pool_sha256": true,
+      "test_sha256": true,
+      "schedule_sha256": true,
+      "frozen_model_sha256": true,
+      "initial_lora_sha256": true,
+      "probe_images_sha256": true,
+      "probe_manifest_sha256": true
+    },
+    "partition_matches": true,
+    "environment_old": {
+      "python": "3.10.20",
+      "torch": "2.12.0+cu126",
+      "cuda": "12.6",
+      "cudnn": 91002,
+      "visible_devices": "0",
+      "gpu": "NVIDIA GeForce RTX 3090"
+    },
+    "environment_new": {
+      "python": "3.10.20",
+      "torch": "2.12.0+cu126",
+      "cuda": "12.6",
+      "cudnn": 91002,
+      "visible_devices": "3",
+      "gpu": "NVIDIA GeForce RTX 3090"
+    },
+    "same_recorded_environment": true,
+    "control_config_differences": {
+      "aggregation": [
+        "sample_weighted_factor_fedavg",
+        "joint_class_distribution_client_weights"
+      ]
+    },
+    "budget_records": 5700
+  },
+  "old_E2_extraB": {
+    "path": "G:\\桌面\\CAPT\\output\\la_control_analysis\\la_control\\seed42\\client-longtail\\e2\\tau1_a1_protocol42",
+    "hashes": {
+      "pool_sha256": true,
+      "test_sha256": true,
+      "schedule_sha256": true,
+      "frozen_model_sha256": true,
+      "initial_lora_sha256": true,
+      "probe_images_sha256": true,
+      "probe_manifest_sha256": true
+    },
+    "partition_matches": true,
+    "environment_old": {
+      "python": "3.10.20",
+      "torch": "2.6.0+cu118",
+      "cuda": "11.8",
+      "cudnn": 90100,
+      "visible_devices": "0",
+      "gpu": "NVIDIA GeForce RTX 4090"
+    },
+    "environment_new": {
+      "python": "3.10.20",
+      "torch": "2.12.0+cu126",
+      "cuda": "12.6",
+      "cudnn": 91002,
+      "visible_devices": "2",
+      "gpu": "NVIDIA GeForce RTX 3090"
+    },
+    "same_recorded_environment": false,
+    "control_config_differences": {
+      "aggregation": [
+        null,
+        "joint_class_distribution_client_weights"
+      ],
+      "normal_b_weight_decay": [
+        null,
+        0.0005
+      ],
+      "method": [
+        "e2",
+        "s"
+      ],
+      "control_enabled": [
+        null,
+        false
+      ],
+      "middle_ids": [
+        null,
+        [
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79
+        ]
+      ],
+      "normal_b_lr": [
+        null,
+        0.001
+      ],
+      "extra_steps_expected": [
+        3168,
+        0
+      ],
+      "dirichlet_beta": [
+        null,
+        0.5
+      ],
+      "head_ids": [
+        null,
+        [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ]
+      ],
+      "normal_trainable_factor": [
+        null,
+        "B"
+      ],
+      "extra_weight_decay": [
+        null,
+        0.0
+      ],
+      "candidate_rounds": [
+        [
+          10,
+          20,
+          30,
+          40,
+          50,
+          60,
+          70,
+          80,
+          90
+        ],
+        []
+      ],
+      "steps_per_epoch": [
+        null,
+        352
+      ]
+    },
+    "budget_records": 3270,
+    "note": "E2 freezes A but adds 9 extra B epochs (3168 optimizer steps); new frozen arm has no extra B. Not an aggregation-only comparison."
+  },
+  "old_tailrw_g16": {
+    "path": "G:\\桌面\\CAPT\\output\\method_a_simple_controls_v1_probe_fix_results\\method_a_simple_controls_v1_probe_fix\\runs\\seed42\\tailrw-g16",
+    "hashes": {
+      "pool_sha256": true,
+      "test_sha256": true,
+      "schedule_sha256": true,
+      "frozen_model_sha256": true,
+      "initial_lora_sha256": true,
+      "probe_images_sha256": true,
+      "probe_manifest_sha256": true
+    },
+    "partition_matches": true,
+    "environment_old": {
+      "python": "3.10.20",
+      "torch": "2.6.0+cu118",
+      "cuda": "11.8",
+      "cudnn": 90100,
+      "visible_devices": "0",
+      "gpu": "NVIDIA GeForce RTX 4090"
+    },
+    "environment_new": {
+      "python": "3.10.20",
+      "torch": "2.12.0+cu126",
+      "cuda": "12.6",
+      "cudnn": 91002,
+      "visible_devices": "3",
+      "gpu": "NVIDIA GeForce RTX 3090"
+    },
+    "same_recorded_environment": false,
+    "control_config_differences": {
+      "aggregation": [
+        "sample_weighted_factor_fedavg",
+        "joint_class_distribution_client_weights"
+      ]
+    },
+    "budget_records": 5700
+  }
+}

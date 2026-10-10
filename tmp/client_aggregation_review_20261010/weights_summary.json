@@ -1,0 +1,30 @@
+{
+  "tail_clients": [
+    27,
+    28,
+    29
+  ],
+  "tail_client_old_mass": 0.011984880612150825,
+  "tail_client_new_mass": 0.11462927688669407,
+  "near_zero_clients": [
+    5,
+    6
+  ],
+  "proxy_masses": {
+    "head20_acc": {
+      "sample_mixture": 0.6133493131741495,
+      "joint_mixture": 0.5168523323509049,
+      "target": 0.2
+    },
+    "middle60_acc": {
+      "sample_mixture": 0.3725454042592422,
+      "joint_mixture": 0.37531310914371024,
+      "target": 0.6
+    },
+    "bottom20_tail_acc": {
+      "sample_mixture": 0.014105282566608278,
+      "joint_mixture": 0.10783455850538483,
+      "target": 0.2
+    }
+  }
+}

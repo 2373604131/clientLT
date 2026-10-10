@@ -1,0 +1,651 @@
+diff --git a/scripts/run_cliplora_joint_aggregation.py b/scripts/run_cliplora_joint_aggregation.py
+index 6fc512f..cca335c 100644
+--- a/scripts/run_cliplora_joint_aggregation.py
++++ b/scripts/run_cliplora_joint_aggregation.py
+@@ -1,4 +1,4 @@
+-"""Two seed42 trajectories: permanently frozen LoRA A versus the existing full A+B."""
++"""Seed42 joint aggregation experiments and the opt-in frozen-A TailRW16 control."""
+ import argparse
+ from concurrent.futures import ThreadPoolExecutor
+ import os
+@@ -20,12 +20,17 @@ from tools.client_aggregation.protocol import (ARMS, CONTRACT, SCHEMA, aggregati
+ def parse_args(argv=None):
+     parser = argparse.ArgumentParser(description=__doc__)
+     parser.add_argument('--stage', choices=('plan', 'preflight', 'smoke', 'run', 'server', 'status', 'summary', 'pack'), default='plan')
+-    parser.add_argument('--arms', nargs='+', choices=ARMS, default=list(ARMS))
++    parser.add_argument('--arms', nargs='+', choices=ARMS)
++    parser.add_argument('--aggregation-rule', choices=('joint', 'tailrw16'), default='joint',
++                        help='tailrw16 is one additional run: frozen A, ordinary B only, historical gamma=16 weights')
+     parser.add_argument('--seed', type=int, choices=(42,), default=42)
+     parser.add_argument('--aggregation-lambda', type=float, default=.1)
+     parser.add_argument('--reference-run', type=Path, default=Path('references/full10_clientlt'))
+     parser.add_argument('--data-root', type=Path, default=Path('DATA'))
+-    parser.add_argument('--output-root', type=Path, default=Path('output/cifar100_LT/client_aggregation_v2_parallel4'))
++    parser.add_argument('--output-root', type=Path,
++                        help='Defaults to a separate frozen_tailrw16_v1 directory for the tailrw16 rule')
++    parser.add_argument('--compare-root', type=Path,
++                        help='For TailRW16 status/summary/pack: completed joint-aggregation root; read-only')
+     parser.add_argument('--num-workers', type=int, default=8)
+     parser.add_argument('--client-concurrency', type=int, choices=(1, 4), default=4,
+                         help='4 independent clients on each experiment GPU; 1 retains original serial training')
+@@ -33,6 +38,13 @@ def parse_args(argv=None):
+                         help='Physical GPU IDs for --stage server, mapped as frozen then ab')
+     parser.add_argument('--stop-after-round', type=int, default=0, help='Pause a formal run at a committed round; rerun with 0 to continue')
+     args = parser.parse_args(argv)
++    if args.arms is None:
++        args.arms = ['frozen'] if args.aggregation_rule == 'tailrw16' else list(ARMS)
++    if args.output_root is None:
++        args.output_root = Path('output/cifar100_LT/' + (
++            'frozen_tailrw16_v1' if args.aggregation_rule == 'tailrw16' else 'client_aggregation_v2_parallel4'))
++    if args.aggregation_rule == 'tailrw16' and (args.arms != ['frozen'] or args.aggregation_lambda != .1):
++        parser.error('TailRW16 supports only --arms frozen; --aggregation-lambda does not apply')
+     if len(set(args.arms)) != len(args.arms) or args.num_workers < 0 or not 0 <= args.stop_after_round <= 100:
+         parser.error('Duplicate arms, negative workers or invalid stopping round')
+     if len(set(args.gpus)) != 2 or min(args.gpus) < 0:
+@@ -45,26 +57,33 @@ def register(args):
+     settings = dict(seed=42, lambda_value=args.aggregation_lambda,
+         reference_run=str(args.reference_run.resolve()), data_root=str(args.data_root.resolve()),
+         num_workers=args.num_workers, client_concurrency=args.client_concurrency)
++    contract = CONTRACT
++    if args.aggregation_rule == 'tailrw16':
++        from tools.client_aggregation.frozen_tailrw import CONTRACT as tailrw_contract
++        contract = tailrw_contract
++        settings.update(aggregation_rule='tailrw16', lambda_value=None)
+     fingerprint, counts, matrix = count_matrix(args.reference_run)
+     hashes = code_hashes(REPO)
+     with file_lock(root / 'locks/plan.lock'):
+         path = root / 'experiment_plan.json'
+         if path.is_file():
+             plan = load_json(path)
+-            if (plan['contract'] != CONTRACT or plan['settings'] != settings or plan['code_sha256'] != hashes
++            if (plan['contract'] != contract or plan['settings'] != settings or plan['code_sha256'] != hashes
+                     or plan['aggregation']['input_fingerprint'] != fingerprint
+                     or plan['aggregation']['matrix_sha256'] != digest(matrix.tolist())):
+                 raise ValueError('Registered inputs/settings/source changed. Use a new output root; existing runs are preserved.')
+             check_aggregation(plan['aggregation'])
+         else:
+-            plan = dict(schema=SCHEMA, contract=CONTRACT, settings=settings, code_sha256=hashes,
+-                aggregation=aggregation_spec(args.reference_run, args.aggregation_lambda))
++            plan = dict(schema=SCHEMA, contract=contract, settings=settings, code_sha256=hashes,
++                aggregation=aggregation_spec(args.reference_run, args.aggregation_lambda, args.aggregation_rule))
+             write_json(path, plan)
+             write_weight_tables(root, plan['aggregation'])
+     return plan
+ 
+ 
+ def make_job(plan, arm, mode='formal'):
++    if plan['aggregation'].get('rule') == 'tailrw16' and arm != 'frozen':
++        raise ValueError('TailRW16 supplement only runs frozen A')
+     return dict(schema=SCHEMA, arm=arm, mode=mode, settings=plan['settings'], contract=plan['contract'],
+         aggregation=plan['aggregation'], code_sha256=plan['code_sha256'],
+         run=('smoke' if mode == 'smoke' else 'runs') + '/seed42/' + arm)
+@@ -163,6 +182,7 @@ def execute(job, root, stop_after=0):
+ def server_commands(args, arm):
+     common = [sys.executable, '-u', str(REPO/'scripts/run_cliplora_joint_aggregation.py'),
+         '--arms', arm, '--seed', '42', '--aggregation-lambda', str(args.aggregation_lambda),
++        '--aggregation-rule', args.aggregation_rule,
+         '--reference-run', str(args.reference_run.resolve()), '--data-root', str(args.data_root.resolve()),
+         '--output-root', str(args.output_root.resolve()), '--num-workers', str(args.num_workers),
+         '--client-concurrency', str(args.client_concurrency)]
+@@ -211,7 +231,7 @@ def main(argv=None):
+     root = args.output_root.resolve()
+     if args.stage in ('status', 'summary', 'pack'):
+         from tools.client_aggregation.analysis import summarize, pack_results
+-        statuses = summarize(root)
++        statuses = summarize(root, compare_root=args.compare_root)
+         if args.stage == 'pack':
+             print('Archive:', pack_results(root))
+         pair = load_json(root / 'analysis/pair_audit.json')
+@@ -219,11 +239,11 @@ def main(argv=None):
+             raise ValueError('Invalid/mismatched results were excluded. See analysis/status.csv and pair_audit.json.')
+         return
+     plan = register(args)
+-    print('Registered seed42, lambda=' + str(plan['settings']['lambda_value']), root, flush=True)
++    print('Registered seed42, rule=' + args.aggregation_rule, root, flush=True)
+     if args.stage == 'plan':
+         return
+     preflight(plan, check_cuda=args.stage in ('smoke', 'run'))
+-    print('File/configuration/convex-solver preflight passed. GPU execution has NOT been tested.', flush=True)
++    print('File/configuration/aggregation-weight preflight passed. GPU execution has NOT been tested.', flush=True)
+     if args.stage == 'preflight':
+         return
+     if args.stage == 'server':
+diff --git a/tests/test_joint_aggregation.py b/tests/test_joint_aggregation.py
+index c517367..45cfe36 100644
+--- a/tests/test_joint_aggregation.py
++++ b/tests/test_joint_aggregation.py
+@@ -208,11 +208,11 @@ class TestJointAggregation(unittest.TestCase):
+         row=next(r for r in effects if r['operation']=='B_aggregation_same_local_updates' and r['group']=='overall_acc')
+         self.assertEqual((row['corrected_examples'],row['damaged_examples'],row['delta_accuracy']),(1,1,0))
+ 
+-    def audit_fixture(self, root, arm):
++    def audit_fixture(self, root, arm, rule='joint'):
+         """Synthetic one-round artifact fixture, not model training or research evidence."""
+         root=Path(root);root.mkdir(parents=True,exist_ok=True)
+         job=dict(schema=SCHEMA,arm=arm,mode='smoke',contract=CONTRACT,
+-            aggregation=aggregation_spec(REPO/'references/full10_clientlt',.1))
++            aggregation=aggregation_spec(REPO/'references/full10_clientlt',.1,rule))
+         cls=runtime_class(job);rt=object.__new__(cls)
+         rt.root=root;rt.variant='s' if arm=='frozen' else 'full-cp'
+         sizes=job['aggregation']['counts']['sizes']
+@@ -263,6 +263,92 @@ class TestJointAggregation(unittest.TestCase):
+             write_json(folder/f'r{rnd:03d}.json',metrics)
+         return job
+ 
++    def test_tailrw16_uses_exact_historical_weights_without_convex_solver(self):
++        from tools.sfra.simple_controls import tail_weights
++        with patch('tools.client_aggregation.protocol.solve_weights', side_effect=AssertionError('must not solve')):
++            spec=aggregation_spec(REPO/'references/full10_clientlt',.1,'tailrw16')
++        expected=tail_weights(spec['counts']['sizes'],spec['counts']['tail_counts'],16.)
++        self.assertEqual(spec['weights'],expected)
++        self.assertIsNone(spec['lambda_value'])
++        self.assertAlmostEqual(sum(spec['weights']),1.)
++        self.assertTrue(all(w>0 for w in spec['weights']))
++        check_aggregation(spec)
++        broken=copy.deepcopy(spec)
++        broken['weights'][0]+=.001;broken['weights'][1]-=.001
++        broken['weights_sha256']=digest(broken['weights'])
++        with self.assertRaisesRegex(ValueError,'count formula'):check_aggregation(broken)
++
++    def test_tailrw16_launcher_runs_only_frozen_and_propagates_policy(self):
++        args=launcher.parse_args(['--aggregation-rule','tailrw16'])
++        self.assertEqual(args.arms,['frozen'])
++        self.assertEqual(args.output_root.name,'frozen_tailrw16_v1')
++        for cmd in launcher.server_commands(args,'frozen'):
++            self.assertEqual(cmd[cmd.index('--aggregation-rule')+1],'tailrw16')
++        with self.assertRaises(SystemExit),patch('sys.stderr'):
++            launcher.parse_args(['--aggregation-rule','tailrw16','--arms','ab'])
++        with tempfile.TemporaryDirectory() as temp:
++            args.output_root=Path(temp)
++            plan=launcher.register(args)
++            self.assertEqual(plan,launcher.register(args))
++            self.assertEqual(plan['contract']['arms'],['frozen'])
++            job=launcher.make_job(plan,'frozen')
++            cmd=launcher.command_for(job,temp)
++            self.assertNotIn('--b_transfer_enable',cmd)
++            self.assertEqual(cmd[cmd.index('--sfra_variant')+1],'s')
++            self.assertEqual(cmd[cmd.index('--cliplora_freeze_a')+1],'True')
++            with self.assertRaises(ValueError):launcher.make_job(plan,'ab')
++            args.aggregation_rule='joint'
++            with self.assertRaises(ValueError):launcher.register(args)
++
++    def test_tailrw16_runtime_and_pairing_reject_wrong_budgets(self):
++        from tools.client_aggregation.frozen_tailrw import paired_audit
++        with tempfile.TemporaryDirectory() as temp,patch('builtins.print'):
++            results=[]
++            for rule in ('tailrw16','joint'):
++                run=Path(temp)/rule
++                job=self.audit_fixture(run,'frozen',rule)
++                r=audit_run(run,job,1)
++                self.assertEqual(r['config']['refresh_rounds'],[])
++                self.assertEqual(r['config']['base_training_config']['extra_steps_expected'],0)
++                self.assertFalse(r['config'].get('b_transfer'))
++                r['metadata'].update({k:'synthetic-same' for k in PAIR_HASHES})
++                results.append(r)
++            self.assertEqual(paired_audit(*results)['status'],'eligible')
++            results[1]['progress']['normal_optimizer_steps']+=1
++            self.assertEqual(paired_audit(*results)['status'],'mismatch')
++            path=Path(temp)/'tailrw16/progress.json'
++            progress=load_json(path);progress['b_transfer_events']=1;write_json(path,progress)
++            with self.assertRaisesRegex(ValueError,'source B transfer'):
++                audit_run(Path(temp)/'tailrw16',results[0]['job'],1)
++
++    def test_tailrw16_summary_reports_single_run_and_read_only_pair(self):
++        from tools.client_aggregation.frozen_tailrw import summarize as summarize_tailrw
++        with tempfile.TemporaryDirectory() as temp,patch('builtins.print'):
++            roots={rule:Path(temp)/rule for rule in ('tailrw16','joint')}
++            results={}
++            for rule,root in roots.items():
++                run=root/'runs/seed42/frozen'
++                job=self.audit_fixture(run,'frozen',rule)
++                r=audit_run(run,job,1)
++                r['metadata'].update({k:'synthetic-same' for k in PAIR_HASHES})
++                r['predictions']={i:r['predictions'][0] for i in range(101)}
++                r['curves']=[dict(r['curves'][0],round=i) for i in range(101)]
++                r['progress'].update(completed_round=100,elapsed_seconds=1.,stage_diagnostic_seconds=0.)
++                write_json(run/'completion.json',r['progress'])
++                results[rule]=r
++            with patch('tools.client_aggregation.frozen_tailrw.load_frozen',side_effect=lambda root,rule:results[rule]):
++                rows=summarize_tailrw(roots['tailrw16'],roots['joint'])
++            self.assertEqual(len(rows),1)
++            self.assertEqual(rows[0]['status'],'complete')
++            pair=load_json(roots['tailrw16']/'analysis/pair_audit.json')
++            self.assertEqual(pair['status'],'eligible')
++            self.assertEqual(pair['tailrw16_minus_joint']['overall_acc'],0.)
++            self.assertFalse((roots['joint']/'analysis').exists())
++            report=(roots['tailrw16']/'analysis/report.md').read_text(encoding='utf-8')
++            self.assertIn('105600',report)
++            self.assertIn('tailrw16_frozen',report)
++            self.assertIn('joint_frozen',report)
++
+     def test_runtime_configuration_and_complete_one_round_artifact_audit(self):
+         with tempfile.TemporaryDirectory() as temp:
+             for arm in ('frozen','ab'):
+diff --git a/tools/client_aggregation/analysis.py b/tools/client_aggregation/analysis.py
+index f47d1d5..94b5f4b 100644
+--- a/tools/client_aggregation/analysis.py
++++ b/tools/client_aggregation/analysis.py
+@@ -138,6 +138,10 @@ def audit_run(run, job, completed=100):
+     corrections = read_csv(run / 'sfra_rounds.csv')
+     if frozen and (corrections or progress['functional_correction_steps']):
+         raise ValueError('Frozen arm executed functional correction')
++    if frozen and (progress.get('b_transfer_events', 0) or progress.get('b_transfer_optimizer_steps', 0)
++            or any(row.get('trainable_factor', 'B') != 'B' or int(row.get('a_optimizer_steps') or 0)
++                   for row in budgets)):
++        raise ValueError('Frozen arm executed A training or source B transfer')
+     if not frozen:
+         if [int(r['round']) for r in corrections] != list(range(1, completed + 1)):
+             raise ValueError('Missing A functional records')
+@@ -247,10 +251,13 @@ def stage_comparisons(result):
+     return rows
+ 
+ 
+-def summarize(root):
++def summarize(root, compare_root=None):
+     from scripts.run_cliplora_joint_aggregation import make_job
+     root = Path(root)
+     plan = load_json(root / 'experiment_plan.json')
++    if plan['aggregation'].get('rule') == 'tailrw16':
++        from tools.client_aggregation.frozen_tailrw import summarize as summarize_tailrw
++        return summarize_tailrw(root, compare_root)
+     out = root / 'analysis'; out.mkdir(exist_ok=True)
+     status, results, performance, costs, dynamics, stages, classes, cohorts = [], {}, [], [], [], [], [], []
+     for arm in ARMS:
+diff --git a/tools/client_aggregation/protocol.py b/tools/client_aggregation/protocol.py
+index c08c58a..fa746e0 100644
+--- a/tools/client_aggregation/protocol.py
++++ b/tools/client_aggregation/protocol.py
+@@ -5,7 +5,7 @@ import numpy as np
+ 
+ from tools.sfra.maintext import FROZEN, PAIR_HASHES, digest, load_json
+ from tools.sfra.ab_validation import code_hashes as ab_code_hashes
+-from tools.sfra.simple_controls import protocol_info, read_csv, write_table
++from tools.sfra.simple_controls import protocol_info, read_csv, write_table, tail_weights
+ from tools.client_aggregation.weights import audit_weights, solve_weights
+ 
+ SCHEMA = 'joint_client_aggregation_v1'
+@@ -19,7 +19,8 @@ FILES = ('tools/client_aggregation/__init__.py', 'tools/client_aggregation/weigh
+     'scripts/train_cliplora_joint_aggregation.py', 'tools/sfra/simple_controls.py',
+     'scripts/run_method_a_simple_controls.py', 'Dassl/dassl/data/data_manager.py',
+     'Dassl/dassl/data/samplers.py', 'Dassl/dassl/optim/optimizer.py',
+-    'Dassl/dassl/optim/lr_scheduler.py', 'utils/cliplora_loss.py')
++    'Dassl/dassl/optim/lr_scheduler.py', 'utils/cliplora_loss.py',
++    'tools/client_aggregation/frozen_tailrw.py')
+ CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='client-longtail',
+     arms=list(ARMS), aggregation='KL(uniform || R.T @ w) + lambda/2 * chi_square(w || sample_weights)',
+     scope='ordinary B aggregation every round; ordinary A aggregation when A is opened',
+@@ -54,19 +55,56 @@ def partition_signature(rows):
+     return digest(sorted(tuple(int(row[k]) for k in ('client_id', 'local_position', 'raw_sample_id', 'class_id')) for row in rows))
+ 
+ 
+-def aggregation_spec(reference, strength):
++def aggregation_name(spec):
++    rule = spec.get('rule', 'joint')
++    if rule == 'joint':
++        return 'joint_class_distribution_client_weights'
++    if rule == 'tailrw16':
++        return 'tail_count_reweighted_clients_gamma16'
++    raise ValueError('Unknown aggregation rule: ' + str(rule))
++
++
++def tailrw_statistics(matrix, tail_ids):
++    """Exactly the historical gamma=16 rule, derived from training counts only."""
++    from tools.client_aggregation.weights import problem
++    q, local, target = problem(matrix, 1.)  # Validate counts; no convex optimization.
++    matrix = np.asarray(matrix)
++    if (len(tail_ids) != 20 or len(set(tail_ids)) != 20
++            or any(not isinstance(c, int) or c < 0 or c >= matrix.shape[1] for c in tail_ids)):
++        raise ValueError('TailRW16 requires 20 distinct valid training-defined tail classes')
++    weights = tail_weights(matrix.sum(1).tolist(), matrix[:, tail_ids].sum(1).tolist(), 16.)
++    return dict(weights=weights, sample_weights=q.tolist(), mixture=(local.T @ weights).tolist(),
++        target=target.tolist(), gamma=16., solver='closed-form historical TailRW gamma16',
++        formula='(n_j + 16*n_j_tail)/(N + 16*N_tail)')
++
++
++def aggregation_spec(reference, strength, rule='joint'):
+     fingerprint, counts, matrix = count_matrix(reference)
+-    solution = solve_weights(matrix, strength)
++    if rule not in ('joint', 'tailrw16'):
++        raise ValueError('Unknown aggregation rule: ' + str(rule))
++    solution = (solve_weights(matrix, strength) if rule == 'joint'
++                else tailrw_statistics(matrix, counts['tail_ids']))
+     weights = solution['weights']
+-    return dict(input_fingerprint=fingerprint, counts=counts, matrix=matrix.tolist(),
++    spec = dict(input_fingerprint=fingerprint, counts=counts, matrix=matrix.tolist(),
+         partition_sha256=partition_signature(read_csv(Path(reference) / 'partition_manifest.csv')),
+-        lambda_value=strength, weights=weights, weights_sha256=digest(weights),
++        lambda_value=strength if rule == 'joint' else None, weights=weights, weights_sha256=digest(weights),
+         matrix_sha256=digest(matrix.tolist()), solver=solution)
++    if rule == 'tailrw16':
++        spec.update(rule=rule, gamma=16.)
++    return spec
+ 
+ 
+ def check_aggregation(spec):
+     if digest(spec['weights']) != spec['weights_sha256'] or digest(spec['matrix']) != spec['matrix_sha256']:
+         raise ValueError('Frozen weights/counts digest mismatch')
++    aggregation_name(spec)  # Reject unrecognized policies, including in archived jobs.
++    if spec.get('rule') == 'tailrw16':
++        expected = tailrw_statistics(spec['matrix'], spec['counts']['tail_ids'])
++        if (spec.get('gamma') != 16. or spec['lambda_value'] is not None
++                or np.asarray(spec['weights']).shape != np.asarray(expected['weights']).shape
++                or not np.allclose(spec['weights'], expected['weights'], rtol=0, atol=1e-12)):
++            raise ValueError('TailRW16 weights differ from the historical count formula')
++        return expected
+     return audit_weights(spec['weights'], spec['matrix'], spec['lambda_value'])
+ 
+ 
+@@ -87,6 +125,8 @@ def audit_runtime_config(run, job):
+             or load_json(Path(run) / 'client_execution.json') != expected_execution):
+         raise ValueError('Client execution mode differs from the registered experiment')
+     frozen = job['arm'] == 'frozen'
++    if job['aggregation'].get('rule') == 'tailrw16' and not frozen:
++        raise ValueError('TailRW16 supplement only supports permanently frozen A')
+     if cfg.get('joint_aggregation') != dict(schema=SCHEMA, arm=job['arm'], mode=job['mode'],
+             lambda_value=job['aggregation']['lambda_value'], weights_sha256=job['aggregation']['weights_sha256']):
+         raise ValueError('Runtime aggregation differs from registered job')
+@@ -99,7 +139,7 @@ def audit_runtime_config(run, job):
+             raise ValueError('A runtime configuration mismatch: ' + key)
+     base = cfg['base_training_config']
+     expected_base = dict(seed=42, protocol_seed=42, topology='client-longtail', la_tau=1.,
+-        aggregation='joint_class_distribution_client_weights', normal_steps_expected=105600,
++        aggregation=aggregation_name(job['aggregation']), normal_steps_expected=105600,
+         extra_steps_expected=0 if frozen else 31680)
+     for key, value in expected_base.items():
+         if base.get(key) != value:
+diff --git a/tools/client_aggregation/runtime.py b/tools/client_aggregation/runtime.py
+index 65b0934..02db74a 100644
+--- a/tools/client_aggregation/runtime.py
++++ b/tools/client_aggregation/runtime.py
+@@ -7,7 +7,7 @@ import torch
+ 
+ from scripts.run_ab_validation import write_json
+ from tools.client_aggregation.protocol import (SCHEMA, DIAGNOSTIC_ROUNDS, check_aggregation,
+-    load_json, read_csv, partition_signature, write_table, write_weight_tables)
++    load_json, read_csv, partition_signature, write_table, write_weight_tables, aggregation_name)
+ from utils.cliplora_a_refresh import aggregate_refresh_deltas, append_rows, state_hash, train_only
+ from utils.cliplora_functional_feedback import observational_model, snapshot
+ from utils.cliplora_sfra import SFRARuntime
+@@ -35,12 +35,14 @@ def runtime_class(job):
+                     return result
+ 
+                 self.b_transfer.apply_shared = measured_transfer
+-            print('JOINT AGGREGATION:', job['arm'], 'lambda=', job['aggregation']['lambda_value'],
++            print('CLIENT AGGREGATION:', aggregation_name(job['aggregation']), job['arm'],
+                   '; frozen A has no refresh' if self.is_frozen else '; Full-CP + original shared C', flush=True)
+ 
+         def configure_experiment(self):
+             self.job = job
+             self.is_frozen = job['arm'] == 'frozen'
++            if job['aggregation'].get('rule') == 'tailrw16' and not self.is_frozen:
++                raise ValueError('TailRW16 supplement must keep A permanently frozen')
+             self.joint_weights = dict(enumerate(job['aggregation']['weights']))
+             check_aggregation(job['aggregation'])
+             actual = self.audit.counts.cpu().numpy()
+@@ -53,7 +55,7 @@ def runtime_class(job):
+             if (self.variant != ('s' if self.is_frozen else 'full-cp')
+                     or bool(self.sfra_config.get('b_transfer')) == self.is_frozen):
+                 raise ValueError('Wrong frozen/AB runtime variant')
+-            self.config['aggregation'] = 'joint_class_distribution_client_weights'
++            self.config['aggregation'] = aggregation_name(job['aggregation'])
+             if self.is_frozen:
+                 self.rounds = []
+                 self.periodic = False
+diff --git a/tools/client_aggregation/frozen_tailrw.py b/tools/client_aggregation/frozen_tailrw.py
+new file mode 100644
+--- /dev/null
++++ b/tools/client_aggregation/frozen_tailrw.py
+@@ -0,0 +1,150 @@
++"""One frozen-A TailRW16 supplement and a read-only comparison to the joint frozen arm."""
++from pathlib import Path
++import statistics
++
++import numpy as np
++
++from scripts.run_ab_validation import write_json
++from tools.client_aggregation.protocol import (
++    SCHEMA, DIAGNOSTIC_ROUNDS, PAIR_HASHES, load_json, read_csv, write_table)
++
++CONTRACT = dict(schema=SCHEMA, experiment='frozen_tailrw16_v1', seed=42, rounds=100,
++    clients=30, partition='client-longtail', arms=['frozen'],
++    aggregation='(n_j + 16*n_j_tail)/(N + 16*N_tail)', gamma=16.,
++    scope='ordinary B only, rounds1..100; initial LoRA A fixed throughout',
++    normal_B_epochs=3, extra_B_epochs=0, extra_A_epochs=0, functional_correction=False,
++    source_C_transfer=False, local_loss='unchanged global LA, tau=1',
++    optimizer_steps=105600, primary='committed rounds81..100; report Overall/Head20/Middle60/Tail20',
++    diagnostics_rounds=list(DIAGNOSTIC_ROUNDS),
++    diagnostics='read-only official test; no feedback, model selection, or weight optimization',
++    comparison='existing joint-aggregation frozen arm only; do not substitute E2 or TailRW with A training',
++    selection='gamma16 requested as a fixed control; no new parameter sweep')
++
++
++def load_frozen(root, required_rule):
++    """Audit a completed run without writing anything under its experiment root."""
++    from scripts.run_cliplora_joint_aggregation import make_job
++    from tools.client_aggregation.analysis import audit_run
++    root = Path(root)
++    plan = load_json(root / 'experiment_plan.json')
++    if plan['aggregation'].get('rule', 'joint') != required_rule:
++        raise ValueError('Wrong aggregation policy in comparison: ' + str(root))
++    job = make_job(plan, 'frozen')
++    return audit_run(root / job['run'], job)
++
++
++def paired_audit(tailrw, joint):
++    """Same data, initialization, ordinary training, budget and execution; only weights differ."""
++    mismatches = [k for k in PAIR_HASHES if tailrw['metadata'][k] != joint['metadata'][k]]
++    a, b = tailrw['config']['base_training_config'], joint['config']['base_training_config']
++    mismatches += ['base.'+k for k in set(a) | set(b) if k != 'aggregation' and a.get(k) != b.get(k)]
++    for key in ('counts', 'matrix_sha256', 'partition_sha256'):
++        if tailrw['job']['aggregation'][key] != joint['job']['aggregation'][key]:
++            mismatches.append('aggregation.'+key)
++    for key in ('client_execution', 'variant', 'refresh_rounds'):
++        if tailrw['config'].get(key) != joint['config'].get(key):
++            mismatches.append(key)
++    for key in ('sample_id', 'class_id', 'prediction', 'correct'):
++        if not np.array_equal(tailrw['predictions'][0][key], joint['predictions'][0][key]):
++            mismatches.append('initial.'+key)
++    for key in ('normal_optimizer_steps', 'extra_optimizer_steps', 'functional_correction_steps'):
++        if tailrw['progress'][key] != joint['progress'][key]:
++            mismatches.append('budget.'+key)
++    # Both arms use the same local training code; the opt-in orchestration/weight branch changed.
++    codes = [x['job'].get('code_sha256', {}) for x in (tailrw, joint)]
++    code_differences = sorted(k for k in set(codes[0]) | set(codes[1]) if codes[0].get(k) != codes[1].get(k))
++    extension_files = {'tools/client_aggregation/protocol.py', 'tools/client_aggregation/runtime.py',
++        'tools/client_aggregation/analysis.py', 'tools/client_aggregation/frozen_tailrw.py',
++        'scripts/run_cliplora_joint_aggregation.py'}
++    mismatches += ['code.'+k for k in code_differences if k not in extension_files]
++    environment_keys = ('python', 'torch', 'cuda', 'cudnn', 'gpu')
++    same_environment = all(tailrw['metadata'].get('environment', {}).get(k)
++        == joint['metadata'].get('environment', {}).get(k) for k in environment_keys)
++    return dict(status='mismatch' if mismatches else 'eligible', mismatches=mismatches,
++        budget_matched=not any(x.startswith('budget.') for x in mismatches),
++        same_recorded_environment=same_environment, source_differences=code_differences,
++        independent_seeds=1, contrast='frozen TailRW16 minus frozen joint aggregation')
++
++
++def summarize(root, compare_root=None):
++    from tools.client_aggregation.analysis import METRICS, sample_dynamics, stage_comparisons
++    root = Path(root).resolve()
++    compare_root = Path(compare_root).resolve() if compare_root else root.parent / 'client_aggregation_v2_parallel4'
++    out = root / 'analysis'
++    out.mkdir(parents=True, exist_ok=True)
++    run = root / 'runs/seed42/frozen'
++    status = dict(arm='frozen', status='missing', completed_round=0, reason='')
++    if (run / 'progress.json').is_file():
++        status.update(status='incomplete', completed_round=load_json(run / 'progress.json')['completed_round'])
++    result = None
++    if (run / 'completion.json').is_file():
++        try:
++            result = load_frozen(root, 'tailrw16')
++            status.update(status='complete', completed_round=100)
++        except (ValueError, OSError, KeyError, TypeError, AssertionError) as error:
++            status.update(status='invalid', reason=str(error))
++    results = {'tailrw16_frozen': result} if result else {}
++    pair = dict(status='unavailable', comparison_root=str(compare_root),
++                reason='TailRW16 or the joint frozen reference is not complete')
++    if result and (compare_root / 'runs/seed42/frozen/completion.json').is_file():
++        try:
++            reference = load_frozen(compare_root, 'joint')
++            pair = dict(paired_audit(result, reference), comparison_root=str(compare_root))
++            results['joint_frozen'] = reference
++        except (ValueError, OSError, KeyError, TypeError, AssertionError) as error:
++            pair.update(status='mismatch', reason=str(error))
++
++    performance, dynamics, stages, curves, costs, pilots = [], [], [], [], [], []
++    for name, r in results.items():
++        window = [row for row in r['curves'] if 81 <= int(row['round']) <= 100]
++        perf = dict(method=name, seed=42, **{'last20_'+m: statistics.mean(float(x[m]) for x in window) for m in METRICS})
++        tail = [float(x['bottom20_tail_acc']) for x in r['curves']]
++        perf.update(final_tail=tail[-1], tail_peak_to_final=max(tail)-tail[-1], tail_change_90_to_100=tail[100]-tail[90])
++        performance.append(perf)
++        dynamics.extend(dict(row, method=name) for row in sample_dynamics(r))
++        stages.extend(dict(row, method=name) for row in stage_comparisons(r))
++        curves.extend(dict(row, method=name) for row in r['curves'])
++        done = r['progress']
++        costs.append(dict(method=name, normal_B_steps=done['normal_optimizer_steps'],
++            extra_steps=done['extra_optimizer_steps'], correction_steps=done['functional_correction_steps'],
++            transfer_steps=done.get('b_transfer_optimizer_steps', 0), elapsed_seconds=done['elapsed_seconds'],
++            stage_test_seconds=done['stage_diagnostic_seconds'],
++            local_images=sum(int(x['sample_presentations']) for x in r['budgets'])))
++    if pair['status'] == 'eligible':
++        p = {row['method']: row for row in performance}
++        pair['tailrw16_minus_joint'] = {m:p['tailrw16_frozen']['last20_'+m]-p['joint_frozen']['last20_'+m] for m in METRICS}
++    for path in (root / 'smoke/seed42/frozen/parallel_benchmark').glob('factor_*.json'):
++        pilot = load_json(path)
++        pilots.append(dict(factor=pilot['factor'], passed=pilot['passed'], speedup=pilot['speedup'],
++            short_group_clients=pilot['short_group']['clients'],
++            max_parameter_error=max(x['max_abs'] for x in pilot['comparisons']+pilot['short_comparisons'])))
++    for name, rows in dict(status=[status], performance=performance, sample_dynamics=dynamics,
++            stage_effects=stages, curves=curves, costs=costs, parallel_pilot=pilots).items():
++        write_table(out / (name+'.csv'), rows)
++    write_json(out / 'pair_audit.json', pair)
++    lines = ['# 冻结 LoRA A：16倍加权补充实验', '',
++        '全程只训练 B；100轮，每轮每客户端3个epoch，105600步；无额外B训练、无A训练、无保持修正、无来源C。',
++        '权重沿用历史公式 (n_j + 16*n_j_tail)/(N + 16*N_tail)。LA、划分、初始化、客户端日程不变。',
++        '固定终点为第81—100轮均值，只有seed42；不作跨种子显著性结论。', '',
++        '| 方案 | Overall | Head20 | Middle60 | Tail20 |', '|---|---:|---:|---:|---:|']
++    for row in performance:
++        lines.append('| '+row['method']+' | '+' | '.join(f'{row["last20_"+m]:.4f}' for m in METRICS[:4])+' |')
++    lines += ['', '运行状态：'+status['status']+'，round='+str(status['completed_round'])+'。']
++    if status['reason']:
++        lines.append('审计失败：'+status['reason'])
++    if pair['status'] == 'eligible':
++        lines += ['', '预算、数据、初始预测和训练设置配对通过。16倍加权减新聚合：',
++            ', '.join(f'{m}={v:+.4f} pp' for m,v in pair['tailrw16_minus_joint'].items())+'。']
++        if not pair['same_recorded_environment']:
++            lines.append('两次记录的软硬件环境不同；小差异与耗时需谨慎解释。')
++    else:
++        lines += ['', '暂不输出配对结论：'+str(pair.get('reason') or pair.get('mismatches')),
++            '新聚合结果目录：'+str(compare_root)+'；可用 --compare-root 指定实际目录。']
++    lines += ['', '旧TailRW16训练过A，旧E2额外训练过B，均不自动放入这个聚合单因素对照。',
++        'stage_effects.csv 保留同状态同本地更新下与FedAvg的即时对照，它不是FedAvg完整训练轨迹。',
++        'sample_dynamics.csv 区分初始能力保持、新增答对和曾答对后再次答错。',
++        '耗时包含测试、诊断与I/O；局部并行试跑的速度比不等于全程加速比。']
++    (out / 'report.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
++    print('frozen', status['status'], 'round='+str(status['completed_round']), status['reason'])
++    print('Report:', out / 'report.md')
++    return [status]
+diff --git a/docs/frozen_tailrw16_seed42.md b/docs/frozen_tailrw16_seed42.md
+new file mode 100644
+--- /dev/null
++++ b/docs/frozen_tailrw16_seed42.md
+@@ -0,0 +1,98 @@
++# 冻结 LoRA A 的16倍加权补充实验
++
++本次只增加一个 seed42 的100轮正式实验：全程冻结初始 LoRA A，只训练 B。它补齐之前 `tailrw-g16` 没有覆盖的条件，不包含保持修正、来源 C 或额外 A/B 训练。
++
++| 设置 | 本次 TailRW16 | 已完成的新聚合 frozen |
++|---|---|---|
++| A | 全程固定初始化 | 全程固定初始化 |
++| B 本地训练 | 每轮每客户端3个epoch | 相同 |
++| 训练轮数、参与客户端 | 100轮、每轮30个 | 相同 |
++| 本地优化步数 | 105600 | 相同 |
++| 损失、LA | 原损失，原始全局计数先验，tau=1 | 相同 |
++| 更新 A / 保持修正 / 来源 C | 全部关闭 | 全部关闭 |
++| 客户端并行 | 单GPU最多4个，剩余1—3个也可运行 | 相同 |
++| 聚合 | 原 TailRW gamma=16 公式 | 类别分布凸优化，lambda=0.1 |
++
++权重严格沿用历史实现：
++
++\[
++w_j=\frac{n_j+16n_{j,\mathrm{tail}}}{N+16N_{\mathrm{tail}}}.
++\]
++
++这里的“16倍”是历史实验 gamma=16 的名称，包含原本的 n_j 基础项；不是把持有尾类的客户端整份权重统一乘16，也不修改本地损失。Tail20由训练计数确定。
++
++**启动**
++
++先把本次代码变更同步到服务器仓库根目录 `/data/yzh/clientLT`。本地实现没有自动推送到远端。若通过提供的补丁压缩包同步，在仓库根目录解压；它只含本次代码、测试和说明，不含数据或实验结果。
++
++配置检查，不启动训练：
++
++```bash
++conda activate clientLT
++python scripts/run_cliplora_joint_aggregation.py --stage preflight --aggregation-rule tailrw16
++```
++
++直接在服务器GPU2上完成一次 smoke，再自动运行完整实验：
++
++```bash
++python scripts/run_cliplora_joint_aggregation.py --stage server --aggregation-rule tailrw16 --gpus 2 3 --client-concurrency 4
++```
++
++TailRW16模式只允许 `frozen` 分支，GPU3不会启动任务。`server` 不是单纯检查：其smoke成功后会继续跑100轮正式实验。默认独立输出目录为：
++
++```text
++output/cifar100_LT/frozen_tailrw16_v1
++```
++
++如果只想做GPU smoke，不启动正式训练：
++
++```bash
++CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=2 python scripts/run_cliplora_joint_aggregation.py --stage smoke --aggregation-rule tailrw16
++```
++
++中断后重新执行同一条server命令即可从最后提交轮次恢复，已完成并通过审计的smoke或正式结果会跳过。若启动失败，查看 `launcher_logs/frozen_server.log` 与 `launcher_logs/frozen_formal.log`（smoke为 `frozen_smoke.log`）。不得更换训练代码后直接续跑旧注册计划；如需修复应保留旧目录并使用新的 `--output-root`。
++
++数据和参考协议默认仍是 `DATA` 与 `references/full10_clientlt`。如果原参考目录已迁移，也可以显式使用已完成的新聚合 frozen 运行目录作为 `--reference-run`，但必须在首次注册时选定，之后继续使用相同参数。
++
++**收集结果**
++
++```bash
++python scripts/run_cliplora_joint_aggregation.py --stage status --aggregation-rule tailrw16
++python scripts/run_cliplora_joint_aggregation.py --stage pack --aggregation-rule tailrw16
++```
++
++状态应为 `frozen complete round=100`。打包得到：
++
++```text
++output/cifar100_LT/frozen_tailrw16_v1_results.tar.gz
++```
++
++报告写入 `analysis/report.md`。默认只读对照目录是输出目录同级的 `client_aggregation_v2_parallel4`。若位置不同，在status/summary/pack命令中增加：
++
++```bash
++--compare-root /实际路径/client_aggregation_v2_parallel4
++```
++
++输出包含最后20轮 Overall/Head20/Middle60/Tail20、最终尾类及后期回落、逐样本新增学习/保持/遗忘、同状态FedAvg反事实、运行成本、并行试跑以及与新聚合冻结组的配对审计。比较不会改写旧实验结果。不自动混入训练过A的旧16倍实验或额外训练过B的E2。
++
++权重、每客户端步数、实际聚合记录、每轮A哈希、所有预测及保存准确率均被核验。只有配置和CPU测试通过不代表GPU实验已经通过；服务器smoke会实际检查数值一致性、六客户端执行和最后两个客户端的短组。
++
++**新聚合后续优化的依据**
++
++从当前训练划分得到：
++
++| 聚合 | 尾类集中客户端27—29的总权重 | 最小的 w_j / FedAvg权重 |
++|---|---:|---:|
++| FedAvg | 1.1985% | 1 |
++| 当前新聚合 | 11.4629% | 接近0（客户端5、6） |
++| 历史 gamma16 公式 | 15.2990% | 0.81587 |
++
++16倍规则的基础保留比例为 N/(N+16N_tail)=0.81587；也就是说每个客户端至少保留约81.6%的原FedAvg权重，再给尾类计数额外份额。新聚合虽然给三个尾类集中客户端的总权重更低，却会更大幅度地重新分配其他客户端之间的权重。因此，不能仅用“尾类权重太高”解释当前结果。
++
++优先考虑三个方向，但本补充实验不同时修改这些设置：
++
++1. **保留各客户端的基础贡献。** 给 w_j 增加相对 q_j 的下界，或将新权重与FedAvg按固定比例混合，避免某些客户端贡献接近归零。它是针对权重过度重新分配的候选修正，尚不保证准确率提高。
++2. **让聚合目标反映实际更新。** 当前目标使用类别比例 R_jc=n_jc/n_j，未直接描述实际有效更新 ΔW_j=sΔB_j A。该划分的三个尾类集中客户端每轮只有6个本地优化步，其他客户端为27—60步；类别比例相同的权重并不代表相同的更新幅度或作用。应先记录加权后的有效范数及训练侧类别响应，区分“更新太小”和“方向互相抵消”，再决定是否按步数或幅度校正。不能直接把每个客户端范数强行拉平。
++3. **让目标与当前学习需求匹配。** 固定计数重平衡不知道哪些类别已经学够、哪些还在退步。若前两项不能解决问题，再考虑低频训练侧反馈更新权重，而非每轮增加昂贵反馈；不能根据测试准确率调权。
++
++冻结A本身也限定了可用更新空间；聚合只能重组客户端已产生的B更新，不能保证产生新的方向。当前证据尚不能判断主要瓶颈是空间限制还是权重不合适。补充TailRW16有助于区分它们：若简单调权在同一冻结A条件下明显改善，说明原新聚合仍有可改空间；若两种调权都没有收益，也只是一条线索，不能据此证明聚合普遍无效或必须学习A。

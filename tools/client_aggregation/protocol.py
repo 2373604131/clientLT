@@ -5,7 +5,7 @@ import numpy as np
 
 from tools.sfra.maintext import FROZEN, PAIR_HASHES, digest, load_json
 from tools.sfra.ab_validation import code_hashes as ab_code_hashes
-from tools.sfra.simple_controls import protocol_info, read_csv, write_table
+from tools.sfra.simple_controls import protocol_info, read_csv, write_table, tail_weights
 from tools.client_aggregation.weights import audit_weights, solve_weights
 
 SCHEMA = 'joint_client_aggregation_v1'
@@ -19,7 +19,8 @@ FILES = ('tools/client_aggregation/__init__.py', 'tools/client_aggregation/weigh
     'scripts/train_cliplora_joint_aggregation.py', 'tools/sfra/simple_controls.py',
     'scripts/run_method_a_simple_controls.py', 'Dassl/dassl/data/data_manager.py',
     'Dassl/dassl/data/samplers.py', 'Dassl/dassl/optim/optimizer.py',
-    'Dassl/dassl/optim/lr_scheduler.py', 'utils/cliplora_loss.py')
+    'Dassl/dassl/optim/lr_scheduler.py', 'utils/cliplora_loss.py',
+    'tools/client_aggregation/frozen_tailrw.py')
 CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='client-longtail',
     arms=list(ARMS), aggregation='KL(uniform || R.T @ w) + lambda/2 * chi_square(w || sample_weights)',
     scope='ordinary B aggregation every round; ordinary A aggregation when A is opened',
@@ -54,19 +55,56 @@ def partition_signature(rows):
     return digest(sorted(tuple(int(row[k]) for k in ('client_id', 'local_position', 'raw_sample_id', 'class_id')) for row in rows))
 
 
-def aggregation_spec(reference, strength):
+def aggregation_name(spec):
+    rule = spec.get('rule', 'joint')
+    if rule == 'joint':
+        return 'joint_class_distribution_client_weights'
+    if rule == 'tailrw16':
+        return 'tail_count_reweighted_clients_gamma16'
+    raise ValueError('Unknown aggregation rule: ' + str(rule))
+
+
+def tailrw_statistics(matrix, tail_ids):
+    """Exactly the historical gamma=16 rule, derived from training counts only."""
+    from tools.client_aggregation.weights import problem
+    q, local, target = problem(matrix, 1.)  # Validate counts; no convex optimization.
+    matrix = np.asarray(matrix)
+    if (len(tail_ids) != 20 or len(set(tail_ids)) != 20
+            or any(not isinstance(c, int) or c < 0 or c >= matrix.shape[1] for c in tail_ids)):
+        raise ValueError('TailRW16 requires 20 distinct valid training-defined tail classes')
+    weights = tail_weights(matrix.sum(1).tolist(), matrix[:, tail_ids].sum(1).tolist(), 16.)
+    return dict(weights=weights, sample_weights=q.tolist(), mixture=(local.T @ weights).tolist(),
+        target=target.tolist(), gamma=16., solver='closed-form historical TailRW gamma16',
+        formula='(n_j + 16*n_j_tail)/(N + 16*N_tail)')
+
+
+def aggregation_spec(reference, strength, rule='joint'):
     fingerprint, counts, matrix = count_matrix(reference)
-    solution = solve_weights(matrix, strength)
+    if rule not in ('joint', 'tailrw16'):
+        raise ValueError('Unknown aggregation rule: ' + str(rule))
+    solution = (solve_weights(matrix, strength) if rule == 'joint'
+                else tailrw_statistics(matrix, counts['tail_ids']))
     weights = solution['weights']
-    return dict(input_fingerprint=fingerprint, counts=counts, matrix=matrix.tolist(),
+    spec = dict(input_fingerprint=fingerprint, counts=counts, matrix=matrix.tolist(),
         partition_sha256=partition_signature(read_csv(Path(reference) / 'partition_manifest.csv')),
-        lambda_value=strength, weights=weights, weights_sha256=digest(weights),
+        lambda_value=strength if rule == 'joint' else None, weights=weights, weights_sha256=digest(weights),
         matrix_sha256=digest(matrix.tolist()), solver=solution)
+    if rule == 'tailrw16':
+        spec.update(rule=rule, gamma=16.)
+    return spec
 
 
 def check_aggregation(spec):
     if digest(spec['weights']) != spec['weights_sha256'] or digest(spec['matrix']) != spec['matrix_sha256']:
         raise ValueError('Frozen weights/counts digest mismatch')
+    aggregation_name(spec)  # Reject unrecognized policies, including in archived jobs.
+    if spec.get('rule') == 'tailrw16':
+        expected = tailrw_statistics(spec['matrix'], spec['counts']['tail_ids'])
+        if (spec.get('gamma') != 16. or spec['lambda_value'] is not None
+                or np.asarray(spec['weights']).shape != np.asarray(expected['weights']).shape
+                or not np.allclose(spec['weights'], expected['weights'], rtol=0, atol=1e-12)):
+            raise ValueError('TailRW16 weights differ from the historical count formula')
+        return expected
     return audit_weights(spec['weights'], spec['matrix'], spec['lambda_value'])
 
 
@@ -87,6 +125,8 @@ def audit_runtime_config(run, job):
             or load_json(Path(run) / 'client_execution.json') != expected_execution):
         raise ValueError('Client execution mode differs from the registered experiment')
     frozen = job['arm'] == 'frozen'
+    if job['aggregation'].get('rule') == 'tailrw16' and not frozen:
+        raise ValueError('TailRW16 supplement only supports permanently frozen A')
     if cfg.get('joint_aggregation') != dict(schema=SCHEMA, arm=job['arm'], mode=job['mode'],
             lambda_value=job['aggregation']['lambda_value'], weights_sha256=job['aggregation']['weights_sha256']):
         raise ValueError('Runtime aggregation differs from registered job')
@@ -99,7 +139,7 @@ def audit_runtime_config(run, job):
             raise ValueError('A runtime configuration mismatch: ' + key)
     base = cfg['base_training_config']
     expected_base = dict(seed=42, protocol_seed=42, topology='client-longtail', la_tau=1.,
-        aggregation='joint_class_distribution_client_weights', normal_steps_expected=105600,
+        aggregation=aggregation_name(job['aggregation']), normal_steps_expected=105600,
         extra_steps_expected=0 if frozen else 31680)
     for key, value in expected_base.items():
         if base.get(key) != value:

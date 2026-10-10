@@ -7,7 +7,7 @@ import torch
 
 from scripts.run_ab_validation import write_json
 from tools.client_aggregation.protocol import (SCHEMA, DIAGNOSTIC_ROUNDS, check_aggregation,
-    load_json, read_csv, partition_signature, write_table, write_weight_tables)
+    load_json, read_csv, partition_signature, write_table, write_weight_tables, aggregation_name)
 from utils.cliplora_a_refresh import aggregate_refresh_deltas, append_rows, state_hash, train_only
 from utils.cliplora_functional_feedback import observational_model, snapshot
 from utils.cliplora_sfra import SFRARuntime
@@ -35,12 +35,14 @@ def runtime_class(job):
                     return result
 
                 self.b_transfer.apply_shared = measured_transfer
-            print('JOINT AGGREGATION:', job['arm'], 'lambda=', job['aggregation']['lambda_value'],
+            print('CLIENT AGGREGATION:', aggregation_name(job['aggregation']), job['arm'],
                   '; frozen A has no refresh' if self.is_frozen else '; Full-CP + original shared C', flush=True)
 
         def configure_experiment(self):
             self.job = job
             self.is_frozen = job['arm'] == 'frozen'
+            if job['aggregation'].get('rule') == 'tailrw16' and not self.is_frozen:
+                raise ValueError('TailRW16 supplement must keep A permanently frozen')
             self.joint_weights = dict(enumerate(job['aggregation']['weights']))
             check_aggregation(job['aggregation'])
             actual = self.audit.counts.cpu().numpy()
@@ -53,7 +55,7 @@ def runtime_class(job):
             if (self.variant != ('s' if self.is_frozen else 'full-cp')
                     or bool(self.sfra_config.get('b_transfer')) == self.is_frozen):
                 raise ValueError('Wrong frozen/AB runtime variant')
-            self.config['aggregation'] = 'joint_class_distribution_client_weights'
+            self.config['aggregation'] = aggregation_name(job['aggregation'])
             if self.is_frozen:
                 self.rounds = []
                 self.periodic = False

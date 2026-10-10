@@ -1,0 +1,81 @@
+{
+  "anchors": [
+    {
+      "origin": "e2",
+      "anchor_round": 20,
+      "curve_rows": 44,
+      "unique_training_nodes": 40,
+      "evaluations": 45,
+      "test_samples": 10000,
+      "feedback_samples": 5842,
+      "logical_optimizer_steps_per_arm": 11264,
+      "anchor_overall": 66.28,
+      "anchor_tail20": 67.95
+    },
+    {
+      "origin": "e2",
+      "anchor_round": 50,
+      "curve_rows": 44,
+      "unique_training_nodes": 40,
+      "evaluations": 45,
+      "test_samples": 10000,
+      "feedback_samples": 5842,
+      "logical_optimizer_steps_per_arm": 11264,
+      "anchor_overall": 67.25,
+      "anchor_tail20": 68.55
+    },
+    {
+      "origin": "e2",
+      "anchor_round": 80,
+      "curve_rows": 44,
+      "unique_training_nodes": 40,
+      "evaluations": 45,
+      "test_samples": 10000,
+      "feedback_samples": 5842,
+      "logical_optimizer_steps_per_arm": 11264,
+      "anchor_overall": 67.92,
+      "anchor_tail20": 69.5
+    },
+    {
+      "origin": "e3",
+      "anchor_round": 20,
+      "curve_rows": 44,
+      "unique_training_nodes": 40,
+      "evaluations": 45,
+      "test_samples": 10000,
+      "feedback_samples": 5842,
+      "logical_optimizer_steps_per_arm": 11264,
+      "anchor_overall": 66.51,
+      "anchor_tail20": 68.05
+    },
+    {
+      "origin": "e3",
+      "anchor_round": 50,
+      "curve_rows": 44,
+      "unique_training_nodes": 40,
+      "evaluations": 45,
+      "test_samples": 10000,
+      "feedback_samples": 5842,
+      "logical_optimizer_steps_per_arm": 11264,
+      "anchor_overall": 68.54,
+      "anchor_tail20": 70.25
+    },
+    {
+      "origin": "e3",
+      "anchor_round": 80,
+      "curve_rows": 44,
+      "unique_training_nodes": 40,
+      "evaluations": 45,
+      "test_samples": 10000,
+      "feedback_samples": 5842,
+      "logical_optimizer_steps_per_arm": 11264,
+      "anchor_overall": 69.28,
+      "anchor_tail20": 70.9
+    }
+  ],
+  "npz_files_verified": 540,
+  "max_raw_metric_error": 0.0,
+  "max_summary_error": 0.0,
+  "common_code_fingerprint": "e4bc454c2cf45da864c057e27df8fd3fdc992df4e44e308cbb834ee113b7adbc",
+  "caveat": "Single seed. Anchor averages are descriptive, not independent-seed inference. Training checkpoint tensors absent from archive."
+}
