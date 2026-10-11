@@ -23,7 +23,8 @@ FILES = ('tools/client_aggregation/__init__.py', 'tools/client_aggregation/weigh
     'tools/client_aggregation/frozen_tailrw.py',
     'scripts/run_cliplora_frozen_aggregation.py', 'tools/client_aggregation/frozen_controls.py',
     'tools/client_aggregation/numerics.py',
-    'scripts/run_cliplora_plain_a_aggregation.py', 'tools/client_aggregation/plain_a.py')
+    'scripts/run_cliplora_plain_a_aggregation.py', 'tools/client_aggregation/plain_a.py',
+    'scripts/run_cliplora_method_a_aggregation.py', 'tools/client_aggregation/method_a.py')
 CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='client-longtail',
     arms=list(ARMS), aggregation='KL(uniform || R.T @ w) + lambda/2 * chi_square(w || sample_weights)',
     scope='ordinary B aggregation every round; ordinary A aggregation when A is opened',
@@ -54,11 +55,23 @@ PLAIN_A_CONTRACT = dict(schema=SCHEMA, experiment='plain_a_aggregation_v1', seed
     diagnostics='read-only test; no feedback, scheduling, weight fitting or checkpoint selection',
     interpretation='aggregation-only contrast among three ordinary-A runs; not a budget-matched frozen-A contrast')
 
+METHOD_A_CONTRACT = dict(PLAIN_A_CONTRACT, experiment='method_a_aggregation_v1', arms=['method_a'],
+    phase_order='local B, aggregate B, local A, aggregate A, Full-CP correction, commit history, official evaluation',
+    functional_correction=True, A_method=dict(FROZEN, classification_weight=1.),
+    correction_rounds=list(range(1, 91)), max_correction_steps=270,
+    correction_skip='only no active functional tokens or zero proposal radius',
+    CP_weights='original sample counts; unchanged across aggregation rules',
+    source_priority='original inverse effective source count; unchanged across aggregation rules',
+    interpretation='Full-CP versus ordinary A within each aggregation rule; same local SGD budget, additional feedback/correction cost')
+
 
 def validate_arm(job):
     if job['arm'] == 'plain_a':
         if job.get('contract') != PLAIN_A_CONTRACT:
             raise ValueError('Plain A requires its separate fixed-schedule contract')
+    elif job['arm'] == 'method_a':
+        if job.get('contract') != METHOD_A_CONTRACT:
+            raise ValueError('Method A requires its separate Full-CP-only contract')
     elif job['arm'] not in ARMS:
         raise ValueError('Unknown experiment arm: ' + str(job['arm']))
     elif job['aggregation'].get('rule') in ('tailrw16', 'fedavg') and job['arm'] != 'frozen':
@@ -202,7 +215,7 @@ def audit_runtime_config(run, job):
     expected_base = dict(seed=42, protocol_seed=42, topology='client-longtail', la_tau=1.,
         aggregation=aggregation_name(job['aggregation']), normal_steps_expected=105600,
         extra_steps_expected=0 if frozen else 31680)
-    if plain:
+    if plain or job['arm'] == 'method_a':
         expected_base.update(normal_trainable_factor='B', extra_trainable_factor='A',
             candidate_rounds=list(range(1, 91)), control_enabled=False,
             a_lr_mult=1., extra_a_lr=.001, extra_weight_decay=0., normal_b_lr=.001)
@@ -210,8 +223,8 @@ def audit_runtime_config(run, job):
         if base.get(key) != value:
             raise ValueError('Base training mismatch: ' + key)
     transfer = cfg.get('b_transfer')
-    if (frozen or plain) and transfer:
-        raise ValueError('Frozen/plain-A arm must not execute B transfer')
+    if job['arm'] != 'ab' and transfer:
+        raise ValueError('Only the AB arm may execute B transfer')
     if job['arm'] == 'ab':
         wanted = dict(CONTRACT['B'], rounds=[1] if job['mode'] == 'smoke' else list(B_ROUNDS), mode='shared')
         if not transfer or any(transfer.get(k) != v for k, v in wanted.items()):

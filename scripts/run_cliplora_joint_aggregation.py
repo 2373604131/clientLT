@@ -125,7 +125,7 @@ def command_for(job, root, resume=False, stop_after=0):
     extra = ['--joint-spec', str(run / 'joint_job.json'), '--lac_method', 's',
         '--lac_partition_manifest', str(run / 'protocol/partition_source.csv'),
         '--lac_la_tau', '1', '--lac_a_lr_mult', '1',
-        '--sfra_variant', 'full-cp' if job['arm'] == 'ab' else 's',
+        '--sfra_variant', 'full-cp' if job['arm'] in ('ab', 'method_a') else 's',
         '--sfra_retention_weight', '0' if job['arm'] == 'plain_a' else '10', '--sfra_classification_weight', '1',
         '--sfra_witness_batch_size', '8', '--sfra_fast_execution_v2',
         '--sfra_feedback_batch_size', '128', '--sfra_feedback_cache_gib', '4',

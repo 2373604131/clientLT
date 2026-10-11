@@ -11,41 +11,46 @@ METHODS = ('fedavg', 'tailrw16', 'joint')
 
 
 def load_plain(root, rule):
+    return load_a_run(root, rule, 'plain_a')
+
+
+def load_a_run(root, rule, arm):
     from scripts.run_cliplora_joint_aggregation import make_job
     root = Path(root)
     plan = load_json(root / 'experiment_plan.json')
     if plan['aggregation'].get('rule', 'joint') != rule:
         raise ValueError('Unexpected aggregation policy: ' + str(root))
-    job = make_job(plan, 'plain_a')
+    job = make_job(plan, arm)
     return audit_run(root / job['run'], job)
 
 
-def status_rows(root):
+def status_rows(root, arm='plain_a'):
     """Lightweight progress only; completed results are audited by summary/pack."""
     rows = []
     for rule in METHODS:
-        run = Path(root) / rule / 'runs/seed42/plain_a'
+        run = Path(root) / rule / 'runs/seed42' / arm
         path = run / ('completion.json' if (run / 'completion.json').is_file() else 'progress.json')
         state = load_json(path) if path.is_file() else {}
         rows.append(dict(method=rule, status='completed_unverified' if path.name == 'completion.json'
                          else 'incomplete' if state else 'not_started',
                          completed_round=state.get('completed_round', 0),
                          normal_B_steps=state.get('normal_optimizer_steps', 0),
-                         extra_A_steps=state.get('extra_optimizer_steps', 0)))
+                         extra_A_steps=state.get('extra_optimizer_steps', 0),
+                         correction_steps=state.get('functional_correction_steps', 0)))
     return rows
 
 
-def summarize(root):
+def summarize(root, arm='plain_a'):
     root = Path(root).resolve()
     out = root / 'analysis'
     out.mkdir(parents=True, exist_ok=True)
-    statuses = status_rows(root)
+    statuses = status_rows(root, arm)
     results = {}
     for status in statuses:
         rule = status['method']
         if status['status'] == 'completed_unverified':
             try:
-                results[rule] = load_plain(root / rule, rule)
+                results[rule] = load_plain(root / rule, rule) if arm == 'plain_a' else load_a_run(root / rule, rule, arm)
                 status['status'] = 'complete'
             except (ValueError, OSError, KeyError, TypeError, AssertionError) as error:
                 status.update(status='invalid', reason=str(error))
@@ -78,7 +83,14 @@ def summarize(root):
         pair = dict(left=left, right=right, status='unavailable')
         if left in results and right in results:
             pair.update(paired_audit(results[left], results[right]))
-            pair['contrast'] = 'ordinary A: ' + left + ' minus ' + right
+            pair['contrast'] = arm + ': ' + left + ' minus ' + right
+            if arm == 'method_a':
+                # Allowed degenerate correction skips can differ between trajectories.
+                pair['mismatches'] = [x for x in pair['mismatches'] if x != 'budget.functional_correction_steps']
+                pair['same_correction_steps'] = (results[left]['progress']['functional_correction_steps']
+                                                == results[right]['progress']['functional_correction_steps'])
+                pair['budget_matched'] = pair['same_correction_steps']
+                pair['status'] = 'mismatch' if pair['mismatches'] else 'eligible'
             if pair['source_differences']:
                 pair['mismatches'].append('source_differences')
                 pair['status'] = 'mismatch'
@@ -104,7 +116,8 @@ def summarize(root):
             stage_effects=stages, stage_summary=stage_summary, per_class=classes, costs=costs).items():
         write_table(out / (name + '.csv'), rows)
     write_json(out / 'pair_audit.json', dict(pairs=pairs, independent_seeds=1,
-        budget_matched_among_plain_A=True, budget_matched_to_frozen_A=False))
+        arm=arm, same_local_SGD_budget=True, additional_feedback_and_correction=arm=='method_a',
+        budget_matched_among_plain_A=arm=='plain_a', budget_matched_to_frozen_A=False))
     lines = ['# 普通 A 训练：三种聚合（seed42）', '',
         '第1—90轮：B训练3个epoch并聚合，再固定聚合后的B，A训练1个epoch并聚合。',
         '第91—100轮：A固定为第90轮结果，仅训练B。A固定学习率0.001、SGD动量0.9、无权重衰减。',
@@ -112,6 +125,15 @@ def summarize(root):
         '每组105600个B优化步骤、31680个A优化步骤，共137280步；新聚合lambda=0.1，TailRW gamma=16。',
         '固定终点为第81—100轮均值。单种子，不作显著性结论；与冻结A比较时训练预算不同。', '',
         '| 聚合 | Overall | Head20 | Middle60 | Tail20 |', '|---|---:|---:|---:|---:|']
+    if arm == 'method_a':
+        lines = ['# 方法 A（Full-CP）：三种聚合（seed42）', '',
+            '第1—90轮：B训练3个epoch并聚合，固定B，A训练1个epoch并聚合，再执行Full-CP修正并提交历史。',
+            '第91—100轮：固定A，仅训练B。Full-CP固定lambda=10、mu=1、三步修正、步长0.1；无方法B共享迁移。',
+            '三组只改变普通A/B聚合的静态权重；CP原始样本权重、来源优先级和LA先验不变。',
+            '每组本地SGD为105600个B步骤加31680个A步骤，共137280步；另有反馈计算和至多270次修正。',
+            '无有效目标或提案半径为零时跳过修正，按实际步骤和耗时报告成本。',
+            '固定终点为第81—100轮均值。只有seed42，不作跨种子显著性结论。', '',
+            '| 聚合 | Overall | Head20 | Middle60 | Tail20 |', '|---|---:|---:|---:|---:|']
     for row in performance:
         lines.append('| '+row['method']+' | '+' | '.join(f'{row["last20_"+m]:.4f}' for m in METRICS[:4])+' |')
     lines += ['', '配对差值（百分点）：']

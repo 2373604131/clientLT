@@ -42,6 +42,7 @@ def runtime_class(job):
             print('CLIENT AGGREGATION:', aggregation_name(job['aggregation']), job['arm'],
                   '; frozen A has no refresh' if self.is_frozen else
                   '; ordinary A rounds1..90; no correction or transfer' if job['arm'] == 'plain_a' else
+                  '; Full-CP rounds1..90; no source B transfer' if job['arm'] == 'method_a' else
                   '; Full-CP + original shared C', flush=True)
 
         def configure_experiment(self):
@@ -58,9 +59,9 @@ def runtime_class(job):
                 raise ValueError('Runtime sample allocation differs from the frozen partition')
             if self.sfra_config.get('b_aggregation'):
                 raise ValueError('Do not combine joint aggregation with other aggregation overrides')
-            if (self.variant != ('full-cp' if job['arm'] == 'ab' else 's')
+            if (self.variant != ('full-cp' if job['arm'] in ('ab', 'method_a') else 's')
                     or bool(self.sfra_config.get('b_transfer')) != (job['arm'] == 'ab')):
-                raise ValueError('Wrong frozen/AB runtime variant')
+                raise ValueError('Wrong registered runtime variant or B transfer setting')
             self.config['aggregation'] = aggregation_name(job['aggregation'])
             if self.is_frozen:
                 self.rounds = []
@@ -73,7 +74,7 @@ def runtime_class(job):
                 self.config.update(candidate_rounds=self.rounds, extra_trainable_factor='A', extra_steps_expected=31680)
                 self.sfra_config.update(refresh_rounds=self.rounds, retention_weight=0., correction_steps=0,
                                         commit_rule='ordinary_A_without_correction')
-            else:
+            elif job['arm'] == 'ab':
                 transfer = self.sfra_config['b_transfer']
                 transfer.update(aggregation='ordinary_joint_class_weighted_B_then_one_shared_residual',
                     calibration_anchor='actual ordinary joint-class-weighted B with round-start A')

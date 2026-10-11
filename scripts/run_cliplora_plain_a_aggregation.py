@@ -20,12 +20,15 @@ sys.path.insert(0, str(REPO))
 from scripts import run_cliplora_joint_aggregation as single
 from scripts.run_ab_validation import file_lock, write_json
 from tools.client_aggregation.plain_a import METHODS, status_rows, summarize
-from tools.client_aggregation.protocol import (SCHEMA, PLAIN_A_CONTRACT, aggregation_spec,
+from tools.client_aggregation.protocol import (SCHEMA, PLAIN_A_CONTRACT, METHOD_A_CONTRACT, aggregation_spec,
     check_aggregation, code_hashes, count_matrix, digest, load_json, write_weight_tables)
 
 
-def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+def parse_args(argv=None, arm='plain_a'):
+    if arm not in ('plain_a', 'method_a'):
+        raise ValueError('Unsupported A-only suite')
+    parser = argparse.ArgumentParser(description=__doc__ if arm == 'plain_a' else
+                                     'Three aggregation rules + Method A (Full-CP), without Method B.')
     parser.add_argument('--stage', choices=('plan', 'preflight', 'smoke', 'run', 'server', 'status', 'summary', 'pack'), default='plan')
     parser.add_argument('--methods', nargs='+', choices=METHODS, default=list(METHODS))
     parser.add_argument('--seed', type=int, choices=(42,), default=42)
@@ -35,12 +38,17 @@ def parse_args(argv=None):
     parser.add_argument('--reference-run', type=Path, default=Path('references/full10_clientlt'))
     parser.add_argument('--data-root', type=Path, default=Path('DATA'))
     parser.add_argument('--output-root', type=Path,
-                        help='Default: output/cifar100_LT/plain_a_aggregation_v1_parallel<client-concurrency>')
+                        help=f'Default: output/cifar100_LT/{arm}_aggregation_v1_parallel<client-concurrency>')
+    if arm == 'method_a':
+        parser.add_argument('--plain-root', type=Path, help='Completed ordinary-A suite, read-only comparison in summary/pack')
     parser.add_argument('--num-workers', type=int, default=8)
     parser.add_argument('--stop-after-round', type=int, default=0)
     args = parser.parse_args(argv)
+    args.arm = arm
     if args.output_root is None:
-        args.output_root = Path(f'output/cifar100_LT/plain_a_aggregation_v1_parallel{args.client_concurrency}')
+        args.output_root = Path(f'output/cifar100_LT/{arm}_aggregation_v1_parallel{args.client_concurrency}')
+    if arm == 'method_a' and args.plain_root is None:
+        args.plain_root = Path(f'output/cifar100_LT/plain_a_aggregation_v1_parallel{args.client_concurrency}')
     if len(set(args.methods)) != len(args.methods) or len(set(args.gpus)) != len(args.gpus) or min(args.gpus) < 0:
         parser.error('Use distinct methods and distinct nonnegative GPU IDs')
     if args.num_workers < 0 or not 0 <= args.stop_after_round <= 100:
@@ -50,6 +58,7 @@ def parse_args(argv=None):
 
 def register(args):
     root = args.output_root.resolve()
+    contract = PLAIN_A_CONTRACT if args.arm == 'plain_a' else METHOD_A_CONTRACT
     fingerprint, counts, matrix = count_matrix(args.reference_run)
     hashes = code_hashes(REPO)
     settings = dict(seed=42, reference_run=str(args.reference_run.resolve()), data_root=str(args.data_root.resolve()),
@@ -58,8 +67,8 @@ def register(args):
         settings['cuda_policy'] = args.cuda_policy
     plans = {}
     with file_lock(root / 'locks/suite_plan.lock'):
-        suite = dict(schema='plain_a_aggregation_v1', methods=list(METHODS), settings=settings,
-                     code_sha256=hashes, contract=PLAIN_A_CONTRACT, aggregation_lambda=.1, tailrw_gamma=16.)
+        suite = dict(schema=contract['experiment'], methods=list(METHODS), settings=settings,
+                     code_sha256=hashes, contract=contract, aggregation_lambda=.1, tailrw_gamma=16.)
         manifest = root / 'suite_plan.json'
         if manifest.is_file() and load_json(manifest) != suite:
             raise ValueError('Registered suite changed. Preserve existing results and use a new output root.')
@@ -69,14 +78,14 @@ def register(args):
             path = folder / 'experiment_plan.json'
             if path.is_file():
                 plan = load_json(path)
-                if (plan['contract'] != PLAIN_A_CONTRACT or plan['settings'] != rule_settings
+                if (plan['contract'] != contract or plan['settings'] != rule_settings
                         or plan['code_sha256'] != hashes or plan['aggregation']['input_fingerprint'] != fingerprint
                         or plan['aggregation']['matrix_sha256'] != digest(matrix.tolist())
                         or plan['aggregation'].get('rule', 'joint') != rule):
                     raise ValueError('Registered inputs changed: ' + str(folder))
                 check_aggregation(plan['aggregation'])
             else:
-                plan = dict(schema=SCHEMA, contract=PLAIN_A_CONTRACT, settings=rule_settings,
+                plan = dict(schema=SCHEMA, contract=contract, settings=rule_settings,
                             code_sha256=hashes, aggregation=aggregation_spec(args.reference_run, .1, rule))
                 write_json(path, plan)
                 write_weight_tables(folder, plan['aggregation'])
@@ -87,7 +96,8 @@ def register(args):
 
 
 def child_command(args, rule):
-    return [sys.executable, '-u', str(Path(__file__).resolve()), '--stage', 'run', '--methods', rule,
+    launcher = REPO / 'scripts' / f'run_cliplora_{args.arm}_aggregation.py'
+    return [sys.executable, '-u', str(launcher), '--stage', 'run', '--methods', rule,
         '--output-root', str(args.output_root.resolve()), '--reference-run', str(args.reference_run.resolve()),
         '--data-root', str(args.data_root.resolve()), '--seed', '42', '--num-workers', str(args.num_workers),
         '--client-concurrency', str(args.client_concurrency), '--cuda-policy', args.cuda_policy,
@@ -160,16 +170,21 @@ def launch(args):
         raise ValueError('Failed methods: '+', '.join(failures)+'. Rerun the same command to resume; completed methods are retained.')
 
 
-def main(argv=None):
-    args = parse_args(argv)
+def main(argv=None, arm='plain_a'):
+    args = parse_args(argv, arm)
     os.chdir(REPO)
     if args.stage == 'status':
-        for row in status_rows(args.output_root):
+        for row in status_rows(args.output_root, arm):
             print(f'{row["method"]}: {row["status"]}, round={row["completed_round"]}/100, '
-                  f'B_steps={row["normal_B_steps"]}, A_steps={row["extra_A_steps"]}')
+                  f'B_steps={row["normal_B_steps"]}, A_steps={row["extra_A_steps"]}, '
+                  f'correction_steps={row["correction_steps"]}')
         return
     if args.stage in ('summary', 'pack'):
-        statuses, pairs = summarize(args.output_root)
+        if arm == 'method_a':
+            from tools.client_aggregation.method_a import summarize as summarize_method_a
+            statuses, pairs = summarize_method_a(args.output_root, args.plain_root)
+        else:
+            statuses, pairs = summarize(args.output_root)
         if any(s['status']=='invalid' for s in statuses) or any(p['status']=='mismatch' for p in pairs):
             raise ValueError('Invalid/mismatched results. See analysis/status.csv and pair_audit.json.')
         if args.stage == 'pack':
@@ -177,7 +192,9 @@ def main(argv=None):
             print('Archive:', pack_results(args.output_root))
         return
     plans = register(args)
-    print('Registered ordinary A: B3 -> A1 in rounds1..90; B3 only in rounds91..100.', flush=True)
+    print('Registered '+('ordinary A: B3 -> A1' if arm == 'plain_a' else
+          'Method A: B3 -> A1 -> Full-CP(lambda10,mu1), no B transfer')+
+          ' in rounds1..90; B3 only in rounds91..100.', flush=True)
     if args.stage == 'plan':
         return
     for rule in args.methods:
@@ -190,9 +207,9 @@ def main(argv=None):
         return
     for rule in args.methods:
         root = args.output_root / rule
-        single.execute(single.make_job(plans[rule], 'plain_a', 'smoke'), root)
+        single.execute(single.make_job(plans[rule], arm, 'smoke'), root)
         if args.stage == 'run':
-            single.execute(single.make_job(plans[rule], 'plain_a'), root, args.stop_after_round)
+            single.execute(single.make_job(plans[rule], arm), root, args.stop_after_round)
 
 
 if __name__ == '__main__':

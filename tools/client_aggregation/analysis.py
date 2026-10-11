@@ -47,7 +47,7 @@ def expected_stages(job, completed):
     for rnd in rounds:
         for stage in ('ordinary_B', 'sample_weighted_B_counterfactual'):
             yield rnd, stage
-        if job['arm'] in ('ab', 'plain_a'):
+        if job['arm'] in ('ab', 'plain_a', 'method_a'):
             if job['arm'] == 'ab' and rnd in transfers:
                 yield rnd, 'after_B_transfer'
             if rnd <= 90:
@@ -57,7 +57,7 @@ def expected_stages(job, completed):
 
 def audit_run(run, job, completed=100):
     run = Path(run)
-    if not 0 <= completed <= 100 or job['arm'] not in (*ARMS, 'plain_a'):
+    if not 0 <= completed <= 100 or job['arm'] not in (*ARMS, 'plain_a', 'method_a'):
         raise ValueError('Invalid run request')
     check_aggregation(job['aggregation'])
     if load_json(run / 'joint_job.json') != job:
@@ -134,24 +134,29 @@ def audit_run(run, job, completed=100):
     corrections = read_csv(run / 'sfra_rounds.csv')
     if job['arm'] in ('frozen', 'plain_a') and (corrections or progress['functional_correction_steps']):
         raise ValueError('Frozen/plain-A arm executed functional correction')
-    if job['arm'] == 'plain_a' and (progress.get('b_transfer_events', 0)
+    if job['arm'] in ('plain_a', 'method_a') and (progress.get('b_transfer_events', 0)
             or progress.get('b_transfer_optimizer_steps', 0)
             or ((run / 'b_transfer_rounds.csv').is_file() and read_csv(run / 'b_transfer_rounds.csv'))):
-        raise ValueError('Plain A executed source B transfer')
+        raise ValueError('A-only experiment executed source B transfer')
     if frozen and (progress.get('b_transfer_events', 0) or progress.get('b_transfer_optimizer_steps', 0)
             or any(row.get('trainable_factor', 'B') != 'B' or int(row.get('a_optimizer_steps') or 0)
                    for row in budgets)):
         raise ValueError('Frozen arm executed A training or source B transfer')
-    if job['arm'] == 'ab':
+    if job['arm'] in ('ab', 'method_a'):
         if [int(r['round']) for r in corrections] != list(range(1, completed + 1)):
             raise ValueError('Missing A functional records')
         total = 0
         for row in corrections:
             if int(row['correction_steps']) not in ((0, 3) if int(row['round']) <= 90 else (0,)):
                 raise ValueError('Unexpected A correction budget')
+            if job['arm'] == 'method_a' and int(row['correction_steps']) == 0:
+                allowed = ('no_active_tokens', 'zero_proposal_radius') if int(row['round']) <= 90 else ('B_only_schedule',)
+                if row.get('skip_reason') not in allowed:
+                    raise ValueError('Method A skipped correction without a permitted reason')
             total += int(row['correction_steps'])
         if total != progress['functional_correction_steps']:
             raise ValueError('A correction completion budget differs')
+    if job['arm'] == 'ab':
         b = read_csv(run / 'b_transfer_rounds.csv')
         expected = [r for r in ([1] if job['mode'] == 'smoke' else B_ROUNDS) if r <= completed]
         if [int(r['round']) for r in b] != expected or progress['b_transfer_events'] != len(expected):
@@ -175,8 +180,8 @@ def audit_run(run, job, completed=100):
             initial_labels, initial_a = sample['class_id'], record['a_sha256']
         if not np.array_equal(sample['class_id'], initial_labels) or frozen and record['a_sha256'] != initial_a:
             raise ValueError('Test identities or frozen A changed')
-        if job['arm'] == 'plain_a' and rnd > 90 and record['a_sha256'] != last_a:
-            raise ValueError('Plain A changed after round 90')
+        if job['arm'] in ('plain_a', 'method_a') and rnd > 90 and record['a_sha256'] != last_a:
+            raise ValueError('A changed after round 90')
         last_a = record['a_sha256']
         actual = metrics_from_prediction(sample, groups)
         for metric in METRICS:
@@ -202,6 +207,11 @@ def audit_run(run, job, completed=100):
             committed = load_json(run / 'predictions' / f'r{rnd:03d}.json')
             if any(not record.get(k) or record[k] != committed.get(k) for k in ('a_sha256', 'b_sha256')):
                 raise ValueError('Plain-A committed state differs from its ordinary phase')
+        if job['arm'] == 'method_a' and stage == 'ordinary_B':
+            committed = load_json(run / 'predictions' / f'r{rnd:03d}.json')
+            keys = ('b_sha256',) if rnd <= 90 else ('a_sha256', 'b_sha256')
+            if any(not record.get(k) or record[k] != committed.get(k) for k in keys):
+                raise ValueError('Method A altered B after B aggregation or A after round 90')
     return dict(job=job, run=run, config=cfg, progress=progress, curves=curves,
         predictions=predictions, stages=stages, groups=groups, budgets=budgets,
         metadata=load_json(run / 'bridge_metadata.json'))
