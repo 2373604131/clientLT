@@ -162,11 +162,26 @@ class TestMethodAV2(unittest.TestCase):
             self.assertEqual(execute.call_args.args[0]['mode'],'smoke')
 
     def test_full_J_rejection_then_half_or_exact_ordinary_fallback(self):
+        self.check_candidate_state_placement('cpu',torch.float32)
+
+    def test_candidate_restores_snapshot_dtype(self):
+        # A different template dtype exposes the storage-boundary contract on CPU.
+        # Production training still uses FP32; this is a mocked acceptance fixture.
+        self.check_candidate_state_placement('cpu',torch.float64)
+
+    @unittest.skipUnless(torch.cuda.is_available(),'CUDA required for CPU snapshot / GPU correction regression')
+    def test_cuda_correction_with_cpu_snapshots(self):
+        self.check_candidate_state_placement('cuda',torch.float32)
+
+    def check_candidate_state_placement(self,device,dtype):
         with tempfile.TemporaryDirectory() as temp,patch('builtins.print'):
-            for fail_half in (False,True):
-                rt=self.make_runtime(Path(temp)/str(fail_half),1)
+            for selected_beta in (1.,.5,0.):
+                rt=self.make_runtime(Path(temp)/str(selected_beta),1)
+                rt.trainer.device=torch.device(device)
                 rt.history=SampleSourceHistory(torch.ones(len(rt.av2.manifest),2),rt.av2.manifest,3,2)
                 middle=snapshot(rt.trainer.model);ordinary=copy.deepcopy(middle)
+                for k in rt.a_keys:ordinary[k]=ordinary[k].to(dtype)
+                original=copy.deepcopy(ordinary)
                 # Aggregated update cancels; nonzero local RMS must still permit repair.
                 delta={0:{k:torch.ones_like(middle[k])*.01 for k in rt.a_keys},
                        1:{k:torch.ones_like(middle[k])*(-.01*.3/.7) for k in rt.a_keys}}
@@ -174,21 +189,34 @@ class TestMethodAV2(unittest.TestCase):
                 rt.events=[{}];phases=[]
                 def observe(state,rnd,phase,**kw):
                     phases.append(phase)
+                    for k in rt.a_keys:
+                        self.assertEqual(state[k].device,ordinary[k].device)
+                        if phase!='post_b_source':self.assertEqual(state[k].dtype,ordinary[k].dtype)
+                    for k in rt.b_keys:
+                        torch.testing.assert_close(state[k],middle[k],atol=0,rtol=0)
                     basis=kw.get('basis')
-                    ce=torch.ones(3)*(2 if phase=='half' and fail_half else 1)
+                    ce=torch.ones(3)*(2 if phase=='half' and selected_beta==0 else 1)
                     return dict(sample_margins=torch.ones(len(rt.av2.manifest),2)*.2,
                         group_ce=ce,gradient_norms=torch.ones(3,2),
                         coordinates=torch.zeros(3,2,basis.shape[1]) if basis is not None else None,
-                        gradient=torch.ones(rt.bank.numel),loss=100. if phase=='full' else 0. if phase=='half' else .2)
+                        gradient=torch.ones(rt.bank.numel,device=device),
+                        loss=(0. if selected_beta==1. else 100.) if phase=='full' else 0. if phase=='half' else .2)
                 rt.observe_av2=observe;rt.costs=[dict(downlink_bytes=0)]
                 accepted,row=rt.refresh(middle,1)
-                self.assertEqual(row['full_reject'],'J')
+                self.assertEqual(row['full_reject'],'' if selected_beta==1. else 'J')
                 self.assertEqual(row['correction_steps'],3)
-                self.assertEqual(phases,['post_b_source','ordinary','repair_z1','repair_z2','full','half'])
-                self.assertEqual(row['selected_beta'],0. if fail_half else .5)
-                if fail_half:
+                self.assertEqual(phases,['post_b_source','ordinary','repair_z1','repair_z2','full']
+                                 +([] if selected_beta==1. else ['half']))
+                self.assertEqual(row['selected_beta'],selected_beta)
+                self.assertEqual(row['nonzero_correction'],selected_beta>0.)
+                if selected_beta==0.:
                     self.assertIs(accepted,ordinary)
-                    self.assertFalse(row['nonzero_correction'])
+                for k in rt.a_keys:
+                    self.assertEqual(accepted[k].device,ordinary[k].device)
+                    self.assertEqual(accepted[k].dtype,ordinary[k].dtype)
+                    torch.testing.assert_close(ordinary[k],original[k],atol=0,rtol=0)
+                    # The next parallel phase subtracts CPU client states from this state.
+                    self.assertTrue(torch.isfinite(middle[k]-accepted[k]).all())
                 for k in rt.b_keys:torch.testing.assert_close(accepted[k],middle[k],atol=0,rtol=0)
 
     def test_new_arm_uses_existing_artifact_audit_with_v2_rules(self):

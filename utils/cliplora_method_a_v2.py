@@ -98,7 +98,9 @@ class MethodAV2Runtime(SFRARuntime):
                 summary[reason+'_'+label] = sum(bool(mask[i]) and value==reason for i,value in enumerate(self.history.reason))
         def at(value):
             candidate = dict(ordinary)
-            candidate.update(unflatten(value,ordinary,self.a_keys))
+            # Corrections run on the trainer device; shared snapshots retain
+            # ordinary's device/dtype for comparison, checkpoints and next-round deltas.
+            candidate.update({k:v.to(ordinary[k]) for k,v in unflatten(value,ordinary,self.a_keys).items()})
             return candidate
         accepted, feedback = ordinary, ordinary_feedback
         if not skip:
