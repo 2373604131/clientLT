@@ -112,6 +112,10 @@ def preflight(plan, check_cuda=False):
             raise ValueError('CUDA is unavailable in this Python environment. Run smoke/run on your GPU server; preflight is not a GPU test.')
 
 
+def smoke_rounds(job):
+    return 6 if job['arm'] == 'method_a_v2' else 1
+
+
 def command_for(job, root, resume=False, stop_after=0):
     run = Path(root).resolve() / job['run']
     setting = job['settings']
@@ -125,12 +129,13 @@ def command_for(job, root, resume=False, stop_after=0):
     extra = ['--joint-spec', str(run / 'joint_job.json'), '--lac_method', 's',
         '--lac_partition_manifest', str(run / 'protocol/partition_source.csv'),
         '--lac_la_tau', '1', '--lac_a_lr_mult', '1',
-        '--sfra_variant', 'full-cp' if job['arm'] in ('ab', 'method_a') else 's',
-        '--sfra_retention_weight', '0' if job['arm'] == 'plain_a' else '10', '--sfra_classification_weight', '1',
+        '--sfra_variant', 'source-memory-v2' if job['arm']=='method_a_v2' else 'full-cp' if job['arm'] in ('ab', 'method_a') else 's',
+        '--sfra_retention_weight', '0' if job['arm'] == 'plain_a' else '10',
+        '--sfra_classification_weight', '0' if job['arm']=='method_a_v2' else '1',
         '--sfra_witness_batch_size', '8', '--sfra_fast_execution_v2',
         '--sfra_feedback_batch_size', '128', '--sfra_feedback_cache_gib', '4',
         '--sfra_resume', str(run / 'checkpoints/sfra_last.pt') if resume else '',
-        '--sfra_stop_after_round', str(1 if job['mode'] == 'smoke' else stop_after)]
+        '--sfra_stop_after_round', str(smoke_rounds(job) if job['mode'] == 'smoke' else stop_after)]
     if job['arm'] == 'ab':
         extra += ['--b_transfer_enable', '--b_transfer_mode', 'shared', '--b_transfer_lr', '.3',
             '--b_transfer_probe_step', '.1', '--b_transfer_reg', '.001',
@@ -145,7 +150,7 @@ def execute(job, root, stop_after=0):
     run = root / job['run']
     with file_lock(root / 'locks' / (job['mode'] + '_' + job['arm'] + '.lock'), timeout=.1):
         if (run / 'completion.json').is_file() or (run / 'smoke_complete.json').is_file():
-            audit_run(run, job, 1 if job['mode'] == 'smoke' else 100)
+            audit_run(run, job, smoke_rounds(job) if job['mode'] == 'smoke' else 100)
             print('SKIP verified completed:', run)
             return
         if (run / 'joint_job.json').is_file():
@@ -177,10 +182,10 @@ def execute(job, root, stop_after=0):
         completed = int(load_json(run / 'progress.json')['completed_round'])
         audit_run(run, job, completed)
         if job['mode'] == 'smoke':
-            if completed != 1:
-                raise ValueError('Smoke did not commit exactly one round')
-            write_json(run / 'smoke_complete.json', dict(schema=SCHEMA, completed_round=1,
-                note='Separate one-round smoke; no serial/parallel comparison; excluded from formal analysis'))
+            if completed != smoke_rounds(job):
+                raise ValueError('Smoke did not commit its registered round count')
+            write_json(run / 'smoke_complete.json', dict(schema=SCHEMA, completed_round=smoke_rounds(job),
+                note='Separate smoke; no serial/parallel comparison; excluded from formal analysis'))
         print('DONE', job['arm'], 'completed_round=' + str(completed), flush=True)
 
 

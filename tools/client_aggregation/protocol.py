@@ -26,7 +26,9 @@ FILES = ('tools/client_aggregation/__init__.py', 'tools/client_aggregation/weigh
     'scripts/run_cliplora_plain_a_aggregation.py', 'tools/client_aggregation/plain_a.py',
     'scripts/run_cliplora_method_a_aggregation.py', 'tools/client_aggregation/method_a.py',
     'scripts/run_cliplora_joint_floor.py', 'tools/client_aggregation/floor16.py',
-    'references/joint_floor16_seed42/aggregation_spec.json')
+    'references/joint_floor16_seed42/aggregation_spec.json',
+    'utils/method_a_v2_math.py', 'utils/method_a_v2_feedback.py', 'utils/cliplora_method_a_v2.py',
+    'scripts/run_cliplora_method_a_v2_aggregation.py', 'tools/client_aggregation/method_a_v2.py')
 CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='client-longtail',
     arms=list(ARMS), aggregation='KL(uniform || R.T @ w) + lambda/2 * chi_square(w || sample_weights)',
     scope='ordinary B aggregation every round; ordinary A aggregation when A is opened',
@@ -67,15 +69,24 @@ METHOD_A_CONTRACT = dict(PLAIN_A_CONTRACT, experiment='method_a_aggregation_v1',
     interpretation='Full-CP versus ordinary A within each aggregation rule; same local SGD budget, additional feedback/correction cost')
 
 
+from utils.method_a_v2_math import CONFIG as AV2_CONFIG
+METHOD_A_V2_CONTRACT = dict(PLAIN_A_CONTRACT, experiment='method_a_v2_aggregation_v1',
+    arms=['method_a_v2'], functional_correction=True, method_a_v2=AV2_CONFIG,
+    phase_order='ordinary B, ordinary A, source-memory-v2 candidate checks, commit history')
+
+
 def validate_arm(job):
-    if job['aggregation'].get('rule') == 'joint_floor16' and job['arm'] != 'plain_a':
-        raise ValueError('joint_floor16 is restricted to the single ordinary-A experiment')
+    if job['aggregation'].get('rule') == 'joint_floor16' and job['arm'] not in ('plain_a','method_a_v2'):
+        raise ValueError('joint_floor16 is restricted to the single ordinary-A experiment or source-memory-v2')
     if job['arm'] == 'plain_a':
         if job.get('contract') != PLAIN_A_CONTRACT:
             raise ValueError('Plain A requires its separate fixed-schedule contract')
     elif job['arm'] == 'method_a':
         if job.get('contract') != METHOD_A_CONTRACT:
             raise ValueError('Method A requires its separate Full-CP-only contract')
+    elif job['arm'] == 'method_a_v2':
+        if job.get('contract') != METHOD_A_V2_CONTRACT or job['aggregation'].get('rule','joint') not in ('tailrw16','joint','joint_floor16'):
+            raise ValueError('Av2 requires its independent contract and fixed three-rule matrix')
     elif job['arm'] not in ARMS:
         raise ValueError('Unknown experiment arm: ' + str(job['arm']))
     elif job['aggregation'].get('rule') in ('tailrw16', 'fedavg') and job['arm'] != 'frozen':
@@ -225,7 +236,9 @@ def audit_runtime_config(run, job):
         raise ValueError('Runtime aggregation differs from registered job')
     expected = dict(FROZEN, variant='s' if frozen or plain else 'full-cp',
         refresh_rounds=[] if frozen else list(range(1, 91)))
-    if plain:
+    if job['arm'] == 'method_a_v2':
+        expected = dict(AV2_CONFIG)
+    elif plain:
         expected.update(retention_weight=0., correction_steps=0, commit_rule='ordinary_A_without_correction')
     elif not frozen:
         expected['classification_weight'] = 1.
@@ -236,7 +249,7 @@ def audit_runtime_config(run, job):
     expected_base = dict(seed=42, protocol_seed=42, topology='client-longtail', la_tau=1.,
         aggregation=aggregation_name(job['aggregation']), normal_steps_expected=105600,
         extra_steps_expected=0 if frozen else 31680)
-    if plain or job['arm'] == 'method_a':
+    if plain or job['arm'] in ('method_a', 'method_a_v2'):
         expected_base.update(normal_trainable_factor='B', extra_trainable_factor='A',
             candidate_rounds=list(range(1, 91)), control_enabled=False,
             a_lr_mult=1., extra_a_lr=.001, extra_weight_decay=0., normal_b_lr=.001)

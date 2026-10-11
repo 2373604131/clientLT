@@ -87,6 +87,7 @@ class SFRARuntime(LAControlRuntime):
         elif (getattr(args, 'b_problem2_variant', 'off') != 'off' or getattr(args, 'b_directed_enable', False)
               or getattr(args, 'b_response_enable', False) or getattr(args, 'b_calibration_reference', '')):
             raise ValueError('Problem 2 / directed B require shared B transfer')
+        self.configure_algorithm()
         self.configure_experiment()
         self.resume_payload = None
         if args.sfra_resume:
@@ -138,6 +139,7 @@ class SFRARuntime(LAControlRuntime):
             for token in self.bank.tokens:
                 token['raw_sample_ids'] = [identity[token['client_id'], j] for j in token['local_positions']]
             write_json(self.root/'private_witness_manifest.json', self.bank.tokens)
+        self.initialize_feedback()
         self.b_transfer = None
         if 'b_transfer' in self.sfra_config:
             if self.sfra_config['b_transfer'].get('calibration_profile') == 'direct_norm_matched':
@@ -184,6 +186,19 @@ class SFRARuntime(LAControlRuntime):
                 print(f'SFRA execution v2: feedback batch={args.sfra_feedback_batch_size}, '
                       f'device prefix cache limit={args.sfra_feedback_cache_gib:g} GiB; '
                       'source gradients remain independent.', flush=True)
+
+    def configure_algorithm(self):
+        """Optional independently versioned algorithm; legacy configuration is unchanged."""
+        if self.variant == 'source-memory-v2':
+            raise ValueError('source-memory-v2 requires its dedicated aggregation worker')
+
+    def initialize_feedback(self):
+        """Optional adapter on the existing witness bank and execution cache."""
+
+    def history_from_state(self, state):
+        history = FunctionalHistory(torch.zeros(len(self.bank.tokens), 2), len(self.sizes))
+        history.load_state_dict(state)
+        return history
 
     def configure_experiment(self):
         """Optional isolated experiment metadata, set before resume validation."""
@@ -429,7 +444,8 @@ class SFRARuntime(LAControlRuntime):
         return committed, final_measurement['scores'], arrays, summary
 
     def checkpoint(self, state, completed):
-        payload = dict(schema_version='sfra_cp_v1' if self.variant.endswith('-cp') else 'sfra_v1',
+        payload = dict(schema_version=self.sfra_config.get('schema_version',
+            'sfra_cp_v1' if self.variant.endswith('-cp') else 'sfra_v1'),
             completed_round=completed, sfra_config=self.sfra_config,
             state_dict_overrides=self.compressed_state(state), rng_state=capture_rng_state(),
             witness_tokens=None if self.bank is None else self.bank.tokens,
@@ -486,8 +502,7 @@ class SFRARuntime(LAControlRuntime):
             self.b_transfer.load_state_dict(saved['b_transfer_state'])
         self.elapsed_before = saved['elapsed_seconds']
         if self.bank is not None:
-            self.history = FunctionalHistory(torch.zeros(len(self.bank.tokens),2), len(self.sizes))
-            self.history.load_state_dict(saved['functional_history'])
+            self.history = self.history_from_state(saved['functional_history'])
         completed = saved['completed_round']
         # An interrupted uncommitted round may already have appended a test row.
         path = self.root/'round_metrics.csv'

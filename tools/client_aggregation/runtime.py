@@ -16,7 +16,11 @@ from utils.sfra_math import require_finite
 
 
 def runtime_class(job):
-    class JointAggregationRuntime(SFRARuntime):
+    base = SFRARuntime
+    if job['arm'] == 'method_a_v2':
+        from utils.cliplora_method_a_v2 import MethodAV2Runtime
+        base = MethodAV2Runtime
+    class JointAggregationRuntime(base):
         def __init__(self, *args, **kwargs):
             from tools.client_aggregation.numerics import apply_policy, policy_for
             # federated_main turns cuDNN benchmarking back on during setup.
@@ -43,6 +47,7 @@ def runtime_class(job):
                   '; frozen A has no refresh' if self.is_frozen else
                   '; ordinary A rounds1..90; no correction or transfer' if job['arm'] == 'plain_a' else
                   '; Full-CP rounds1..90; no source B transfer' if job['arm'] == 'method_a' else
+                  '; source-memory-v2 rounds1..90; no B/C transfer' if job['arm'] == 'method_a_v2' else
                   '; Full-CP + original shared C', flush=True)
 
         def configure_experiment(self):
@@ -59,7 +64,9 @@ def runtime_class(job):
                 raise ValueError('Runtime sample allocation differs from the frozen partition')
             if self.sfra_config.get('b_aggregation'):
                 raise ValueError('Do not combine joint aggregation with other aggregation overrides')
-            if (self.variant != ('full-cp' if job['arm'] in ('ab', 'method_a') else 's')
+            expected_variant = ('source-memory-v2' if job['arm']=='method_a_v2' else
+                                'full-cp' if job['arm'] in ('ab', 'method_a') else 's')
+            if (self.variant != expected_variant
                     or bool(self.sfra_config.get('b_transfer')) != (job['arm'] == 'ab')):
                 raise ValueError('Wrong registered runtime variant or B transfer setting')
             self.config['aggregation'] = aggregation_name(job['aggregation'])
