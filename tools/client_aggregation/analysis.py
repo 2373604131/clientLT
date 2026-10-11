@@ -60,6 +60,9 @@ def audit_run(run, job, completed=100):
     if not 0 <= completed <= 100 or job['arm'] not in (*ARMS, 'plain_a', 'method_a'):
         raise ValueError('Invalid run request')
     check_aggregation(job['aggregation'])
+    floor16 = job['aggregation'].get('rule') == 'joint_floor16'
+    if floor16 and load_json(run/'aggregation_solution.json') != job['aggregation']:
+        raise ValueError('Floor16 runtime solution differs from the registered offline weights')
     if load_json(run / 'joint_job.json') != job:
         raise ValueError('Job differs from the frozen plan')
     receipt = load_json(run / 'joint_receipt.json')
@@ -96,6 +99,8 @@ def audit_run(run, job, completed=100):
             raise ValueError('Missing/duplicate aggregation weights')
         for row in weights:
             j = int(row['client_id'])
+            if floor16 and float(row['weight']) != job['aggregation']['weights'][j]:
+                raise ValueError('Floor16 phase weight identity differs')
             if (int(row['round']) != rnd or row['factor'] != factor
                     or not math.isclose(float(row['weight']), job['aggregation']['weights'][j], abs_tol=1e-12)
                     or not math.isclose(float(row['original_weight']), job['aggregation']['counts']['sizes'][j] / 10847, abs_tol=1e-12)):
@@ -107,6 +112,8 @@ def audit_run(run, job, completed=100):
             raise ValueError('Bad event client identities')
         if not np.allclose(event['server_weights'], [job['aggregation']['weights'][j] for j in event['selected_client_ids']], rtol=0, atol=1e-12):
             raise ValueError('Bridge recorded different aggregation weights')
+        if floor16 and event['server_weights'] != [job['aggregation']['weights'][j] for j in event['selected_client_ids']]:
+            raise ValueError('Floor16 effective aggregation weights differ')
         slots = job.get('settings', {}).get('client_concurrency', 1)
         if slots > 1:
             execution = load_json(run / 'parallel_execution' / f'r{rnd:03d}_{factor}.json')

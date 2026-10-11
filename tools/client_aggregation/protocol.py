@@ -6,7 +6,7 @@ import numpy as np
 from tools.sfra.maintext import FROZEN, PAIR_HASHES, digest, load_json
 from tools.sfra.ab_validation import code_hashes as ab_code_hashes
 from tools.sfra.simple_controls import protocol_info, read_csv, write_table, tail_weights
-from tools.client_aggregation.weights import audit_weights, solve_weights
+from tools.client_aggregation.weights import audit_weights, solve_weights, solve_floor16, audit_floor16
 
 SCHEMA = 'joint_client_aggregation_v1'
 ARMS = ('frozen', 'ab')
@@ -24,7 +24,9 @@ FILES = ('tools/client_aggregation/__init__.py', 'tools/client_aggregation/weigh
     'scripts/run_cliplora_frozen_aggregation.py', 'tools/client_aggregation/frozen_controls.py',
     'tools/client_aggregation/numerics.py',
     'scripts/run_cliplora_plain_a_aggregation.py', 'tools/client_aggregation/plain_a.py',
-    'scripts/run_cliplora_method_a_aggregation.py', 'tools/client_aggregation/method_a.py')
+    'scripts/run_cliplora_method_a_aggregation.py', 'tools/client_aggregation/method_a.py',
+    'scripts/run_cliplora_joint_floor.py', 'tools/client_aggregation/floor16.py',
+    'references/joint_floor16_seed42/aggregation_spec.json')
 CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='client-longtail',
     arms=list(ARMS), aggregation='KL(uniform || R.T @ w) + lambda/2 * chi_square(w || sample_weights)',
     scope='ordinary B aggregation every round; ordinary A aggregation when A is opened',
@@ -66,6 +68,8 @@ METHOD_A_CONTRACT = dict(PLAIN_A_CONTRACT, experiment='method_a_aggregation_v1',
 
 
 def validate_arm(job):
+    if job['aggregation'].get('rule') == 'joint_floor16' and job['arm'] != 'plain_a':
+        raise ValueError('joint_floor16 is restricted to the single ordinary-A experiment')
     if job['arm'] == 'plain_a':
         if job.get('contract') != PLAIN_A_CONTRACT:
             raise ValueError('Plain A requires its separate fixed-schedule contract')
@@ -106,6 +110,8 @@ def aggregation_name(spec):
         return 'tail_count_reweighted_clients_gamma16'
     if rule == 'fedavg':
         return 'sample_count_weighted_fedavg'
+    if rule == 'joint_floor16':
+        return 'joint_class_distribution_with_tailrw16_fedavg_floor'
     raise ValueError('Unknown aggregation rule: ' + str(rule))
 
 
@@ -125,20 +131,26 @@ def tailrw_statistics(matrix, tail_ids):
 
 def aggregation_spec(reference, strength, rule='joint'):
     fingerprint, counts, matrix = count_matrix(reference)
-    if rule not in ('joint', 'tailrw16', 'fedavg'):
+    if rule not in ('joint', 'tailrw16', 'fedavg', 'joint_floor16'):
         raise ValueError('Unknown aggregation rule: ' + str(rule))
-    solution = (solve_weights(matrix, strength) if rule == 'joint' else
+    if rule == 'joint_floor16' and strength != .1:
+        raise ValueError('joint_floor16 fixes aggregation lambda at 0.1')
+    solution = (solve_floor16(matrix, counts['tail_ids']) if rule == 'joint_floor16' else
+                solve_weights(matrix, strength) if rule == 'joint' else
                 fedavg_statistics(matrix) if rule == 'fedavg' else
                 tailrw_statistics(matrix, counts['tail_ids']))
     weights = solution['weights']
     spec = dict(input_fingerprint=fingerprint, counts=counts, matrix=matrix.tolist(),
         partition_sha256=partition_signature(read_csv(Path(reference) / 'partition_manifest.csv')),
-        lambda_value=strength if rule == 'joint' else None, weights=weights, weights_sha256=digest(weights),
+        lambda_value=strength if rule in ('joint', 'joint_floor16') else None, weights=weights, weights_sha256=digest(weights),
         matrix_sha256=digest(matrix.tolist()), solver=solution)
     if rule == 'tailrw16':
         spec.update(rule=rule, gamma=16.)
     elif rule == 'fedavg':
         spec.update(rule=rule)
+    elif rule == 'joint_floor16':
+        spec.update(rule=rule, fedavg_floor_fraction=solution['fedavg_floor_fraction'],
+            lower_bounds=solution['lower_bounds'], lower_bounds_sha256=digest(solution['lower_bounds']))
     return spec
 
 
@@ -153,6 +165,15 @@ def check_aggregation(spec):
     if digest(spec['weights']) != spec['weights_sha256'] or digest(spec['matrix']) != spec['matrix_sha256']:
         raise ValueError('Frozen weights/counts digest mismatch')
     aggregation_name(spec)  # Reject unrecognized policies, including in archived jobs.
+    if spec.get('rule') == 'joint_floor16':
+        expected = audit_floor16(spec['weights'], spec['matrix'], spec['counts']['tail_ids'],
+            spec['solver']['joint_reference_weights'], spec['lambda_value'])
+        if (spec['fedavg_floor_fraction'] != expected['fedavg_floor_fraction']
+                or spec['lower_bounds'] != expected['lower_bounds']
+                or spec['lower_bounds_sha256'] != digest(expected['lower_bounds'])
+                or spec['solver']['weights'] != spec['weights']):
+            raise ValueError('Floor16 specification identity mismatch')
+        return expected
     if spec.get('rule') == 'fedavg':
         expected = fedavg_statistics(spec['matrix'])
         if (spec['lambda_value'] is not None or spec.get('gamma') is not None

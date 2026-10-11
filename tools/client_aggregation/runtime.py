@@ -103,6 +103,12 @@ def runtime_class(job):
                     or not (factor == 'B' and not extra and 1 <= rnd <= 100
                             or factor == 'A' and extra and not self.is_frozen and 1 <= rnd <= 90)):
                 raise ValueError('Unexpected aggregation phase')
+            if job.get('aggregation', {}).get('rule') == 'joint_floor16':
+                actual = np.array([self.joint_weights[j] for j in range(30)], dtype=np.float64)
+                lower = np.asarray(job['aggregation']['lower_bounds'])
+                if (not np.array_equal(actual, np.asarray(job['aggregation']['weights']))
+                        or abs(float(actual.sum())-1.) > 1e-10 or np.min(actual-lower) < -1e-10):
+                    raise ValueError('Floor16 phase weights changed or violated the lower bound')
             write_table(self.root / 'aggregation_weights' / f'r{rnd:03d}_{factor}.csv',
                 [dict(round=rnd, factor=factor, client_id=j, original_weight=self.q[j],
                       weight=self.joint_weights[j]) for j in sorted(selected)])
