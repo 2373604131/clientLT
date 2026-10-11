@@ -32,6 +32,36 @@ def spec():return load_json(REPO/floor16.REFERENCE)
 
 
 class TestFloor16(unittest.TestCase):
+    def test_missing_baseline_does_not_block_registration_or_resume(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)/'candidate'
+            args=launcher.parse_args(['--output-root',str(root),'--baseline-root',str(Path(temp)/'absent'),
+                                      '--reference-run',str(REPO/'references/full10_clientlt')])
+            with patch.object(floor16,'load_plain',side_effect=AssertionError('Training must not read old results')):
+                plan=launcher.register(args)
+                self.assertEqual(plan,launcher.register(args))
+            self.assertNotIn('baseline_record_sha256',plan)
+            self.assertFalse((root/'baseline').exists())
+            self.assertEqual(plan['aggregation']['weights'],spec()['weights'])
+            self.assertEqual(load_json(root/'preflight_audit.json')['baseline_comparison'],'deferred_to_summary')
+            changed=load_json(root/'experiment_plan.json');changed['code_sha256']['extra']='tampered'
+            write_json(root/'experiment_plan.json',changed)
+            with self.assertRaisesRegex(ValueError,'Registered source/settings/weights'):
+                launcher.register(args)
+
+    def test_smoke_checks_training_without_reading_a_comparison_baseline(self):
+        plan=dict(contract=PLAIN_A_CONTRACT,aggregation=spec(),settings=dict(client_concurrency=8),code_sha256={})
+        result=dict(config=dict(client_execution=dict(max_concurrent_clients=8)),
+                    progress=dict(normal_optimizer_steps=1056,extra_optimizer_steps=352))
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.object(floor16,'audit_run',return_value=result) as audit, \
+             patch.object(floor16,'read_baseline',side_effect=AssertionError('No baseline access')):
+            floor16.audit_smoke(Path(temp),plan)
+            self.assertEqual(audit.call_args.args[2],1)
+            self.assertEqual(load_json(Path(temp)/'smoke_audit.json')['comparison']['status'],'deferred_to_summary')
+            audit.side_effect=ValueError('phase weight identity')
+            with self.assertRaisesRegex(ValueError,'phase weight identity'):floor16.audit_smoke(Path(temp),plan)
+
     def test_solver_matches_offline_candidate_and_full_precision_order(self):
         s=spec(); p=floor16_parameters(s['matrix'],s['counts']['tail_ids'])
         self.assertEqual((p['N'],p['N_tail'],p['denominator']),(10847,153,13295))
@@ -186,6 +216,8 @@ class TestFloor16(unittest.TestCase):
             folder=Path(temp);source=folder/'synthetic_baseline';root=folder/'candidate'
             job=fixtures.TestJointAggregation().audit_fixture(source,'plain_a','joint')
             baseline=audit_run(source,job,1)
+            baseline['job']['aggregation']['weights']=spec()['solver']['joint_reference_weights']
+            baseline['job']['aggregation']['weights_sha256']=digest(baseline['job']['aggregation']['weights'])
             baseline['metadata'].update({k:'synthetic-same' for k in PAIR_HASHES})
             baseline['progress'].update(completed_round=100,normal_optimizer_steps=105600,
                                         extra_optimizer_steps=31680,elapsed_seconds=1.)
@@ -226,6 +258,36 @@ class TestFloor16(unittest.TestCase):
                 decision=floor16.summarize(root)
             self.assertEqual(decision['decision'],'adopt_joint_floor16')
             self.assertEqual(load_json(root/'analysis/selected_aggregation.json')['aggregation']['rule'],'joint_floor16')
+            # A new server can finish, summarize and pack without any old results.
+            independent=folder/'independent'; independent_plan=copy.deepcopy(plan)
+            independent_plan.pop('baseline_record_sha256')
+            write_json(independent/'experiment_plan.json',independent_plan)
+            write_json(independent/'runs/seed42/plain_a/completion.json',dict(completed_round=100))
+            plan_bytes=(independent/'experiment_plan.json').read_bytes()
+            with patch.object(floor16,'audit_run',return_value=candidate):
+                pending=floor16.summarize(independent,folder/'missing_baseline')
+            self.assertEqual(pending['status'],'pending_baseline')
+            self.assertEqual(pending['decision'],'not_evaluated')
+            self.assertEqual(pending['endpoint']['correct']['bottom20_tail_acc'],28803)
+            self.assertIsNone(load_json(independent/'analysis/selected_aggregation.json')['aggregation'])
+            self.assertEqual(len(read_csv(independent/'analysis/performance.csv')),1)
+            self.assertTrue(pack_results(independent).is_file())
+            # Attach and audit the baseline later, without changing/re-running training.
+            write_json(source/'experiment_plan.json',{})
+            with patch.object(floor16,'audit_run',return_value=candidate), \
+                 patch.object(floor16,'load_plain',return_value=baseline):
+                late=floor16.summarize(independent,source)
+            self.assertEqual(late['decision'],'adopt_joint_floor16')
+            self.assertEqual((independent/'experiment_plan.json').read_bytes(),plan_bytes)
+            with patch.object(floor16,'audit_run',return_value=candidate), \
+                 patch.object(floor16,'load_plain',side_effect=AssertionError('Snapshot is self-contained')):
+                self.assertEqual(floor16.summarize(independent)['decision'],'adopt_joint_floor16')
+            # Moving the comparison later must not relax environment matching.
+            incompatible=copy.deepcopy(candidate)
+            incompatible['metadata']['environment']={'gpu':'different GPU'}
+            with patch.object(floor16,'audit_run',return_value=incompatible):
+                with self.assertRaisesRegex(ValueError,'no adoption decision'):floor16.summarize(independent)
+            self.assertIsNone(load_json(independent/'analysis/selected_aggregation.json')['aggregation'])
             import tarfile
             packed=pack_results(root)
             with tarfile.open(packed) as archive:

@@ -107,6 +107,38 @@ def read_baseline(root):
     return result
 
 
+def comparison_baseline(root, plan, source=None):
+    """Attach results for comparison without changing the training registration."""
+    root = Path(root)
+    record_path = root/'baseline/record.json'
+    identity_path = root/'baseline/identity.json'
+    expected = plan.get('baseline_record_sha256')  # Support previously registered snapshots.
+    if identity_path.is_file():
+        attached = load_json(identity_path)['record_sha256']
+        if expected is not None and expected != attached:
+            raise ValueError('Registered comparison baseline changed')
+        expected = attached
+    if expected is not None:
+        if digest(load_json(record_path)) != expected:
+            raise ValueError('Registered comparison baseline changed')
+        result = read_baseline(root)
+    else:
+        if source is None or not (Path(source)/'experiment_plan.json').is_file():
+            return None
+        source = Path(source).resolve(); target = root.resolve()
+        if source == target or source in target.parents or target in source.parents:
+            raise ValueError('Use an independent baseline directory outside the new experiment')
+        # Re-audit any incomplete/unbound snapshot using the original artifacts.
+        record = snapshot_baseline(root,source)
+        result = read_baseline(root)
+        if result['job']['aggregation']['weights'] != plan['aggregation']['solver']['joint_reference_weights']:
+            raise ValueError('Original joint weight identity differs from the registered reference')
+        write_json(identity_path,dict(record_sha256=digest(record)))
+    if result['job']['aggregation']['weights'] != plan['aggregation']['solver']['joint_reference_weights']:
+        raise ValueError('Original joint weight identity differs from the registered reference')
+    return result
+
+
 def comparison_audit(result, baseline, smoke=False):
     pair = paired_audit(result,baseline)
     allowed = {'code.'+k for k in INTEGRATION_FILES}
@@ -140,24 +172,46 @@ def audit_smoke(root, plan):
     result = audit_run(Path(root)/job['run'],job,1)
     if result['config']['client_execution']['max_concurrent_clients'] != 8:
         raise ValueError('Smoke must use the registered eight-client execution')
-    pair = comparison_audit(result,read_baseline(root),smoke=True)
-    write_json(Path(root)/'smoke_audit.json',dict(comparison=pair, weights_sha256=job['aggregation']['weights_sha256'],
+    write_json(Path(root)/'smoke_audit.json',dict(comparison=dict(status='deferred_to_summary'),
+        weights_sha256=job['aggregation']['weights_sha256'],
         completed_round=1, B_steps=result['progress']['normal_optimizer_steps'],
         A_steps=result['progress']['extra_optimizer_steps'],
         checks=['exact offline weights by client ID in A and B','all 30 clients, 8 slots',
-                'ordinary A; no correction or C','baseline initialization/configuration/execution']))
-    if pair['status'] != 'eligible':
-        raise ValueError('Smoke baseline pairing failed: '+str(pair['mismatches']))
+                'ordinary A; no correction or C']))
     return result
 
 
-def summarize(root):
+def write_result_tables(out, result, current_endpoint, baseline=None):
+    entries = [(RULE,result,current_endpoint)]
+    if baseline is not None:
+        entries.append(('joint',baseline,verify_baseline(baseline)))
+    performance,curves,dynamics,per_class = [],[],[],[]
+    for label,r,ep in entries:
+        tails = [float(x['bottom20_tail_acc']) for x in r['curves']]
+        performance.append(dict(method=label,**{'last20_'+m:ep['accuracy'][m] for m in METRICS},
+            final_tail=tails[-1],tail_peak_to_final=max(tails)-tails[-1],tail_change_90_to_100=tails[-1]-tails[90]))
+        curves.extend(dict(row,method=label) for row in r['curves'])
+        dynamics.extend(dict(row,method=label) for row in sample_dynamics(r))
+        per_class.extend(dict(method=label,class_id=c,last20_accuracy=mean(
+            int(r['predictions'][t]['correct'][r['predictions'][t]['class_id']==c].sum()) for t in GATE['rounds'])) for c in range(100))
+    costs = [dict(method=label,**{k:r['progress'].get(k,0) for k in
+        ('normal_optimizer_steps','extra_optimizer_steps','functional_correction_steps',
+         'b_transfer_optimizer_steps','elapsed_seconds','stage_diagnostic_seconds')})
+        for label,r,_ in entries]
+    for name,rows in dict(performance=performance,curves=curves,sample_dynamics=dynamics,
+            per_class=per_class,costs=costs,stage_effects=stage_comparisons(result),
+            endpoint_correct=current_endpoint['per_round_correct']).items():
+        write_table(out/(name+'.csv'),rows)
+
+
+def summarize(root, baseline_root=None):
     from scripts.run_cliplora_joint_aggregation import make_job
     root = Path(root); out = root/'analysis'; out.mkdir(parents=True,exist_ok=True)
     state = status(root)
     decision = dict(status='pending', decision='not_evaluated', aggregation_revision_finished=False, gate=GATE)
     write_json(out/'decision.json',decision)  # Clear any stale decision before validation.
     write_json(out/'selected_aggregation.json',dict(decision='not_evaluated',aggregation=None))
+    write_json(out/'pair_audit.json',dict(status='pending'))
     if state['status'] != 'completed_unverified':
         write_table(out/'status.csv',[state]); print(RULE,state['status'],'round='+str(state['completed_round']))
         return decision
@@ -165,41 +219,30 @@ def summarize(root):
         plan = load_json(root/'experiment_plan.json')
         if plan['floor16_experiment'] != EXPERIMENT:
             raise ValueError('Registered experiment or adoption gate changed')
-        if digest(load_json(root/'baseline/record.json')) != plan['baseline_record_sha256']:
-            raise ValueError('Registered comparison baseline changed')
         job = make_job(plan,'plain_a')
         result = audit_run(root/job['run'],job)
-        baseline = read_baseline(root)
-        pair = comparison_audit(result,baseline)
-        write_json(out/'pair_audit.json',pair)
-        if pair['status'] != 'eligible':
-            raise ValueError('Full-run pairing failed: '+str(pair['mismatches']))
         current_endpoint = endpoint(result)
-        base_endpoint = verify_baseline(baseline)
-        decision.update(integer_decision(current_endpoint['correct']['overall_acc'],current_endpoint['correct']['bottom20_tail_acc']),
-            status='evaluated', endpoint=current_endpoint, baseline_endpoint=base_endpoint,
-            delta_pp={m:current_endpoint['accuracy'][m]-base_endpoint['accuracy'][m] for m in METRICS})
-        performance,curves,dynamics,per_class = [],[],[],[]
-        for label,r,ep in ((RULE,result,current_endpoint),('joint',baseline,base_endpoint)):
-            tails = [float(x['bottom20_tail_acc']) for x in r['curves']]
-            performance.append(dict(method=label,**{'last20_'+m:ep['accuracy'][m] for m in METRICS},
-                final_tail=tails[-1],tail_peak_to_final=max(tails)-tails[-1],tail_change_90_to_100=tails[-1]-tails[90]))
-            curves.extend(dict(row,method=label) for row in r['curves'])
-            dynamics.extend(dict(row,method=label) for row in sample_dynamics(r))
-            per_class.extend(dict(method=label,class_id=c,last20_accuracy=mean(
-                int(r['predictions'][t]['correct'][r['predictions'][t]['class_id']==c].sum()) for t in GATE['rounds'])) for c in range(100))
-        costs = [dict(method=label,**{k:r['progress'].get(k,0) for k in
-            ('normal_optimizer_steps','extra_optimizer_steps','functional_correction_steps',
-             'b_transfer_optimizer_steps','elapsed_seconds','stage_diagnostic_seconds')})
-            for label,r in ((RULE,result),('joint',baseline))]
-        for name,rows in dict(performance=performance,curves=curves,sample_dynamics=dynamics,
-                per_class=per_class,costs=costs,stage_effects=stage_comparisons(result),
-                endpoint_correct=current_endpoint['per_round_correct']).items():
-            write_table(out/(name+'.csv'),rows)
+        decision['endpoint'] = current_endpoint
+        write_result_tables(out,result,current_endpoint)
         state['status']='complete'
-        write_json(out/'selected_aggregation.json',dict(decision=decision['decision'],
-            aggregation=result['job']['aggregation'] if decision['passed'] else baseline['job']['aggregation'],
-            note='Selection for subsequent work; legacy joint definition and existing experiments remain unchanged'))
+        baseline = comparison_baseline(root,plan,baseline_root)
+        if baseline is None:
+            decision.update(status='pending_baseline',reason='Training completed and audited. Original joint results are absent; '
+                'results can be packed now. Supply --baseline-root to summary/pack later to evaluate the fixed gate.')
+            write_json(out/'pair_audit.json',dict(status='pending_baseline'))
+        else:
+            pair = comparison_audit(result,baseline)
+            write_json(out/'pair_audit.json',pair)
+            if pair['status'] != 'eligible':
+                raise ValueError('Full-run pairing failed: '+str(pair['mismatches']))
+            base_endpoint = verify_baseline(baseline)
+            decision.update(integer_decision(current_endpoint['correct']['overall_acc'],current_endpoint['correct']['bottom20_tail_acc']),
+                status='evaluated', baseline_endpoint=base_endpoint,
+                delta_pp={m:current_endpoint['accuracy'][m]-base_endpoint['accuracy'][m] for m in METRICS})
+            write_result_tables(out,result,current_endpoint,baseline)
+            write_json(out/'selected_aggregation.json',dict(decision=decision['decision'],
+                aggregation=result['job']['aggregation'] if decision['passed'] else baseline['job']['aggregation'],
+                note='Selection for subsequent work; legacy joint definition and existing experiments remain unchanged'))
     except (ValueError,OSError,KeyError,TypeError,AssertionError) as error:
         state.update(status='invalid',reason=str(error))
         decision.update(status='invalid',reason=str(error))
@@ -213,6 +256,10 @@ def summarize(root):
         lines += [f'{m}, {current_endpoint["accuracy"][m]:.4f}, {base_endpoint["accuracy"][m]:.4f}, {decision["delta_pp"][m]:+.4f}' for m in METRICS]
         lines += ['', 'Correct occurrences: '+str(current_endpoint['correct']), 'Checks: '+str(decision['checks']),
                   'Head/Middle and forgetting are reported; they do not change the fixed gate.']
+    elif decision['status']=='pending_baseline':
+        lines += ['',decision['reason'],'','Metric, joint_floor16']
+        lines += [f'{m}, {current_endpoint["accuracy"][m]:.4f}' for m in METRICS]
+        lines += ['','Correct occurrences: '+str(current_endpoint['correct'])]
     elif 'reason' in decision:
         lines.append(decision['reason'])
     (out/'report.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
