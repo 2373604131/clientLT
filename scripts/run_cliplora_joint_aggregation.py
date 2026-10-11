@@ -124,6 +124,9 @@ def command_for(job, root, resume=False, stop_after=0):
         matched_beta=.5, refresh_interval=10, refresh_epochs=1, refresh_lr=.001,
         resume=None, num_workers=setting['num_workers'])
     command, _ = build_command(base, 'off')
+    if setting.get('partition_experiment') == 'joint_tail30_v1':
+        command[command.index('--head_class_ratio') + 1] = '0.7'
+        command[command.index('--tail_class_ratio') + 1] = '0.3'
     command[command.index('federated_main.py')] = str(REPO / 'scripts/train_cliplora_joint_aggregation.py')
     command[command.index('--output-dir') + 1] = str(run)
     extra = ['--joint-spec', str(run / 'joint_job.json'), '--lac_method', 's',

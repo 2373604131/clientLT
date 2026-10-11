@@ -28,7 +28,8 @@ FILES = ('tools/client_aggregation/__init__.py', 'tools/client_aggregation/weigh
     'scripts/run_cliplora_joint_floor.py', 'tools/client_aggregation/floor16.py',
     'references/joint_floor16_seed42/aggregation_spec.json',
     'utils/method_a_v2_math.py', 'utils/method_a_v2_feedback.py', 'utils/cliplora_method_a_v2.py',
-    'scripts/run_cliplora_method_a_v2_aggregation.py', 'tools/client_aggregation/method_a_v2.py')
+    'scripts/run_cliplora_method_a_v2_aggregation.py', 'tools/client_aggregation/method_a_v2.py',
+    'scripts/run_cliplora_joint_tail30.py', 'tools/client_aggregation/tail30.py')
 CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='client-longtail',
     arms=list(ARMS), aggregation='KL(uniform || R.T @ w) + lambda/2 * chi_square(w || sample_weights)',
     scope='ordinary B aggregation every round; ordinary A aggregation when A is opened',
@@ -76,6 +77,12 @@ METHOD_A_V2_CONTRACT = dict(PLAIN_A_CONTRACT, experiment='method_a_v2_aggregatio
 
 
 def validate_arm(job):
+    if job.get('settings', {}).get('partition_experiment') == 'joint_tail30_v1':
+        from tools.client_aggregation.tail30 import contract_for, validate_spec
+        validate_spec(job['aggregation'])
+        if job.get('contract') != contract_for(job['arm'], job['aggregation']['counts']):
+            raise ValueError('Tail30 job differs from its independent three-arm contract')
+        return
     if job['aggregation'].get('rule') == 'joint_floor16' and job['arm'] not in ('plain_a','method_a_v2'):
         raise ValueError('joint_floor16 is restricted to the single ordinary-A experiment or source-memory-v2')
     if job['arm'] == 'plain_a':
@@ -246,9 +253,10 @@ def audit_runtime_config(run, job):
         if cfg.get(key) != value:
             raise ValueError('A runtime configuration mismatch: ' + key)
     base = cfg['base_training_config']
+    steps_per_epoch = sum((n + 31) // 32 for n in job['aggregation']['counts']['sizes'])
     expected_base = dict(seed=42, protocol_seed=42, topology='client-longtail', la_tau=1.,
-        aggregation=aggregation_name(job['aggregation']), normal_steps_expected=105600,
-        extra_steps_expected=0 if frozen else 31680)
+        aggregation=aggregation_name(job['aggregation']), normal_steps_expected=300*steps_per_epoch,
+        extra_steps_expected=0 if frozen else 90*steps_per_epoch)
     if plain or job['arm'] in ('method_a', 'method_a_v2'):
         expected_base.update(normal_trainable_factor='B', extra_trainable_factor='A',
             candidate_rounds=list(range(1, 91)), control_enabled=False,

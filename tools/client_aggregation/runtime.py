@@ -78,7 +78,8 @@ def runtime_class(job):
             elif plain:
                 self.rounds = list(range(1, 91))
                 self.periodic = True
-                self.config.update(candidate_rounds=self.rounds, extra_trainable_factor='A', extra_steps_expected=31680)
+                self.config.update(candidate_rounds=self.rounds, extra_trainable_factor='A',
+                                   extra_steps_expected=90*sum((n+31)//32 for n in job['aggregation']['counts']['sizes']))
                 self.sfra_config.update(refresh_rounds=self.rounds, retention_weight=0., correction_steps=0,
                                         commit_rule='ordinary_A_without_correction')
             elif job['arm'] == 'ab':

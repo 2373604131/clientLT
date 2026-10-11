@@ -1,0 +1,51 @@
+joint_tail30_v1：仅改变Client-LT数据划分的类别边界
+
+固定矩阵A、普通A、旧Full-CP三组，seed42，30客户端全参与，原joint lambda=0.1。
+划分类别比例由非尾部0.8/尾部0.2改为0.7/0.3；尾部客户端比例仍为0.1。
+其他划分参数：specialization_lambda=0.75、intra_group_alpha=0.5、head_leakage_scale=3。
+原训练池10847张完全保留，Tail30=class70..99共有305张。训练入口不依赖旧实验结果目录。
+先以同一算法重建Tail20并核对仓库内置清单，再生成Tail30。三个客户端27..29合计259张，其中尾类236、非尾类23。
+新划分每个epoch的客户端批次数之和仍为352。固定A总105600步；普通A/Full-CP为137280步，其中A为31680步。
+普通A及Full-CP：第1-90轮B3后A1；第91-100轮只有B3。旧Full-CP保持原lambda10、mu1和三步修正，不启用B/C或Av2。
+
+统计定义
+为保持旧训练路径与诊断行为，底层Tail20探针和在线日志不改名、不改变范围。
+partition_intervention.partition_tail_ids记录真正用于数据分配的30个类别。
+新汇总从已保存预测一次性计算Overall/Head20/Middle50/Tail30，并同时给出Middle60/Tail20。
+不能把在线打印的Tail20当成Tail30；也不能把两个分组的差异当成新的训练收益。
+不按测试结果选模型或调参数，主端点仍为第81-100轮均值。
+
+独立入口
+python scripts/run_cliplora_joint_tail30.py --stage preflight
+python scripts/run_cliplora_joint_tail30.py --stage smoke --arms plain_a
+python scripts/run_cliplora_joint_tail30.py --stage run --arms frozen
+python scripts/run_cliplora_joint_tail30.py --stage run --arms plain_a
+python scripts/run_cliplora_joint_tail30.py --stage run --arms method_a
+run会先完成各自独立的一轮smoke，再从初始化启动正式100轮；smoke不计入正式结果。
+相同命令支持已提交checkpoint恢复。完成且通过审计的实验不会重新运行。
+--stop-after-round可用于检查正式路径的前几轮，恢复时移除该参数。
+一组只有一张可见GPU，每轮最多8个客户端并发。
+
+三张GPU同时运行
+在srun分配的计算节点、激活clientlt后，保持Slurm给出的CUDA_VISIBLE_DEVICES：
+bash scripts/run_joint_tail30_three_gpus.sh
+脚本要求已有三个不同的可见GPU，按顺序分给frozen/plain_a/method_a，先统一preflight。
+非Slurm且明确持有GPU0/1/2时可用：
+CUDA_VISIBLE_DEVICES=0,1,2 bash scripts/run_joint_tail30_three_gpus.sh
+不要在仍有旧实验运行的代码目录上覆盖本次公共文件，旧实验会检测源码变化。
+交付包使用独立目录clientLT_joint_tail30_20261012；将DATA链接到已有数据目录。
+
+默认结果目录
+output/cifar100_LT/joint_tail30_v1_parallel8
+每个arm：<root>/<arm>/runs/seed42/<arm>
+训练日志：<root>/<arm>/launcher_logs/<arm>_formal.log
+并行总启动日志：<root>/launcher_logs/<arm>_launcher.log
+python scripts/run_cliplora_joint_tail30.py --stage status
+python scripts/run_cliplora_joint_tail30.py --stage summary
+python scripts/run_cliplora_joint_tail30.py --stage pack
+汇总：<root>/analysis/performance.csv；结果包：<root>_results.tar.gz。
+旧对照缺失不自动补跑。新旧划分同为单seed，不据此声称统计显著性。
+
+验证边界
+CPU上检查实际CIFAR样本池/划分重建、joint求解、命令分派、原入口回归、恢复和结果核对。
+本机无CUDA，未执行真实CLIP GPU训练。服务器首轮smoke必须通过；失败应修复实现，不能放宽约束。
