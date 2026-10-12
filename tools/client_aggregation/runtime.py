@@ -52,6 +52,8 @@ def runtime_class(job):
 
         def configure_experiment(self):
             validate_arm(job)
+            from tools.client_aggregation.protocol import check_fixed_class_groups
+            check_fixed_class_groups(job, self.config)
             self.job = job
             self.is_frozen = job['arm'] == 'frozen'
             plain = job['arm'] == 'plain_a'

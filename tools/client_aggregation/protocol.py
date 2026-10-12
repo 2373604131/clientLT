@@ -226,6 +226,19 @@ def client_execution_config(job):
     return result
 
 
+def check_fixed_class_groups(job, groups):
+    """Opt-in guard for projection recollection; legacy suites keep their grouping."""
+    fixed = job.get('settings', {}).get('fixed_class_groups')
+    if fixed is None:
+        return
+    expected = dict(head_ids=list(range(20)), middle_ids=list(range(20, 80)), tail_ids=list(range(80, 100)))
+    if fixed != expected:
+        raise ValueError('Projection recollection requires fixed Head0..19/Middle20..79/Tail80..99')
+    for name, ids in fixed.items():
+        if groups.get(name) != ids:
+            raise ValueError('Fixed class grouping changed: ' + name + '; expected ' + str(ids))
+
+
 def audit_runtime_config(run, job):
     validate_arm(job)
     cfg = load_json(Path(run) / 'sfra_config.json')
@@ -253,6 +266,9 @@ def audit_runtime_config(run, job):
         if cfg.get(key) != value:
             raise ValueError('A runtime configuration mismatch: ' + key)
     base = cfg['base_training_config']
+    check_fixed_class_groups(job, base)
+    if job.get('settings', {}).get('fixed_class_groups') is not None:
+        check_fixed_class_groups(job, load_json(Path(run) / 'control_config.json'))
     steps_per_epoch = sum((n + 31) // 32 for n in job['aggregation']['counts']['sizes'])
     expected_base = dict(seed=42, protocol_seed=42, topology='client-longtail', la_tau=1.,
         aggregation=aggregation_name(job['aggregation']), normal_steps_expected=300*steps_per_epoch,

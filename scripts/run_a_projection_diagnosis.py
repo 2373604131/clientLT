@@ -1,4 +1,4 @@
-"""Offline ordinary-A projection diagnosis. Inventory never starts training."""
+"""Offline ordinary-A projection diagnosis; sequential on one GPU by default."""
 import argparse
 import json
 from pathlib import Path
@@ -9,15 +9,18 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from tools.a_projection_diagnosis.protocol import (
-    PROTOCOL, ANCHORS, StateIndex, check_source, check_pair, fit_manifest,
+    PROTOCOL, ANCHORS, StateIndex, check_pair, fit_manifest,
     digest, file_digest, read_json, write_json, write_csv,
 )
+from tools.a_projection_diagnosis.discovery import DEFAULT_SOURCE_ROOT, artifact_required, discover_source
 
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     p.add_argument('--stage', choices=('inventory', 'preflight', 'smoke', 'run', 'server', 'summary', 'pack'), default='inventory')
-    p.add_argument('--source-root', type=Path, default=Path('output/cifar100_LT/plain_a_aggregation_v1_parallel8'))
+    p.add_argument('--source-root', type=Path, help='Explicit suite root; omitted: search known ordinary-A locations')
+    p.add_argument('--search-root', type=Path, action='append', default=[],
+                   help='Additional repository/output/suite location to search; repeatable, with automatic source discovery')
     p.add_argument('--fedavg-run', type=Path)
     p.add_argument('--tailrw16-run', type=Path)
     p.add_argument('--trajectories', nargs='+', choices=('fedavg', 'tailrw16'), default=['fedavg', 'tailrw16'])
@@ -25,15 +28,19 @@ def parse_args(argv=None):
     p.add_argument('--rounds', nargs='+', type=int, choices=ANCHORS, default=list(ANCHORS))
     p.add_argument('--output-root', type=Path, default=Path('output/a_projection_diagnosis_v1'))
     p.add_argument('--data-root', type=Path, default=Path('DATA'))
-    p.add_argument('--device', default='cuda:0')
-    p.add_argument('--gpus', nargs='+', type=int, help='Queue independent jobs on 1..4 currently visible GPU indices, e.g. 0 1 2 3')
-    p.add_argument('--cpu-threads', type=int, default=2, help='CPU math threads per worker; avoids four workers oversubscribing the host')
+    p.add_argument('--device', default='cuda:0', help='Device for the default single-process sequential run')
+    p.add_argument('--gpus', nargs='+', type=int, help='Optional multi-process GPU queue; omit for single-GPU sequential execution')
+    p.add_argument('--cpu-threads', type=int, default=2, help='CPU math threads per process')
     p.add_argument('--seed', type=int, choices=(42,), default=42)
     p.add_argument('--num-workers', type=int, default=0)
     p.add_argument('--eval-batch-size', type=int, default=64)
     p.add_argument('--no-plots', action='store_true')
     p.add_argument('--archive', type=Path)
     a = p.parse_args(argv)
+    a.auto_source = a.source_root is None
+    a.source_root = a.source_root or DEFAULT_SOURCE_ROOT
+    if a.search_root and not a.auto_source:
+        p.error('Use either --source-root for an exact suite or --search-root for discovery')
     if a.num_workers < 0 or a.cpu_threads < 1 or a.eval_batch_size < 1 or len(set(a.trajectories)) != len(a.trajectories) or len(set(a.rounds)) != len(a.rounds):
         p.error('Invalid workers/batch size or duplicated selection')
     if a.part == 'events' and 'fedavg' not in a.trajectories:
@@ -64,18 +71,26 @@ def inventory(args):
         if protocol_path.is_file() and read_json(protocol_path) != PROTOCOL:
             raise ValueError('Output protocol differs. Select a new --output-root.')
         write_json(protocol_path, PROTOCOL)
-    sources, rows, errors = [], [], []
+    sources, rows, errors, discovery = [], [], [], {}
     for rule in args.trajectories:
-        path = getattr(args, rule + '_run') or args.source_root / rule / 'runs/seed42/plain_a'
         try:
-            source = check_source(path, rule)
+            source, found = discover_source(rule, args.source_root, getattr(args, rule + '_run'),
+                auto=args.auto_source, search_roots=args.search_root, repo=REPO, part=args.part, rounds=args.rounds)
+            discovery[rule] = found
+            if source is None:
+                errors.append(rule + ': ' + found['error'])
+                continue
+            # Pin the parent's exact selection into all GPU child commands.
+            setattr(args, rule + '_run', Path(source['path']))
+            if found.get('automatic'):
+                print('SOURCE %s -> %s' % (rule, source['path']), flush=True)
             sources.append(source)
             indexed = StateIndex(source).inventory(need_events=rule == 'fedavg')
             rows.extend(dict(trajectory=rule, **r) for r in indexed)
-            required = [r for r in indexed if not r['artifact'].startswith('proposals_')]
+            required = [r for r in indexed if artifact_required(r, args.part, args.rounds)]
             ready = all(r['available'] for r in required)
             original_dir = source['meta']['resolved_args'].get('output_dir')
-            source['inventory_status'] = dict(files_ready=ready, recorded_server_run=original_dir,
+            source['inventory_status'] = dict(files_ready=ready, selected_run=source['path'], recorded_server_run=original_dir,
                 mode='historical_artifacts_available_inspect_payloads' if ready else
                      'missing_required_models_check_server_original_directory',
                 proposals_may_be_regenerated=any(not r['available'] for r in indexed if r['artifact'].startswith('proposals_')))
@@ -83,7 +98,11 @@ def inventory(args):
                 write_csv(args.output_root / rule / 'probe_fit_manifest.csv', fit_manifest(source['rows']))
         except (OSError, ValueError, KeyError) as e:
             errors.append('%s: %s' % (rule, e))
-    pair = check_pair(sources) if not errors else dict(paired=False, reason='invalid_source')
+    try:
+        pair = check_pair(sources) if not errors else dict(paired=False, reason='invalid_source')
+    except (ValueError, KeyError) as error:
+        errors.append('pair: ' + str(error))
+        pair = dict(paired=False, reason='source_mismatch')
     report = dict(protocol=PROTOCOL, source_errors=errors, pair=pair,
                   trajectories={s['rule']: s['inventory_status'] for s in sources},
                   cuda_tested=False, training_started=False,
@@ -91,6 +110,11 @@ def inventory(args):
     with file_lock(args.output_root / 'inventory.lock'):
         # Separate inventories allow two trajectory workers without clobbering metadata.
         label = '_'.join(args.trajectories)
+        write_json(args.output_root / ('source_discovery_' + label + '.json'), discovery)
+        discovery_path = args.output_root / 'source_discovery.json'
+        combined = read_json(discovery_path) if discovery_path.is_file() else {}
+        combined.update(discovery)
+        write_json(discovery_path, combined)
         write_json(args.output_root / ('artifact_inventory_' + label + '.json'), report)
         write_csv(args.output_root / ('artifact_inventory_' + label + '.csv'), rows)
     print(json.dumps(report, ensure_ascii=False, indent=2))
@@ -102,12 +126,7 @@ def require_inputs(args, sources, rows, errors):
         raise ValueError('\n'.join(errors))
     missing = []
     for r in rows:
-        required = r['artifact'] == 'frozen_base'
-        if args.part in ('all', 'e1') and r['artifact'].startswith('committed_'):
-            required = True
-        if args.part in ('all', 'events') and r['artifact'].startswith('pre_a_'):
-            required = int(r['artifact'][-3:]) in args.rounds
-        if required and not r['available']:
+        if artifact_required(r, args.part, args.rounds) and not r['available']:
             missing.append(r['trajectory'] + ':' + r['artifact'])
     if missing:
         raise FileNotFoundError('Missing models: ' + ', '.join(missing) + '. Check the recorded SERVER directory first; lightweight archives exclude .pt files.')
@@ -162,6 +181,7 @@ def execute(args, sources, fingerprint, skip_completed_smoke=False):
             if (args.stage == 'run' or skip_completed_smoke) and task_finished(formal_root, job):
                 print('SKIP completed task: ' + job['id'], flush=True)
                 continue
+            print('START %s stage=%s device=%s' % (job['id'], args.stage, args.device), flush=True)
             store = StateStore(source)
             backend = ClipBackend(args, source, store, root, fingerprint)
             if args.stage == 'smoke':
@@ -186,6 +206,7 @@ def execute(args, sources, fingerprint, skip_completed_smoke=False):
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
+            print('DONE %s stage=%s' % (job['id'], args.stage), flush=True)
 
 
 def main(argv=None):
@@ -225,6 +246,7 @@ def main(argv=None):
     if args.stage == 'preflight':
         print('File/configuration preflight passed; GPU execution has not been tested.')
         return
+    print('Sequential execution on %s: one task/model at a time.' % args.device, flush=True)
     if args.stage == 'server':
         args.stage = 'smoke'
         execute(args, sources, fingerprint, skip_completed_smoke=True)

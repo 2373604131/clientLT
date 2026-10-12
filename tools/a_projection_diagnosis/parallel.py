@@ -13,13 +13,16 @@ from tools.a_projection_diagnosis.protocol import write_json
 
 
 def selected_jobs(args):
-    # The three more expensive event panels start first. E1 jobs drain the queue.
+    # Single GPU follows the protocol: E1 first, then the three anchor panels.
+    # The optional parallel queue starts its more expensive panels first.
     jobs = []
     if args.part in ('all', 'events') and 'fedavg' in args.trajectories:
         jobs.extend(dict(id='fedavg_round%03d' % r, trajectory='fedavg', part='events', round=r)
                     for r in sorted(args.rounds))
     if args.part in ('all', 'e1'):
         jobs.extend(dict(id=rule + '_e1', trajectory=rule, part='e1', round=None) for rule in args.trajectories)
+    if not getattr(args, 'gpus', None):
+        jobs.sort(key=lambda job: job['part'] != 'e1')
     return jobs
 
 
