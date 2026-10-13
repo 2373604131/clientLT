@@ -12,11 +12,11 @@ from tools.sfra.summary import METRICS, read_csv, write_csv
 
 
 SCHEMA = 'b_routes_experiment_v1'
-ARMS = ('N', 'P', 'M', 'S', 'C', 'F', 'P-rot', 'C-rot')
+ARMS = ('N', 'P', 'M', 'S', 'C', 'F', 'P-rot', 'C-rot', 'F-tail-equal')
 EXTRA_FILES = ('utils/b_route_math.py', 'utils/b_route_sampling.py', 'utils/cliplora_b_routes.py',
                'utils/cliplora_b_route_runtime.py', 'utils/b_route_replay.py',
                'scripts/run_cliplora_b_routes.py', 'scripts/train_cliplora_b_routes.py',
-               'tools/sfra/b_routes.py')
+               'tools/sfra/b_routes.py', 'utils/b_tail_equal.py', 'scripts/run_cliplora_b_tail_equal.py')
 
 
 def source_hashes(repo):
@@ -156,6 +156,14 @@ def validate_profile(cfg, spec):
             route_rho=1., route_null_index=0, steps=2, regularization=0., tail_weight=.35,
             non_tail_sampling='class-cyclic').items()):
         raise ValueError('Route transfer configuration differs')
+    from utils.b_tail_equal import ARM, OBJECTIVE
+    if s['arm'] == ARM:
+        if (b.get('feedback_objective') != OBJECTIVE
+                or b.get('missing_tail_class_rule') != 'error_before_optimization'
+                or b.get('feedback_gradient_reduction') != 'sum_global_coefficients_no_second_client_weight'):
+            raise ValueError('Tail-equal feedback contract differs')
+    elif b and b.get('feedback_objective'):
+        raise ValueError('Legacy route must not enable tail coefficient rescaling')
 
 
 def finite(value):
@@ -163,6 +171,44 @@ def finite(value):
     if not math.isfinite(x):
         raise ValueError('Nonfinite result')
     return x
+
+
+def audit_feedback_coefficients(run, folder, tail):
+    """Reconstruct the two registered batches, not just their rounded sums."""
+    from utils.b_tail_equal import manifest_coefficients
+    manifest = load_json(folder/'calibration_manifest.json')
+    if (manifest.get('arm') != 'F-tail-equal' or manifest.get('shared_donor_ids') != []
+            or len(manifest['feedback_clients']) != len(set(manifest['feedback_clients']))):
+        raise ValueError('Wrong tail-equal feedback manifest')
+    batches = {int(k): v for k, v in manifest['recipients'].items()}
+    if set(batches) != set(manifest['feedback_clients']):
+        raise ValueError('Feedback client identities differ')
+    groups = defaultdict(lambda: defaultdict(list))
+    for row in read_csv(run/'partition_manifest.csv'):
+        groups[int(row['client_id'])][int(row['class_id'])].append(int(row['local_position']))
+    _, expected, expected_mass = manifest_coefficients(batches, groups, tail)
+    for name, wanted, keys, fields in (
+            ('feedback_coefficients.csv', expected, ('batch','client_id','local_position','class_id'),
+             ('old_coefficient','new_coefficient')),
+            ('feedback_class_mass.csv', expected_mass, ('batch','class_id'),
+             ('old_mass','new_mass','beta_tail','multiplier'))):
+        observed = read_csv(folder/name)
+        index = {tuple(int(r[k]) for k in keys): r for r in observed}
+        if len(index) != len(observed) or set(index) != {tuple(r[k] for k in keys) for r in wanted}:
+            raise ValueError('Feedback coefficient identities differ: '+name)
+        for row in wanted:
+            actual = index[tuple(row[k] for k in keys)]
+            if any(not math.isclose(finite(actual[k]), row[k], abs_tol=1e-12, rel_tol=0) for k in fields):
+                raise ValueError('Feedback coefficient value differs: '+name)
+    feedback = read_csv(folder/'client_feedback_steps.csv')
+    expected_clients = {(i+1,k) for i in range(2) for k,v in batches.items()
+                        if v['batches'][i]['tail_positions']+v['batches'][i]['non_tail_positions']}
+    if (len(feedback) != len(expected_clients)
+            or {(int(r['step']),int(r['client_id'])) for r in feedback} != expected_clients
+            or any(r.get('loss_scope') != 'global_weighted_contribution'
+                   or finite(r['client_weight']) != 1. or finite(r['server_gradient_scale']) != 1.
+                   for r in feedback)):
+        raise ValueError('Feedback gradients were not summed with global coefficients')
 
 
 def read_run(run, spec):
@@ -230,6 +276,8 @@ def read_run(run, spec):
             for x in steps:
                 if finite(x['effective_transfer_norm_after']) > finite(x['radius'])*(1+2e-6)+1e-12:
                     raise ValueError('Effective norm exceeds registered radius')
+            if s['arm'] == 'F-tail-equal':
+                audit_feedback_coefficients(run, folder, tail)
         for field in ('algorithm_forward_images', 'algorithm_backward_images', 'diagnostic_forward_images',
                       'extra_upload_bytes', 'extra_downlink_bytes', 'seconds'):
             result['B_'+field] = sum(finite(e[field]) for e in events)
@@ -293,7 +341,8 @@ def summarize(root, baselines=()):
         except (ValueError, KeyError, OSError) as error:
             status.append(dict(run=str(path), status='invalid', error=str(error)))
     comparisons = [('P', 'N'), ('C', 'N'), ('F', 'N'), ('P', 'F'), ('C', 'F'), ('C', 'P'),
-                   ('M', 'P'), ('S', 'M'), ('C', 'S'), ('P', 'P-rot'), ('C', 'C-rot')]
+                   ('M', 'P'), ('S', 'M'), ('C', 'S'), ('P', 'P-rot'), ('C', 'C-rot'),
+                   ('F-tail-equal', 'F'), ('F-tail-equal', 'N')]
     for seed in sorted({k[0] for k in runs}):
         for left, right in comparisons:
             if (seed, left) not in runs or (seed, right) not in runs:

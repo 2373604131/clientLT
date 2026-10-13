@@ -142,7 +142,10 @@ class SFRARuntime(LAControlRuntime):
         self.initialize_feedback()
         self.b_transfer = None
         if 'b_transfer' in self.sfra_config:
-            if self.sfra_config['b_transfer'].get('calibration_profile') == 'direct_norm_matched':
+            if self.sfra_config['b_transfer'].get('calibration_profile') == 'routes':
+                from utils.cliplora_b_routes import RouteTransfer
+                self.b_transfer = RouteTransfer(self)
+            elif self.sfra_config['b_transfer'].get('calibration_profile') == 'direct_norm_matched':
                 from utils.cliplora_b_calibration import DirectCalibrationControl
                 self.b_transfer = DirectCalibrationControl(self)
             elif self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_response':
@@ -163,8 +166,15 @@ class SFRARuntime(LAControlRuntime):
         label = f', classification mu={self.classification_strength:g}' if self.variant.endswith('-cp') else ''
         print(f'SFRA: {self.variant}, retention lambda={self.strength:g}{label}, A rounds=1..90', flush=True)
         if self.b_transfer is not None:
-            print(f'B-transfer enabled: C lr={args.b_transfer_lr:g}, rounds=30,40,...,100', flush=True)
-            if self.sfra_config['b_transfer'].get('calibration_profile') == 'direct_norm_matched':
+            transfer = self.sfra_config['b_transfer']
+            if transfer.get('calibration_profile') == 'routes':
+                print(f'B route {transfer["route_arm"]}: rounds={transfer["rounds"]}, '
+                      'two normalized projected steps; commit step2.', flush=True)
+            else:
+                print(f'B-transfer enabled: C lr={args.b_transfer_lr:g}, rounds=30,40,...,100', flush=True)
+            if transfer.get('calibration_profile') == 'routes':
+                pass
+            elif self.sfra_config['b_transfer'].get('calibration_profile') == 'direct_norm_matched':
                 print('Direct B calibration control: identical feedback batches; paired AB step norms; no donor basis.', flush=True)
             elif self.sfra_config['b_transfer'].get('calibration_profile') == 'tail_response':
                 print('Response B: protocol target-tail feedback; independent donor C; '
@@ -189,8 +199,8 @@ class SFRARuntime(LAControlRuntime):
 
     def configure_algorithm(self):
         """Optional independently versioned algorithm; legacy configuration is unchanged."""
-        if self.variant == 'source-memory-v2':
-            raise ValueError('source-memory-v2 requires its dedicated aggregation worker')
+        if self.variant in ('source-memory-v2', 'margin-keep-v1'):
+            raise ValueError(self.variant + ' requires its dedicated aggregation worker')
 
     def initialize_feedback(self):
         """Optional adapter on the existing witness bank and execution cache."""

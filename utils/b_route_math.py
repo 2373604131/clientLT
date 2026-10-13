@@ -10,7 +10,7 @@ import torch
 from scipy.optimize import nnls
 
 
-ARMS = ('N', 'P', 'M', 'S', 'C', 'F', 'P-rot', 'C-rot')
+ARMS = ('N', 'P', 'M', 'S', 'C', 'F', 'P-rot', 'C-rot', 'F-tail-equal')
 RTOL = 1e-8
 
 
@@ -107,7 +107,7 @@ class RouteProjector:
     def __init__(self, arm, coordinates, donors, shapes):
         if arm not in ARMS:
             raise ValueError('Unknown route arm: '+arm)
-        self.arm = arm.removesuffix('-rot')
+        self.arm = 'F' if arm == 'F-tail-equal' else arm.removesuffix('-rot')
         self.keys = list(shapes)
         self.shapes = dict(shapes)
         self.designs, self.bases, self.source_bases = {}, {}, {}

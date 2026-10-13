@@ -10,6 +10,7 @@ import numpy as np
 from scripts.run_ab_validation import write_json
 from tools.client_aggregation.protocol import (ARMS, B_ROUNDS, DIAGNOSTIC_ROUNDS, SCHEMA,
     PAIR_HASHES, audit_runtime_config, check_aggregation, digest, load_json, read_csv, write_table, partition_signature)
+from tools.client_aggregation.ab_factorial import has_new_b
 
 METRICS = ('overall_acc', 'head20_acc', 'middle60_acc', 'bottom20_tail_acc', 'non_tail_acc')
 
@@ -44,11 +45,14 @@ def metrics_from_prediction(sample, groups):
 def expected_stages(job, completed):
     rounds = [r for r in DIAGNOSTIC_ROUNDS if r <= completed]
     transfers = [1] if job['mode'] == 'smoke' else B_ROUNDS
+    if has_new_b(job):
+        from utils.cliplora_ab_factorial import transfer_config
+        transfers = transfer_config(job['mode'])['rounds']
     for rnd in rounds:
         for stage in ('ordinary_B', 'sample_weighted_B_counterfactual'):
             yield rnd, stage
-        if job['arm'] in ('ab', 'plain_a', 'method_a', 'method_a_v2'):
-            if job['arm'] == 'ab' and rnd in transfers:
+        if job['arm'] in ('ab', 'plain_a', 'method_a', 'method_a_v2', 'method_a_margin'):
+            if (job['arm'] == 'ab' or has_new_b(job)) and rnd in transfers:
                 yield rnd, 'after_B_transfer'
             if rnd <= 90:
                 yield rnd, 'ordinary_A'
@@ -57,7 +61,7 @@ def expected_stages(job, completed):
 
 def audit_run(run, job, completed=100):
     run = Path(run)
-    if not 0 <= completed <= 100 or job['arm'] not in (*ARMS, 'plain_a', 'method_a', 'method_a_v2'):
+    if not 0 <= completed <= 100 or job['arm'] not in (*ARMS, 'plain_a', 'method_a', 'method_a_v2', 'method_a_margin'):
         raise ValueError('Invalid run request')
     check_aggregation(job['aggregation'])
     floor16 = job['aggregation'].get('rule') == 'joint_floor16'
@@ -141,7 +145,7 @@ def audit_run(run, job, completed=100):
     corrections = read_csv(run / 'sfra_rounds.csv')
     if job['arm'] in ('frozen', 'plain_a') and (corrections or progress['functional_correction_steps']):
         raise ValueError('Frozen/plain-A arm executed functional correction')
-    if job['arm'] in ('plain_a', 'method_a', 'method_a_v2') and (progress.get('b_transfer_events', 0)
+    if not has_new_b(job) and job['arm'] in ('plain_a', 'method_a', 'method_a_v2', 'method_a_margin') and (progress.get('b_transfer_events', 0)
             or progress.get('b_transfer_optimizer_steps', 0)
             or ((run / 'b_transfer_rounds.csv').is_file() and read_csv(run / 'b_transfer_rounds.csv'))):
         raise ValueError('A-only experiment executed source B transfer')
@@ -166,6 +170,9 @@ def audit_run(run, job, completed=100):
     if job['arm'] == 'method_a_v2':
         from tools.client_aggregation.method_a_v2 import audit_rounds
         audit_rounds(corrections,progress,completed)
+    if job['arm'] == 'method_a_margin':
+        from tools.client_aggregation.method_a_margin import audit_rounds
+        audit_rounds(corrections, progress, completed)
     if job['arm'] == 'ab':
         b = read_csv(run / 'b_transfer_rounds.csv')
         expected = [r for r in ([1] if job['mode'] == 'smoke' else B_ROUNDS) if r <= completed]
@@ -177,6 +184,9 @@ def audit_run(run, job, completed=100):
             wanted = 2 if manifest['shared_donor_ids'] else 0
             if int(row['optimizer_steps']) != wanted:
                 raise ValueError('Wrong shared C optimization steps')
+    if has_new_b(job):
+        from tools.client_aggregation.ab_factorial import audit_b
+        audit_b(run, job, progress, completed)
     groups = groups_for(job)
     curves = sorted(read_csv(run / 'round_metrics.csv'), key=lambda r: int(r['round']))
     if [int(r['round']) for r in curves] != list(range(completed + 1)):
@@ -190,7 +200,7 @@ def audit_run(run, job, completed=100):
             initial_labels, initial_a = sample['class_id'], record['a_sha256']
         if not np.array_equal(sample['class_id'], initial_labels) or frozen and record['a_sha256'] != initial_a:
             raise ValueError('Test identities or frozen A changed')
-        if job['arm'] in ('plain_a', 'method_a', 'method_a_v2') and rnd > 90 and record['a_sha256'] != last_a:
+        if job['arm'] in ('plain_a', 'method_a', 'method_a_v2', 'method_a_margin') and rnd > 90 and record['a_sha256'] != last_a:
             raise ValueError('A changed after round 90')
         last_a = record['a_sha256']
         actual = metrics_from_prediction(sample, groups)
@@ -213,11 +223,12 @@ def audit_run(run, job, completed=100):
         if any(not math.isclose(actual[m], float(record[m]), abs_tol=1e-8) for m in METRICS):
             raise ValueError('Stage metadata differs from predictions')
         stages[rnd, stage] = sample
-        if job['arm'] == 'plain_a' and stage == ('ordinary_A' if rnd <= 90 else 'ordinary_B'):
+        b_stage = 'after_B_transfer' if has_new_b(job) and (rnd, 'after_B_transfer') in set(expected_stages(job, completed)) else 'ordinary_B'
+        if job['arm'] == 'plain_a' and stage == ('ordinary_A' if rnd <= 90 else b_stage):
             committed = load_json(run / 'predictions' / f'r{rnd:03d}.json')
             if any(not record.get(k) or record[k] != committed.get(k) for k in ('a_sha256', 'b_sha256')):
                 raise ValueError('Plain-A committed state differs from its ordinary phase')
-        if job['arm'] in ('method_a','method_a_v2') and stage == 'ordinary_B':
+        if job['arm'] in ('method_a','method_a_v2','method_a_margin') and stage == b_stage:
             committed = load_json(run / 'predictions' / f'r{rnd:03d}.json')
             keys = ('b_sha256',) if rnd <= 90 else ('a_sha256', 'b_sha256')
             if any(not record.get(k) or record[k] != committed.get(k) for k in keys):

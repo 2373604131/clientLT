@@ -1,0 +1,5 @@
+cell,status,completed_round,reused,reason
+plain_joint,not_started,0,False,
+new_a_joint,not_started,0,False,
+new_a_new_b_joint,not_started,0,False,
+plain_new_b_joint,not_started,0,False,

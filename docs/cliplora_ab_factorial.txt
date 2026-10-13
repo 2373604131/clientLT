@@ -1,0 +1,119 @@
+新 A / 新 B 的 joint 四组消融
+
+入口：scripts/run_cliplora_ab_factorial.py
+
+1. 四个组合与比较目的
+
+编号  cell                    默认 GPU  组合
+E00   plain_joint             0         普通 A + joint
+E10   new_a_joint             1         新 A + joint
+E11   new_a_new_b_joint       2         新 A + joint + 新 B
+E01   plain_new_b_joint       3         普通 A + joint + 新 B
+
+普通 A 指固定日程的普通 A 本地学习：没有 Full-CP，也没有新 A 的保护修正。
+普通 B 本地学习在四组中始终存在；“新 B”是额外的 F-tail-equal 更新。
+第四组检验的是“已经使用新 B 时，新 A 的保护/学习修正是否仍有增益”，
+不能把它解释成“LoRA A 因子或普通 A 本地学习是否必要”。
+
+E10 - E00：新 A 自身的净增量。
+E11 - E10：新 B 在新 A 上的条件增量。
+E11 - E01：已有新 B 时，新 A 是否仍有增量。
+E01 - E00：新 B 在普通 A 上的增量。
+(E11 - E10) - (E01 - E00)：两组件的交互增量。
+
+主比较为提交模型在第 81–100 轮的 Overall 平均准确率，同时报告
+Head20 / Middle60 / Tail20；差值单位为百分点。不能只凭尾类上涨认定有效，
+要一起看头中类代价、Overall、逐样本遗忘/新学会数和额外训练成本。
+目前固定 seed42，20 个轮次不是 20 次独立重复，不作跨种子显著性结论。
+实验结果只用于分析，不用于选择候选更新、回退、改步数或自动停止。
+
+2. 四组固定条件
+
+同一份 references/full10_clientlt：30 个客户端，全参与，100 轮，seed42。
+同一组原始 joint 静态权重，lambda=0.1，用于普通 B 和普通 A 聚合。
+普通 B：每轮每客户端 3 epochs；普通 A：第 1–90 轮每客户端 1 epoch，lr=.001。
+第 91–100 轮停止 A 学习和保护修正，保留第 90 轮 A；新 B 仍按日程运行。
+LA、训练先验、优化器、batch size、分组和客户端样本划分沿用已有实现。
+
+每个实验独占一个可见 GPU；每个普通本地训练阶段最多 8 个客户端同时执行，
+30 个客户端通过已有队列全部完成后再聚合，并不是每轮只抽 8 个客户端。
+新 B 的反馈沿用其原有同步梯度流程，不额外应用 joint 权重或第二次客户端权重。
+四组使用独立进程、输出目录、checkpoint、锁和日志。
+不会在显存不足时偷偷减小并发数、换算法或提交替代模型。
+
+3. 两个新组件
+
+新 A：utils/cliplora_method_a_margin.py，margin-keep-v1。
+epsilon=.01、margin_scale=.01、keep_weight=1、learn_weight=1，均为已确认的探索默认值。
+先做普通 A 学习；需要保护时，在普通 A 附近联合优化保护损失和分类损失，
+固定进行 3 步投影更新并直接提交第 3 步；没有 CE/J 接受门、半步尝试或回退。
+历史登记、必要间隔、保持/分类权重等细节见 docs/cliplora_method_a_margin.txt。
+单独新 A 的旧入口仍是独立 A-only 实验。
+
+新 B：utils/cliplora_b_routes.py 的 RouteTransfer，arm=F-tail-equal；
+系数计算在 utils/b_tail_equal.py，原独立入口为 scripts/run_cliplora_b_tail_equal.py。
+保持原 F 自由更新，只有尾类反馈系数做类别等权重标定；非尾反馈系数保持原样。
+第 30、40、50、60、70、80、90、100 轮，在实际普通 joint B 聚合之后、普通 A 之前执行。
+固定当前 A，用实际普通 B 更新的有效范数作半径（rho=1），执行两步归一化梯度投影，
+直接提交第二步；没有 donor C、回退、测试集选择或额外 joint 梯度加权。
+原 B 独立入口的 Full-CP/FedAvg 配置不会被此四组入口替换。
+
+4. 启动（在 GPU 服务器的仓库根目录）
+
+先检查数据、代码、权重和 B 两批反馈对全部 20 个尾类的覆盖：
+python scripts/run_cliplora_ab_factorial.py --stage preflight
+
+四组在四张卡同时重跑：
+python scripts/run_cliplora_ab_factorial.py --stage server --gpus 0 1 2 3
+
+GPU 参数顺序始终是 E00、E10、E11、E01。可替换成其他四个不同 GPU 编号。
+默认输出：output/cifar100_LT/ab_factorial_joint_v1_parallel8。
+--num-workers 默认 8；每卡客户端并发固定为 8，二者不是同一参数。
+
+每个子进程先独立完成 6 轮执行检查，通过后开始自己的正式 100 轮训练；
+不需要等待其他 GPU 的检查结束。检查输出与正式输出分开。
+检查中两组新 B 仅在第 1、6 轮触发，以覆盖第 5 轮历史登记及次轮使用。
+正式训练仍只在第 30–100 轮每隔 10 轮触发，不继承检查状态。
+
+按原表复用已有基线（ROOT 必须是包含 experiment_plan.json 的 joint 子目录）：
+python scripts/run_cliplora_ab_factorial.py --stage server --gpus 0 1 2 3 --reuse-baseline output/cifar100_LT/plain_a_aggregation_v1_parallel8/joint
+
+复用时只启动其余三组，GPU0 空闲，不复制或写入旧结果。旧基线必须完成 100 轮、
+审计通过、同 joint 权重和 8 客户端并发；历史环境/代码差异在比较报告中保留。
+复用根目录会冻结在登记中；之后恢复或补组要继续传相同 --reuse-baseline。
+若希望从复用改成四组重跑，请使用新的 --output-root。
+
+按表中优先级先只做两条新增（GPU1 和 GPU2）：
+python scripts/run_cliplora_ab_factorial.py --stage server --cells new_a_joint new_a_new_b_joint --gpus 0 1 2 3 --reuse-baseline output/cifar100_LT/plain_a_aggregation_v1_parallel8/joint
+
+之后补第四组（GPU3）：
+python scripts/run_cliplora_ab_factorial.py --stage server --cells plain_new_b_joint --gpus 0 1 2 3 --reuse-baseline output/cifar100_LT/plain_a_aggregation_v1_parallel8/joint
+
+查看进度 / 汇总：
+python scripts/run_cliplora_ab_factorial.py --stage status
+python scripts/run_cliplora_ab_factorial.py --stage summary
+
+意外中断后重跑同一条 server 命令：完成的组通过审计后跳过，未完成的组从最后提交轮恢复。
+--stop-after-round N 可以在提交 N 轮后暂停；随后用 0 恢复到 100 轮。
+代码、算法参数、数据、参考划分变动时拒绝混写已有实验，需新输出目录。
+“从提交轮恢复运行”是故障续训，不是依据效果进行算法回退。
+
+5. 输出
+
+factorial_plan.json：冻结的四组定义及基线来源。
+server_launch.json：GPU 分配和每个子进程的准确命令。
+launcher_logs/*_server.log：每组 GPU 启动日志。
+<cell>/launcher_logs/*：实际训练日志。
+<cell>/runs/seed42/<arm>/：正式结果和 checkpoint。
+analysis/performance.csv：四组 Overall / Head / Middle / Tail 的后20轮均值。
+analysis/contrasts.json：四项增量、交互增量和配对检查。
+analysis/costs.csv：普通 SGD、A 修正、B 更新步数与耗时。
+analysis/sample_dynamics.csv、stage_effects.csv：逐轮学习/遗忘与阶段变化。
+analysis/status.csv：未启动、未完成、完成或无效状态。
+
+新 B 会审计两步预算、有效半径、每个反馈样本的系数及尾类总质量；
+新 A 会审计固定第 3 步提交和历史窗口。缺组时不编造比较结果。
+同一套四组重新运行需要相同源码；复用基线单独标记为历史对照。
+
+本地可运行 CPU 小模型/协议测试，真实 8 客户端 CUDA 并发、显存占用、
+训练速度和 100 轮效果需要在服务器上通过上述执行检查与正式训练验证。

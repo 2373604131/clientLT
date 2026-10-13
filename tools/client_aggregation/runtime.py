@@ -16,10 +16,18 @@ from utils.sfra_math import require_finite
 
 
 def runtime_class(job):
+    from tools.client_aggregation.ab_factorial import has_new_b
+    new_b = has_new_b(job)
     base = SFRARuntime
     if job['arm'] == 'method_a_v2':
         from utils.cliplora_method_a_v2 import MethodAV2Runtime
         base = MethodAV2Runtime
+    elif job['arm'] == 'method_a_margin':
+        from utils.cliplora_method_a_margin import MethodAMarginRuntime
+        base = MethodAMarginRuntime
+    if new_b:
+        from utils.cliplora_ab_factorial import with_tail_equal
+        base = with_tail_equal(base)
     class JointAggregationRuntime(base):
         def __init__(self, *args, **kwargs):
             from tools.client_aggregation.numerics import apply_policy, policy_for
@@ -44,10 +52,12 @@ def runtime_class(job):
 
                 self.b_transfer.apply_shared = measured_transfer
             print('CLIENT AGGREGATION:', aggregation_name(job['aggregation']), job['arm'],
+                  '; ordinary/new A + F-tail-equal; fixed two-step B, no rollback' if new_b else
                   '; frozen A has no refresh' if self.is_frozen else
                   '; ordinary A rounds1..90; no correction or transfer' if job['arm'] == 'plain_a' else
                   '; Full-CP rounds1..90; no source B transfer' if job['arm'] == 'method_a' else
                   '; source-memory-v2 rounds1..90; no B/C transfer' if job['arm'] == 'method_a_v2' else
+                  '; necessary-margin A rounds1..90; direct commit, no method B' if job['arm'] == 'method_a_margin' else
                   '; Full-CP + original shared C', flush=True)
 
         def configure_experiment(self):
@@ -67,10 +77,15 @@ def runtime_class(job):
             if self.sfra_config.get('b_aggregation'):
                 raise ValueError('Do not combine joint aggregation with other aggregation overrides')
             expected_variant = ('source-memory-v2' if job['arm']=='method_a_v2' else
+                                'margin-keep-v1' if job['arm']=='method_a_margin' else
                                 'full-cp' if job['arm'] in ('ab', 'method_a') else 's')
             if (self.variant != expected_variant
                     or bool(self.sfra_config.get('b_transfer')) != (job['arm'] == 'ab')):
                 raise ValueError('Wrong registered runtime variant or B transfer setting')
+            if job['arm'] == 'method_a_margin':
+                for key, value in job['contract']['method_a_margin'].items():
+                    if self.sfra_config.get(key) != value:
+                        raise ValueError('New A worker differs from registered configuration: '+key)
             self.config['aggregation'] = aggregation_name(job['aggregation'])
             if self.is_frozen:
                 self.rounds = []
@@ -90,6 +105,9 @@ def runtime_class(job):
                     calibration_anchor='actual ordinary joint-class-weighted B with round-start A')
                 if job['mode'] == 'smoke':
                     transfer['rounds'] = [1]  # Separate disposable run, never formal evidence.
+            if new_b:
+                from utils.cliplora_ab_factorial import transfer_config
+                self.sfra_config['b_transfer'] = transfer_config(job['mode'])
             self.sfra_config['joint_aggregation'] = dict(schema=SCHEMA, arm=job['arm'], mode=job['mode'],
                 lambda_value=job['aggregation']['lambda_value'], weights_sha256=job['aggregation']['weights_sha256'])
             from tools.client_aggregation.protocol import client_execution_config
@@ -198,6 +216,9 @@ def runtime_class(job):
             self.evaluate_predictions(state, rnd, stage, self.root / 'stage_predictions' / stage)
 
         def publish(self, state, rnd, decision_round):
+            if new_b and rnd > 0:
+                # Both new-A and ordinary-A loops finalize B exactly once before checkpointing.
+                self.b_transfer.observe_global(state, rnd, committed=True)
             if self.is_frozen and state_hash(state, self.a_keys) != state_hash(self.initial, self.a_keys):
                 raise ValueError('Frozen LoRA A changed')
             metrics, per_class = self.evaluate_predictions(state, rnd, 'committed', self.root / 'predictions')

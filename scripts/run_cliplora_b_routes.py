@@ -55,6 +55,8 @@ def validate_args(args):
     if any(not math.isfinite(r) or r <= 0 for r in args.rhos):
         raise ValueError('Rhos must be positive and finite')
     if args.mode == 'replay':
+        if 'F-tail-equal' in args.arms:
+            raise ValueError('F-tail-equal currently uses full mode; replay folds may omit declared tail classes')
         if args.source_run is None:
             raise ValueError('Replay requires --source-run')
         if args.stop_after_round is not None:

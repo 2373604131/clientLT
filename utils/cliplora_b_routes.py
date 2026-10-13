@@ -7,6 +7,7 @@ import torch
 from utils.b_route_math import EffectiveCoordinates, RouteProjector, norm, projected_step, rotated_sources
 from utils.cliplora_b_shared_transfer import SharedDonorBTransfer, shared_calibration_batches
 from utils.cliplora_b_transfer import differentiable_b_residual
+from utils.b_tail_equal import ARM as TAIL_EQUAL, OBJECTIVE, manifest_coefficients
 from utils.cliplora_bridge_audit import write_csv, write_json
 
 
@@ -28,6 +29,11 @@ def route_config(base, settings):
                  communication='dense FP32 effective-residual gradients; sources stay at server')
     for unused in ('betas', 'adam_eps', 'weight_decay'):
         value.pop(unused, None)
+    if settings['arm'] == TAIL_EQUAL:
+        value.update(feedback_objective=OBJECTIVE,
+                     calibration_objective='original global sample coefficients rescaled within tail classes',
+                     missing_tail_class_rule='error_before_optimization',
+                     feedback_gradient_reduction='sum_global_coefficients_no_second_client_weight')
     return value
 
 
@@ -58,6 +64,7 @@ class RouteTransfer(SharedDonorBTransfer):
         self.sample_rows, self.group_rows, self.geometry_rows, self.coefficient_rows = [], [], [], []
         self.saved_residuals = {}
         self.objective_rows = []
+        self.feedback_coefficients = None
         if self.device.type == 'cuda':
             torch.cuda.reset_peak_memory_stats(self.device)
             summary['initial_allocated_bytes'] = torch.cuda.memory_allocated(self.device)
@@ -134,18 +141,39 @@ class RouteTransfer(SharedDonorBTransfer):
                     if positions:
                         images, labels = self.batch(client, positions)
                         losses, _, _ = self.forward(images, labels, diagnostic=True)
-                        active.append(float(group_loss(losses, len(batch['tail_positions']))))
-                values.append(sum(active)/len(active) if active else None)
+                        if self.feedback_coefficients is None:
+                            active.append(float(group_loss(losses, len(batch['tail_positions']))))
+                        else:
+                            active.append(float(self.weighted_feedback_loss(losses, labels, client, index)))
+                values.append((sum(active) if self.feedback_coefficients is not None else sum(active)/len(active))
+                              if active else None)
         self.objective_rows.append(dict(step=step, batch1_la=values[0], batch2_la=values[1],
             fixed_pool_la=sum(v for v in values if v is not None)/sum(v is not None for v in values)
                 if any(v is not None for v in values) else None, regularization_penalty=0.))
         self.pending['summary']['diagnostic_seconds'] += time.perf_counter()-started
+
+    def weighted_feedback_loss(self, losses, labels, client, batch_index):
+        row = self.feedback_coefficients[batch_index][client]
+        if (losses.ndim != 1 or labels.ndim != 1 or losses.shape != labels.shape
+                or labels.detach().cpu().tolist() != row['labels']):
+            raise ValueError('Feedback sample labels/order changed after coefficient registration')
+        # Coefficients already contain 1/K and the original group weights.
+        # Sum these gradients directly; neither FedAvg/joint nor 1/K applies again.
+        return (losses*losses.new_tensor(row['weights'])).sum()
 
     def optimize(self, ordinary, start, manifests, arm, rho, steps=2, diagnostics=None, null_index=0):
         """Base parameters and original donors stay fixed; only X receives gradients."""
         if steps not in (2, 8) or not math.isfinite(rho) or rho <= 0:
             raise ValueError('Routes require 2/8 steps and positive finite rho')
         optimizer_started = time.perf_counter()
+        self.feedback_coefficients = None
+        if arm == TAIL_EQUAL:
+            if steps != 2:
+                raise ValueError('F-tail-equal uses the fixed two-step optimizer')
+            self.feedback_coefficients, samples, classes = manifest_coefficients(manifests, self.groups, self.tail)
+            write_csv(self.pending['folder']/'feedback_coefficients.csv', samples)
+            write_csv(self.pending['folder']/'feedback_class_mass.csv', classes)
+            self.pending['summary']['feedback_objective'] = OBJECTIVE
         diagnostic_before = self.pending['summary']['diagnostic_seconds']
         a = {k: start[k[:-1]+'A'] for k in self.keys}
         coordinates = EffectiveCoordinates(a, {k: self.modules[k].scaling for k in self.keys})
@@ -153,7 +181,7 @@ class RouteTransfer(SharedDonorBTransfer):
         nu, radius = norm(encoded_ordinary.values()), rho*norm(encoded_ordinary.values())
         zero_r = {k: torch.zeros_like(ordinary[k], device=self.device) for k in self.keys}
         x = {k: torch.nn.Parameter(v) for k, v in coordinates.encode(zero_r).items()}
-        donors = {} if arm in ('N', 'F') else {
+        donors = {} if arm in ('N', 'F', TAIL_EQUAL) else {
             k: torch.stack([self.original_deltas[j][k] for j in self.selected]).double().cpu() for k in self.keys}
         rotation_checks = []
         if arm.endswith('-rot'):
@@ -196,17 +224,27 @@ class RouteTransfer(SharedDonorBTransfer):
                 images, labels = self.batch(client, batch['tail_positions']+batch['non_tail_positions'])
                 with differentiable_b_residual(self.modules, coordinates.decode(x)):
                     losses, _, _ = self.forward(images, labels)
-                    loss = group_loss(losses, len(batch['tail_positions']))
+                    if self.feedback_coefficients is None:
+                        loss = group_loss(losses, len(batch['tail_positions']))
+                        contribution = loss/len(active)
+                    else:
+                        loss = self.weighted_feedback_loss(losses, labels, client, batch_index)
+                        contribution = loss
                     if not torch.isfinite(loss):
                         raise ValueError('Nonfinite route classification loss')
-                    (loss/len(active)).backward()
-                before += float(loss.detach())/len(active)
+                    contribution.backward()
+                before += (float(loss.detach())/len(active) if self.feedback_coefficients is None
+                           else float(loss.detach()))
                 summary['algorithm_backward_images'] += len(labels)
                 summary['client_backward_batches'] += 1
                 self.pending['feedback'].append(dict(round=self.pending['round'], step=step,
                     client_id=client, tail_samples=len(batch['tail_positions']),
-                    non_tail_samples=len(batch['non_tail_positions']), client_weight=1/len(active),
+                    non_tail_samples=len(batch['non_tail_positions']),
+                    client_weight=1/len(active) if self.feedback_coefficients is None else 1.,
                     local_la=float(loss.detach())))
+                if self.feedback_coefficients is not None:
+                    self.pending['feedback'][-1].update(loss_scope='global_weighted_contribution',
+                        feedback_objective=OBJECTIVE, server_gradient_scale=1.)
             gradients = {k: (v.grad if v.grad is not None else torch.zeros_like(v)) for k, v in x.items()}
             if step == 1:
                 projected = projector.project({k: -g for k, g in gradients.items()})
@@ -302,7 +340,7 @@ class RouteTransfer(SharedDonorBTransfer):
                 **{'after_'+k: v for k, v in after[client].items()}))
         write_json(self.pending['folder']/'calibration_manifest.json', dict(
             profile='routes', arm=arm, module_order=self.keys, feedback_clients=self.recipients,
-            shared_donor_ids=[] if arm == 'F' else self.selected, recipients=manifests))
+            shared_donor_ids=[] if arm in ('F', TAIL_EQUAL) else self.selected, recipients=manifests))
         torch.save(dict(round=rnd, ordinary_lora={k: ordinary[k] for k in self.runtime.keys},
                         committed_lora={k: committed[k] for k in self.runtime.keys},
                         transfer_residual=residual), self.pending['folder']/'commit.pt')

@@ -1,0 +1,88 @@
+新方法 B：F-tail-equal（2026-10-13）
+
+实现范围
+  在既有 F 的共享 B 反馈更新中，按尾类重标定原来的全局逐图损失系数。
+  它不是同类图像直接池化，也不改变 LA 的先验或系数。
+  目标是各尾类拥有相同的反馈损失总权重，不保证相同梯度、收益或测试精度。
+
+精确损失
+  每个反馈批次独立计算，有数据的反馈客户端数为 K。
+  混合客户端：尾图原系数 0.35/(K*n_tail)，非尾图 0.65/(K*n_non_tail)。
+  只有一个组的客户端：该组每图系数 1/(K*n_group)；空客户端不计入 K。
+  s_c = 类别 c 的原系数之和；beta_T = 所有尾类原系数之和。
+  尾图新系数 = 原系数 * beta_T/(20*s_c)；非尾图原系数完全不变。
+  因而保留实际 beta_T 和同类图像的相对权重，不能硬编码 beta_T=0.35。
+  单批缺少任一预定尾类就报错，不自动补采样或改成出现类别等权。
+  全局系数已经包含 1/K；反馈梯度直接累加，不再次平均或乘 FedAvg/joint 权重。
+
+沿用的训练设置
+  独立入口 scripts/run_cliplora_b_tail_equal.py；方法标识 F-tail-equal。
+  Full-CP（旧方法 A，lambda=10、mu=1）+ FedAvg，原 Tail20 划分，seed42。
+  不是 ordinary A / Av2 / joint / Tail30 的组合。
+  普通 B 训练每轮 3 epochs；原 A 日程及缓存反馈不变。
+  事件顺序：普通 B 本地训练与 FedAvg → 新 B 共享反馈修正 → 原 A 阶段。
+  A 阶段仍在 1..90 轮执行，91..100 轮按原协议只训练 B。
+  B 补充学习在第 30、40、50、60、70、80、90、100 轮各做两步。
+  沿用 F 的有效坐标归一化梯度更新及半径 rho=1，不使用 donor/C 系数优化。
+  半径为本轮普通 B 的有效更新范数，第二步结果按原规则提交。
+  新目标不额外增加反馈模型的前向或反向次数；增加系数计算及两个小型 CSV。
+  总体成本和精度必须以新训练记录为准，不能把 CPU 单元测试计作 GPU smoke。
+  本入口复用旧 F 的串行客户端训练器，不支持 --client-concurrency 8。
+  --num-workers 8 只是 DataLoader 工作进程数，不是并行训练 8 个客户端。
+
+协议与恢复
+  references/full10_clientlt 是随仓库提供的固定划分、日程和见证协议。
+  不读取旧 F/AB 模型，不要求旧实验结果目录存在。
+  DATA/cifar-100/cifar-100-python 及现有 CLIP 环境仍需在服务器可用。
+  新默认根目录 output/cifar100_LT/b_tail_equal_v1。
+  单次训练目录 output/cifar100_LT/b_tail_equal_v1/runs/F-tail-equal/seed42。
+  progress.json 给出已提交轮次；在服务器可用 cat 读取该文件查看进度。
+  route_spec.json、sfra_config.json、route_receipt.json 记录方法和代码身份。
+  checkpoint 仍为 checkpoints/sfra_last.pt，按已提交整轮恢复；中断的事件重算。
+  旧 A、旧 B、原 F 及旧默认实验列表都保留。
+  代码身份检查沿用旧机制；正在跑旧任务的工作副本不要中途覆盖代码。
+
+服务器命令（仓库根目录、已激活原 Python 环境；GPU 3 只是示例）
+  文件与配置预检，不启动训练：
+    python scripts/run_cliplora_b_tail_equal.py --stage preflight
+  新 B，seed42，完整 100 轮（本次本地没有执行此命令）：
+    CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=3 python -u scripts/run_cliplora_b_tail_equal.py --stage run
+  若想先检查实际 B 事件，必须至少跑到第 30 轮；第 6 轮不触发 B：
+    CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=3 python -u scripts/run_cliplora_b_tail_equal.py --stage run --stop-after-round 30
+  接上一个停点或中断的整轮继续跑完：
+    CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=3 python -u scripts/run_cliplora_b_tail_equal.py --stage run --resume
+  预检/运行的 --reference-run、--data-root、--num-workers、--output-root 要保持一致。
+  刚开始还没有整轮 checkpoint 就失败时，不删除记录；使用新的 --output-root 重试。
+
+收集与比较
+  python scripts/run_cliplora_b_tail_equal.py --stage summary
+  python scripts/run_cliplora_b_tail_equal.py --stage pack
+  结果包 output/cifar100_LT/b_tail_equal_v1_analysis.tar.gz（不含恢复用模型）。
+  analysis/per_run.csv：最后 20 轮 Overall / Head20 / Middle60 / Tail20 及成本。
+  同一根目录有 F 或 N 结果时，paired.csv 会进行新 B vs F / 新 B vs A-only 的配对。
+  不存在的对照不会自动运行，也不会被填成零；旧 P/C 选择规则不决定新 B 是否采用。
+  现有 F 的历史结果应核对配置、首个 B 事件前的轨迹和反馈样本身份再比较。
+  如确实需要重跑 F，使用原入口（只在明确需要时运行，不是新入口的隐式步骤）：
+    CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=4 python -u scripts/run_cliplora_b_routes.py --stage run --arms F --seeds 42 --output-root output/cifar100_LT/b_tail_equal_v1
+  A-only 历史结果可在 summary/pack 时用 --baseline-run <已完成A-only运行目录> 指定。
+
+新增事件记录
+  b_transfer_rounds/r030/feedback_coefficients.csv：批次、客户端、本地图像位置、类别、新旧系数。
+  b_transfer_rounds/r030/feedback_class_mass.csv：各类新旧总量、实际 beta_T、缩放倍数。
+  后续 r040...r100 同样记录；client_feedback_steps.csv 标注全局系数贡献及服务端缩放 1。
+  汇总时重新用划分和批次身份核对系数；训练时不重复跑参考反馈前向。
+
+修改文件
+  utils/b_tail_equal.py：系数与身份计算。
+  utils/cliplora_b_routes.py：在原 F 两步优化内选择新损失。
+  utils/b_route_math.py：F-tail-equal 使用原 F 可行空间。
+  tools/sfra/b_routes.py：配置、来源哈希、系数核对与结果比较。
+  scripts/run_cliplora_b_routes.py：禁止尚不满足完整尾类覆盖的 replay 路径。
+  scripts/run_cliplora_b_tail_equal.py：独立入口和输出目录。
+  tests/test_b_tail_equal.py：数学、两步 LA-CE 梯度、身份、状态和入口测试。
+
+解释与文献
+  LA 调整 logits，逐图系数决定各样本在最终标量损失中的份额，属于两个位置。
+  原 LA 参考：Menon et al., Long-tail learning via logit adjustment, ICLR 2021.
+  https://arxiv.org/abs/2007.07314
+  本次不会根据新 B 的测试精度自动改变权重、日程或选择最佳轮次。

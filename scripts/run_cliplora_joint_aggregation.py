@@ -113,7 +113,10 @@ def preflight(plan, check_cuda=False):
 
 
 def smoke_rounds(job):
-    return 6 if job['arm'] == 'method_a_v2' else 1
+    from tools.client_aggregation.ab_factorial import enabled
+    if enabled(job):
+        return 6
+    return 6 if job['arm'] in ('method_a_v2', 'method_a_margin') else 1
 
 
 def command_for(job, root, resume=False, stop_after=0):
@@ -132,13 +135,16 @@ def command_for(job, root, resume=False, stop_after=0):
     extra = ['--joint-spec', str(run / 'joint_job.json'), '--lac_method', 's',
         '--lac_partition_manifest', str(run / 'protocol/partition_source.csv'),
         '--lac_la_tau', '1', '--lac_a_lr_mult', '1',
-        '--sfra_variant', 'source-memory-v2' if job['arm']=='method_a_v2' else 'full-cp' if job['arm'] in ('ab', 'method_a') else 's',
-        '--sfra_retention_weight', '0' if job['arm'] == 'plain_a' else '10',
-        '--sfra_classification_weight', '0' if job['arm']=='method_a_v2' else '1',
+        '--sfra_variant', 'margin-keep-v1' if job['arm']=='method_a_margin' else 'source-memory-v2' if job['arm']=='method_a_v2' else 'full-cp' if job['arm'] in ('ab', 'method_a') else 's',
+        '--sfra_retention_weight', str(setting['margin_parameters']['keep_weight']) if job['arm']=='method_a_margin' else '0' if job['arm'] == 'plain_a' else '10',
+        '--sfra_classification_weight', '0' if job['arm'] in ('method_a_v2', 'method_a_margin') else '1',
         '--sfra_witness_batch_size', '8', '--sfra_fast_execution_v2',
         '--sfra_feedback_batch_size', '128', '--sfra_feedback_cache_gib', '4',
         '--sfra_resume', str(run / 'checkpoints/sfra_last.pt') if resume else '',
         '--sfra_stop_after_round', str(smoke_rounds(job) if job['mode'] == 'smoke' else stop_after)]
+    if job['arm'] == 'method_a_margin':
+        for key, value in setting['margin_parameters'].items():
+            extra += ['--a_margin_'+key, str(value)]
     if job['arm'] == 'ab':
         extra += ['--b_transfer_enable', '--b_transfer_mode', 'shared', '--b_transfer_lr', '.3',
             '--b_transfer_probe_step', '.1', '--b_transfer_reg', '.001',

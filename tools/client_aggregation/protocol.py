@@ -29,7 +29,12 @@ FILES = ('tools/client_aggregation/__init__.py', 'tools/client_aggregation/weigh
     'references/joint_floor16_seed42/aggregation_spec.json',
     'utils/method_a_v2_math.py', 'utils/method_a_v2_feedback.py', 'utils/cliplora_method_a_v2.py',
     'scripts/run_cliplora_method_a_v2_aggregation.py', 'tools/client_aggregation/method_a_v2.py',
-    'scripts/run_cliplora_joint_tail30.py', 'tools/client_aggregation/tail30.py')
+    'utils/method_a_margin_math.py', 'utils/method_a_margin_feedback.py', 'utils/cliplora_method_a_margin.py',
+    'scripts/run_cliplora_method_a_margin.py', 'tools/client_aggregation/method_a_margin.py',
+    'scripts/run_cliplora_joint_tail30.py', 'tools/client_aggregation/tail30.py',
+    'utils/b_route_math.py', 'utils/b_tail_equal.py', 'utils/cliplora_b_routes.py',
+    'utils/cliplora_ab_factorial.py', 'tools/client_aggregation/ab_factorial.py',
+    'scripts/run_cliplora_ab_factorial.py', 'tools/sfra/b_routes.py')
 CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='client-longtail',
     arms=list(ARMS), aggregation='KL(uniform || R.T @ w) + lambda/2 * chi_square(w || sample_weights)',
     scope='ordinary B aggregation every round; ordinary A aggregation when A is opened',
@@ -76,7 +81,21 @@ METHOD_A_V2_CONTRACT = dict(PLAIN_A_CONTRACT, experiment='method_a_v2_aggregatio
     phase_order='ordinary B, ordinary A, source-memory-v2 candidate checks, commit history')
 
 
+def method_a_margin_contract(parameters):
+    from utils.method_a_margin_math import DEFAULTS, algorithm_config
+    if set(parameters) != set(DEFAULTS):
+        raise ValueError('New A requires all four registered margin parameters')
+    return dict(PLAIN_A_CONTRACT, experiment='method_a_margin_v1', arms=['method_a_margin'],
+        functional_correction=True, method_a_margin=algorithm_config(**parameters),
+        phase_order='ordinary B, ordinary A, gap-triggered joint A updates, direct commit, history',
+        method_B=False, source_feedback=False, candidate_checks=False)
+
+
 def validate_arm(job):
+    from tools.client_aggregation.ab_factorial import enabled, validate
+    if enabled(job):
+        validate(job)
+        return
     if job.get('settings', {}).get('partition_experiment') == 'joint_tail30_v1':
         from tools.client_aggregation.tail30 import contract_for, validate_spec
         validate_spec(job['aggregation'])
@@ -94,6 +113,10 @@ def validate_arm(job):
     elif job['arm'] == 'method_a_v2':
         if job.get('contract') != METHOD_A_V2_CONTRACT or job['aggregation'].get('rule','joint') not in ('tailrw16','joint','joint_floor16'):
             raise ValueError('Av2 requires its independent contract and fixed three-rule matrix')
+    elif job['arm'] == 'method_a_margin':
+        if (job.get('contract') != method_a_margin_contract(job.get('settings', {}).get('margin_parameters', {}))
+                or job['aggregation'].get('rule', 'joint') != 'joint' or job['aggregation']['lambda_value'] != .1):
+            raise ValueError('New A requires its independent margin contract and original joint aggregation')
     elif job['arm'] not in ARMS:
         raise ValueError('Unknown experiment arm: ' + str(job['arm']))
     elif job['aggregation'].get('rule') in ('tailrw16', 'fedavg') and job['arm'] != 'frozen':
@@ -258,6 +281,8 @@ def audit_runtime_config(run, job):
         refresh_rounds=[] if frozen else list(range(1, 91)))
     if job['arm'] == 'method_a_v2':
         expected = dict(AV2_CONFIG)
+    elif job['arm'] == 'method_a_margin':
+        expected = dict(job['contract']['method_a_margin'])
     elif plain:
         expected.update(retention_weight=0., correction_steps=0, commit_rule='ordinary_A_without_correction')
     elif not frozen:
@@ -273,7 +298,7 @@ def audit_runtime_config(run, job):
     expected_base = dict(seed=42, protocol_seed=42, topology='client-longtail', la_tau=1.,
         aggregation=aggregation_name(job['aggregation']), normal_steps_expected=300*steps_per_epoch,
         extra_steps_expected=0 if frozen else 90*steps_per_epoch)
-    if plain or job['arm'] in ('method_a', 'method_a_v2'):
+    if plain or job['arm'] in ('method_a', 'method_a_v2', 'method_a_margin'):
         expected_base.update(normal_trainable_factor='B', extra_trainable_factor='A',
             candidate_rounds=list(range(1, 91)), control_enabled=False,
             a_lr_mult=1., extra_a_lr=.001, extra_weight_decay=0., normal_b_lr=.001)
@@ -281,7 +306,12 @@ def audit_runtime_config(run, job):
         if base.get(key) != value:
             raise ValueError('Base training mismatch: ' + key)
     transfer = cfg.get('b_transfer')
-    if job['arm'] != 'ab' and transfer:
+    from tools.client_aggregation.ab_factorial import has_new_b
+    if has_new_b(job):
+        from utils.cliplora_ab_factorial import transfer_config
+        if transfer != transfer_config(job['mode']):
+            raise ValueError('New B differs from registered F-tail-equal configuration')
+    elif job['arm'] != 'ab' and transfer:
         raise ValueError('Only the AB arm may execute B transfer')
     if job['arm'] == 'ab':
         wanted = dict(CONTRACT['B'], rounds=[1] if job['mode'] == 'smoke' else list(B_ROUNDS), mode='shared')

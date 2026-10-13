@@ -1,0 +1,31 @@
+{
+  "pairs": [
+    {
+      "contrast": "new_A_without_B",
+      "left": "new_a_joint",
+      "right": "plain_joint",
+      "status": "unavailable"
+    },
+    {
+      "contrast": "new_B_given_new_A",
+      "left": "new_a_new_b_joint",
+      "right": "new_a_joint",
+      "status": "unavailable"
+    },
+    {
+      "contrast": "new_A_given_new_B",
+      "left": "new_a_new_b_joint",
+      "right": "plain_new_b_joint",
+      "status": "unavailable"
+    },
+    {
+      "contrast": "new_B_given_plain_A",
+      "left": "plain_new_b_joint",
+      "right": "plain_joint",
+      "status": "unavailable"
+    }
+  ],
+  "interaction_pp": null,
+  "independent_seeds": 1,
+  "endpoint": "committed rounds81..100 mean; rounds are not independent seeds"
+}
