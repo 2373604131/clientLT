@@ -33,6 +33,10 @@ def validate_ab(run, job):
     old_job = receipt['job']
     if old_job['seed'] != 42 or old_job['arm'] != job['method'] or old_job['protocol_seed'] != 42:
         raise ValueError('Imported A/AB has wrong seed/arm/protocol seed')
+    if old_job['partition'] != job['protocol'].get('topology', 'client-longtail'):
+        raise ValueError('Imported A/AB partition topology differs')
+    if 'dirichlet_beta' in job['protocol'] and old_job['dirichlet_beta'] != job['protocol']['dirichlet_beta']:
+        raise ValueError('Imported A/AB Dirichlet beta differs')
     if old_job['code_sha256'] != code_hashes(REPO):
         raise ValueError('Imported A/AB training source differs from frozen local source')
     result, _, _, classes, curve = read_result(run, old_job)
@@ -214,6 +218,14 @@ def collect(root):
             except (OSError, ValueError, KeyError, TypeError) as error:
                 row.update(status='invalid', detail=str(error))
         out = root / 'analysis'
+        first_job = read_json(job_path(root, records[0]['method'])) if records else None
+        is_dirichlet = bool(first_job and first_job['protocol'].get('topology') == 'noniid-labeldir-fine')
+        if is_dirichlet:
+            from tools.benchmarks.dirichlet import ALL, GROUPS
+            group_for = {method: group for group, methods in GROUPS.items() for method in methods}
+            results.sort(key=lambda row: ALL.index(row['method']))
+            for result in results:
+                result['group'] = group_for[result['method']]
         write_csv(out / 'status.csv', records)
         write_csv(out / 'performance.csv', results)
         write_csv(out / 'costs.csv', [{k: v for k, v in r.items() if not k.startswith(('last20_', 'final_', 'tail_'))}
@@ -232,8 +244,12 @@ def collect(root):
         lines = ['# Seed42 protocol-adapted method comparison', '',
             'Endpoint: committed rounds81..100 mean. One development seed; no SD/significance claim.', '',
             '| Method | Overall | Head20 | Middle60 | Tail20 |', '|---|---:|---:|---:|---:|']
+        if is_dirichlet:
+            lines[2:2] = [f"Partition: ordinary fine-class Dirichlet, beta={first_job['protocol']['dirichlet_beta']}, split seed=42; unchanged global LT sample pool.", '']
+            lines[-2:] = ['| Group | Method | Overall | Head20 | Middle60 | Tail20 |', '|---|---|---:|---:|---:|---:|']
         for r in results:
-            lines.append('| ' + r['label'] + ' | ' + ' | '.join(f"{r['last20_' + m]:.4f}" for m in METRICS[:4]) + ' |')
+            prefix = r['group'] + ' | ' if is_dirichlet else ''
+            lines.append('| ' + prefix + r['label'] + ' | ' + ' | '.join(f"{r['last20_' + m]:.4f}" for m in METRICS[:4]) + ' |')
         lines += ['', 'CAPT uses fixed aggregation, without test-controlled MAB. FedPuReL is its global stage on matched LoRA, not the personalized full method.',
             'FedNTD uses a frozen round-start teacher. FedPuReL uses frozen zero-shot CLIP. FedAvg jointly trains both LoRA factors.',
             'All methods share the reference CIFAR100 base normalization/resize. FedLF retains crop/flip; FedYoYo adds its official weak/strong training views.',
@@ -265,7 +281,8 @@ def pack(root):
         jobs = [read_json(p) for p in sorted((root / 'jobs').glob('*.json'))]
         if jobs:
             reference = Path(jobs[0]['reference_run'])
-            for name in ('partition_manifest.csv', 'bridge_metadata.json'):
+            for name in ('partition_manifest.csv', 'bridge_metadata.json', 'protocol/partition_protocol.json',
+                         'protocol/full_schedule.json', 'protocol/eri_protocol.json', 'protocol/probe_manifest.csv'):
                 path = reference / name
                 if path.exists():
                     tar.add(path, arcname=root.name + '/protocol/' + name)

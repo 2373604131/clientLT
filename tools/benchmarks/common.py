@@ -93,8 +93,8 @@ def reference_contract(root):
         if not (root / name).is_file():
             raise FileNotFoundError(f'Missing reference file: {root / name}; use the complete Full-10/A/S reference run')
     meta = read_json(root / 'bridge_metadata.json')
-    if meta['topology'] != 'client-longtail' or len(meta['classnames']) != 100:
-        raise ValueError('This first comparison suite is CIFAR100 Client-LT only')
+    if meta['topology'] not in ('client-longtail', 'noniid-labeldir-fine') or len(meta['classnames']) != 100:
+        raise ValueError('Expected CIFAR100 Client-LT or ordinary fine-class Dirichlet')
     if not meta.get('resolved_config'):
         raise ValueError('Reference must include resolved_config for exact model/input reconstruction')
     rows = manifest_rows(root / 'partition_manifest.csv')
@@ -104,15 +104,22 @@ def reference_contract(root):
         raise ValueError('Expected 100 rounds with exactly 30 distinct clients each')
     if digest(schedule) != meta['schedule_sha256'] or digest(sorted(r['raw_sample_id'] for r in rows)) != meta['pool_sha256']:
         raise ValueError('Reference manifest/schedule disagrees with source metadata')
-    return dict(partition=digest(rows), schedule=meta['schedule_sha256'], pool=meta['pool_sha256'],
+    contract = dict(partition=digest(rows), schedule=meta['schedule_sha256'], pool=meta['pool_sha256'],
                 test=meta['test_sha256'], classnames=digest(meta['classnames']),
                 reference_files={p: file_hash(root / p) for p in REFERENCE_FILES})
+    if meta['topology'] == 'noniid-labeldir-fine':
+        from tools.benchmarks.dirichlet import validate_partition
+        recipe = validate_partition(root, rows, meta)
+        contract.update(topology=meta['topology'], dirichlet_beta=recipe['dirichlet_beta'],
+                        protocol_seed=recipe['split_seed'])
+        contract['reference_files']['protocol/partition_protocol.json'] = file_hash(root / 'protocol/partition_protocol.json')
+    return contract
 
 
 def source_hashes():
     from tools.sfra.ab_validation import code_hashes
     files = code_hashes(REPO)  # normalize newlines, as in the frozen A/AB receipts
-    extra = [CONFIG, FACTOR_CONFIG, LONGTAIL_CONFIG, REPO / 'scripts/run_longtail_benchmarks.py',
+    extra = [CONFIG, FACTOR_CONFIG, LONGTAIL_CONFIG, REPO / 'scripts/run_dirichlet_benchmarks.py', REPO / 'scripts/run_longtail_benchmarks.py',
              REPO / 'scripts/vendor_paper_baselines.py', REPO / 'scripts/run_factor_benchmarks.py',
              REPO / 'scripts/run_paper_benchmarks.py', REPO / 'scripts/train_paper_baseline.py',
              REPO / 'scripts/collect_paper_benchmarks.py', REPO / 'trainers/capt.py', REPO / 'loss/prompt_loss.py']
@@ -135,12 +142,12 @@ def make_job(method, reference, data_root, output, workers=8, smoke=False, suite
         raise ValueError('Invalid method or worker count')
     if smoke and method in ('a', 'ab'):
         raise ValueError('Smoke mode is for the new external adapters; frozen A/AB remain 100-round jobs')
-    if suite not in ('main', 'factors', 'longtail'):
+    if suite not in ('main', 'factors', 'longtail', 'dirichlet'):
         raise ValueError('Unknown benchmark suite')
     config = read_json(CONFIG)
-    if suite == 'factors' or method in FACTOR_METHODS:
+    if suite in ('factors', 'dirichlet') or method in FACTOR_METHODS:
         config['factor_baselines'] = read_json(FACTOR_CONFIG)
-    if suite == 'longtail' or method in ('fedlf', 'fedyoyo', 'fedrela'):
+    if suite in ('longtail', 'dirichlet') or method in ('fedlf', 'fedyoyo', 'fedrela'):
         config['longtail_baselines'] = read_json(LONGTAIL_CONFIG)
     return dict(schema='paper_benchmarks_seed42_v1', method=method, label=LABELS[method], seed=42,
                 config=config, reference_run=str(Path(reference).resolve()),
@@ -179,7 +186,8 @@ def run_path(job):
     from scripts.run_cliplora_sfra import run_directory
     from types import SimpleNamespace
     args = SimpleNamespace(output_root=Path(job['output_root']) / 'ab_runs',
-                           partition='client-longtail', protocol_seed=42, dirichlet_beta=.5)
+                           partition=job['protocol'].get('topology', 'client-longtail'),
+                           protocol_seed=42, dirichlet_beta=job['protocol'].get('dirichlet_beta', .5))
     return run_directory(launcher_args(args, job['method'], 42))
 
 

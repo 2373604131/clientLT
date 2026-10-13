@@ -21,6 +21,8 @@ def command_for(job, resume=False, stop_after=None):
             '--arms', method, '--seeds', '42', '--protocol-seed', '42',
             '--reference-run', job['reference_run'], '--data-root', job['data_root'],
             '--output-root', str(Path(job['output_root']) / 'ab_runs'), '--num-workers', str(job['workers'])]
+        if job['protocol'].get('topology') == 'noniid-labeldir-fine':
+            command += ['--partition', 'noniid-labeldir-fine', '--dirichlet-beta', str(job['protocol']['dirichlet_beta'])]
     else:
         command = [sys.executable, '-u', str(REPO / 'scripts/train_paper_baseline.py'),
                    '--job', str(job_path(job['output_root'], method))]

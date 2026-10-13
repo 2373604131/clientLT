@@ -58,6 +58,11 @@ def build_config(job, meta):
     cfg.defrost()
     cfg.SEED = 42
     cfg.DATASET.ROOT = job['data_root']
+    if job.get('protocol', {}).get('topology') == 'noniid-labeldir-fine':
+        cfg.DATASET.PARTITION = 'noniid-labeldir-fine'
+        cfg.DATASET.BETA = job['protocol']['dirichlet_beta']
+        cfg.DATASET.SPLIT_SEED = job['protocol']['protocol_seed']
+        cfg.DATASET.PARTITION_MANIFEST = str(Path(job['reference_run']) / 'partition_manifest.csv')
     cfg.MODEL.INIT_WEIGHTS = ''
     cfg.OUTPUT_DIR = str(run_path(job))
     cfg.DATALOADER.NUM_WORKERS = job['workers']
