@@ -2,6 +2,33 @@
 
 日期：2026-10-13。
 
+## A/A+B 的 probe_manifest_sha256 启动错误修复
+
+Linux Git 检出后的 `references/full10_clientlt/protocol/probe_manifest.csv` 使用 LF，字节哈希为 `0bfa0a2d…`；历史元数据记录的是 CRLF 文件，哈希为 `8a43f25c…`。探针样本、顺序和字段相同，字节哈希不同。旧生成器照搬旧哈希并复制 LF 文件，使 A/A+B 在 `LAControlRuntime` 构造时失败，还没有开始第 1 轮。
+
+已修改生成器：只在 LF/CRLF 转换后能**精确匹配原始记录哈希**时恢复原文件字节，并记录转换来源；样本、字段或顺序变化仍拒绝。元数据中的预期哈希和训练侧断言保持不变。校验前移到参考协议准备阶段。
+
+如果服务器还有其他任务，当前故障只需新增 [scripts/recover_dirichlet_ab.py](../scripts/recover_dirichlet_ab.py) 这一个文件。它可配合旧版已部署训练代码使用，不依赖本次修改的 `tools/benchmarks`。旧版源码指纹扫描不包含此新增脚本，因此其他任务仍可保持原源码。完整代码更新可在现有任务结束后同步。
+
+在同一个服务器仓库根目录、原 GPU 作业环境执行：
+
+```bash
+python -u scripts/recover_dirichlet_ab.py --stage train
+```
+
+该命令先核对旧任务登记的全部参考文件，在新目录恢复 probe 的原始字节，然后调用已有大表入口依次训练 A、A+B。新输出为 `output/cifar100_LT/dirichlet_benchmarks_seed42_beta0.5_ours_probe_fix1`。原 v1 的参考文件、任务、日志和已完成的外部方法均保留；不用重跑其余 12 个方法。
+
+首次修复不追加 `--resume`：旧 A 在训练前失败，没有可续训的已提交轮次。新目录中的任务以后如发生中断，才在上述命令后追加 `--resume`。如果只需要 A 或 A+B，可加 `--methods a` 或 `--methods ab`；准备同一新目录时只启动一个恢复进程。
+
+```bash
+python scripts/recover_dirichlet_ab.py --stage status
+python scripts/recover_dirichlet_ab.py --stage pack
+```
+
+`probe_recovery.json` 记录源文件哈希、恢复后哈希和确切修改文件。`--stage prepare` 只生成参考，`--stage plan` 只登记和打印命令。若原输出目录不是默认 v1，显式传入 `--source-root 原目录 --output-root 新目录`。原任务登记后若参考文件有其他变化，恢复脚本会拒绝继续。
+
+修复使用独立的 8 项回归检查复现 LF 检出、实际 SFRA 协议复制、原哈希恢复和内容篡改拒绝；完整训练性能仍需服务器实跑。
+
 ## 方法数量与分组
 
 外部方法共 12 个：联邦长尾及基础/知识保持对照 8 个，LoRA 因子训练控制 4 个。加上冻结的 A 和 A+B，主比较共 14 个。已回收的 Client-LT 主比较有 13 个成绩，缺少 FFA-LoRA。S、A-flat、A-current、A-calibration 为内部控制，单列消融，不计入这 14 个。

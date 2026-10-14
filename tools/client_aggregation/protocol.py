@@ -83,8 +83,8 @@ METHOD_A_V2_CONTRACT = dict(PLAIN_A_CONTRACT, experiment='method_a_v2_aggregatio
 
 def method_a_margin_contract(parameters):
     from utils.method_a_margin_math import DEFAULTS, algorithm_config
-    if set(parameters) != set(DEFAULTS):
-        raise ValueError('New A requires all four registered margin parameters')
+    if set(parameters) not in (set(DEFAULTS), set(DEFAULTS) | {'correction_step_size'}):
+        raise ValueError('New A requires all four registered margin parameters and optional correction_step_size')
     return dict(PLAIN_A_CONTRACT, experiment='method_a_margin_v1', arms=['method_a_margin'],
         functional_correction=True, method_a_margin=algorithm_config(**parameters),
         phase_order='ordinary B, ordinary A, gap-triggered joint A updates, direct commit, history',

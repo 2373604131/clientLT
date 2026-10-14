@@ -12,7 +12,8 @@ from utils.sfra_math import require_finite
 
 class MarginFeedback(SampleFeedback):
     # Reuse only witness identities and CE coefficients, never the Av2 evaluate/source path.
-    def evaluate(self, version, targets=None, gradient=False, keep_weight=1., learn_weight=1., cached=True):
+    def evaluate(self, version, targets=None, gradient=False, keep_weight=1., learn_weight=1., cached=True,
+                 diagnostics=False):
         b = self.bank
         if gradient and targets is None:
             raise ValueError('Joint margin backward requires fixed targets')
@@ -29,6 +30,11 @@ class MarginFeedback(SampleFeedback):
         keep_loss = scores.new_zeros(())
         class_loss = scores.new_zeros(())
         total_gradient = scores.new_zeros(b.numel) if gradient else None
+        # Opt-in observation only: retain the same graph for component gradients,
+        # then execute the original joint backward unchanged.
+        component_gradients = {name: scores.new_zeros(b.numel) for name in ('keep', 'learn')} if diagnostics and gradient else {}
+        correct = torch.zeros_like(scores, dtype=torch.bool) if diagnostics else None
+        la_correct = torch.zeros_like(correct) if diagnostics else None
         local = {k: v.detach().to(b.device) for k, v in targets.items()} if targets is not None else None
         forward_images = backward_images = backward_calls = batches = 0
         flags = [(p, p.requires_grad) for p in b.model.parameters()]
@@ -78,10 +84,18 @@ class MarginFeedback(SampleFeedback):
                         joint = keep_weight * keeping + learn_weight * learning
                         require_finite(margins=margins, joint_loss=joint)
                         scores[ids, views] = margins.detach()
+                        if diagnostics:
+                            correct[ids, views] = cosine.detach().argmax(1) == labels
+                            la_correct[ids, views] = (b.core.logit_scale.exp().detach()*cosine.detach()
+                                                     + self.adjustment).argmax(1) == labels
                         group_ce.scatter_add_(0, self.group_ids[ids], ce_terms.detach())
                         keep_loss += keeping.detach()
                         class_loss += learning.detach()
                         if gradient:
+                            if diagnostics:
+                                for name, loss in (('keep', keep_weight*keeping), ('learn', learn_weight*learning)):
+                                    parts = torch.autograd.grad(loss, b.parameters, retain_graph=True)
+                                    component_gradients[name] += torch.cat([p.detach().flatten() for p in parts])
                             # Classification includes samples with no history and batches without a gap.
                             parts = torch.autograd.grad(joint, b.parameters)
                             total_gradient += torch.cat([p.detach().flatten() for p in parts])
@@ -101,10 +115,16 @@ class MarginFeedback(SampleFeedback):
                          if local is not None else 0)
         if torch.device(b.device).type == 'cuda':
             torch.cuda.synchronize(b.device)
-        return dict(sample_margins=scores.cpu(), group_ce=group_ce.cpu(),
+        result = dict(sample_margins=scores.cpu(), group_ce=group_ce.cpu(),
                     keep_loss=float(keep_loss), class_loss=float(class_loss),
                     loss=float(keep_weight*keep_loss + learn_weight*class_loss),
                     gradient=total_gradient, deficit_count=deficit_count,
                     seconds=time.perf_counter()-started, forward_images=forward_images,
                     backward_images=backward_images, backward_calls=backward_calls,
                     batches=batches, model_version=version)
+        if diagnostics:
+            require_finite(**component_gradients)
+            result.update(component_gradients=component_gradients, correct=correct.cpu(),
+                          la_correct=la_correct.cpu(),
+                          diagnostic_extra_backward_calls=2*batches if gradient else 0)
+        return result

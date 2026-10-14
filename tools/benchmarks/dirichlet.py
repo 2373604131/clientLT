@@ -4,6 +4,7 @@ import math
 from pathlib import Path
 import re
 
+from scripts.recover_dirichlet_ab import restore_probe_bytes, sha256
 from tools.benchmarks.common import (REFERENCE_FILES, digest, manifest_rows, read_json,
                                      reference_contract, write_csv, write_json)
 
@@ -71,6 +72,10 @@ def validate_partition(root, rows, meta):
             or meta['resolved_args']['split_seed'] != 42
             or meta['resolved_args']['beta'] != beta):
         raise ValueError('Dirichlet metadata/counts disagree with the recorded allocation')
+    probe_bytes = (Path(root) / 'protocol/probe_manifest.csv').read_bytes()
+    if sha256(probe_bytes) != meta['probe_manifest_sha256']:
+        raise ValueError('Probe manifest bytes differ from recorded SHA256; '
+                         'use scripts/recover_dirichlet_ab.py for a failed pre-training A/AB run')
     return recipe
 
 
@@ -88,6 +93,9 @@ def prepare_reference(source, destination, beta=.5):
     if original['topology'] != 'client-longtail':
         raise ValueError('--reference-run must identify the original Client-LT sample pool')
     source_contract = reference_contract(source)
+    probe_name = 'protocol/probe_manifest.csv'
+    source_probe = (source / probe_name).read_bytes()
+    probe_bytes, probe_conversion = restore_probe_bytes(source_probe, original['probe_manifest_sha256'])
     source_rows = manifest_rows(source / 'partition_manifest.csv')
     rows = partition_rows(source_rows, beta)
     sizes, counts = partition_statistics(rows)
@@ -102,6 +110,8 @@ def prepare_reference(source, destination, beta=.5):
                   global_class_counts=counts, client_sample_counts=sizes,
                   steps_per_epoch=sum(math.ceil(n / 32) for n in sizes),
                   initialization='Reuse source fingerprints; every worker verifies actual tensors')
+    recipe['probe_manifest_copy'] = dict(source_sha256=sha256(source_probe),
+                                       copied_sha256=sha256(probe_bytes), conversion=probe_conversion)
     # Copy only common input metadata. Historical training results, costs and
     # environment must not masquerade as a completed Dirichlet experiment.
     keys = ('seed', 'resolved_args', 'resolved_config', 'classnames', 'initial_lora_sha256',
@@ -124,7 +134,8 @@ def prepare_reference(source, destination, beta=.5):
                     or read_json(destination / 'protocol/partition_protocol.json') != recipe):
                 raise ValueError('Existing Dirichlet reference changed; preserve it and use a new output root')
             for name in REFERENCE_FILES[2:]:
-                if (destination / name).read_bytes() != (source / name).read_bytes():
+                expected = probe_bytes if name == probe_name else (source / name).read_bytes()
+                if (destination / name).read_bytes() != expected:
                     raise ValueError('Shared schedule/probes changed: ' + name)
         else:
             write_csv(destination / 'partition_manifest.csv', rows)
@@ -133,6 +144,6 @@ def prepare_reference(source, destination, beta=.5):
             for name in REFERENCE_FILES[2:]:
                 target = destination / name
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes((source / name).read_bytes())
+                target.write_bytes(probe_bytes if name == probe_name else (source / name).read_bytes())
         reference_contract(destination)
     return destination

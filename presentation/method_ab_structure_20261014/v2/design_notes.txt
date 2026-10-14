@@ -1,0 +1,56 @@
+最新 A+B 整体框架图 v2 — 2026-10-14
+
+设计依据
+版本为用户确认的 margin-keep-v1 + F-tail-equal，普通更新使用静态 joint 聚合。
+以 docs/cliplora_ab_factorial.txt 为组合协议依据；方法细节对应
+docs/cliplora_method_a_margin.txt、docs/cliplora_b_tail_equal.txt 及其实现。
+本图只表达方法与训练结构，不声称实验增益。
+
+本版组织
+参考用户提供的 CAPT 图的叙事顺序：上层模型训练，下层展开提出的方法。
+上层左侧是本地 CLIP：文本模板、冻结文本编码器、图像、冻结图像主干、
+LoRA、特征、余弦分类和 LA 损失。右侧用两个同构 LoRA 支路显示 B/A
+交替训练时各因子的冻结状态，再接普通 joint 聚合和对应的方法修正。
+下层左侧 A：可靠历史 → 必要余量缺口 → 保持反馈；全部训练见证 →
+类别预测 → 分类学习反馈。两路均连向同一个可训练 A，B 保持冻结。
+下层右侧 B：同一个共享模型 → 含尾类数据客户端 → 本地 LA 损失 →
+梯度汇总 → 共享 Delta B。等权柱形只是说明反馈损失的类别总权重。
+采用浅色底、细线、编码器轮廓、矩阵、小型训练图片、火焰/雪花。
+无装饰性渐变、3D 质感或大段公式。
+
+视觉编码
+蓝色 A，橙色 B；文字和符号同时标识，因此不依赖颜色单独传达含义。
+火焰表示当前可训练，雪花表示冻结。W^0 是冻结的预训练权重。
+下层 A 的虚线表示梯度反馈及跨轮次历史记录。
+下层 B 的灰色下发路径和橙色回传路径区分共享模型与客户端梯度。
+上层阶段方框向聚合的箭头表示训练后的因子上传，不能解释为聚合激活。
+五轮双视图格子、余量柱形、预测条形和等权柱形均为机制示意。
+示例图片来自本地 CIFAR-100 训练集，用作输入图示，不声称属于实际固定见证。
+
+交付文件
+figures/framework_v2_en.pdf：英文矢量论文版。
+figures/framework_v2_zh.pdf：中文矢量讨论版。
+figures/*.png：220 dpi 的实际 PDF 渲染预览。
+figures/*.svg：由 PDF 导出的矢量版本，文字已转轮廓。
+figures/*.drawio：同一布局导出的可编辑对象，文字/连线/矩阵/面板独立编辑；
+编码器轮廓和火焰是简单 SVG，输入缩略图是内嵌 PNG。
+figures/*.tex：TikZ 精确排版源码。
+build_framework.py：框架布局与中英文标注。
+render_engine.py：同一场景的 TikZ、Draw.io 导出器。
+assets/：示例图片和来源清单。
+caption.txt：中英文图注及正文需说明的协议细节。
+geometry_audit.json：自动几何检查记录。
+
+验证
+中英文 XeLaTeX 编译通过；从 PDF 渲染 PNG 后逐图检查。
+标签宽度及文字交叠检查通过，Draw.io XML 检查通过。
+177.8 mm 通栏缩放后，最小普通标签约 8.17 pt；上下标随数学排版缩小。
+本机没有 Draw.io Desktop，未执行 Draw.io 原生渲染；最终精确排版以 PDF 为准。
+Draw.io 内数学标签需启用 Extras > Mathematical Typesetting，字形可能与 PDF 略有差异。
+图中为概览顺序，条件触发、更新日程与目标细节放在 caption.txt 中。
+
+重新生成
+仓库根目录运行：python presentation/method_ab_structure_20261014/v2/build_framework.py
+打包后也可在解压目录直接运行：python build_framework.py
+需要现有 XeLaTeX、Times New Roman、Microsoft YaHei、pdftoppm、pdftocairo。
+不依赖训练环境，也不运行训练或更改模型实现。

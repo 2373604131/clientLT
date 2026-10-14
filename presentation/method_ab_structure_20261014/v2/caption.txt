@@ -1,0 +1,30 @@
+English caption
+
+Overview of the framework, combining alternating federated LoRA training with necessary-margin retention and shared B feedback. Top: a frozen CLIP text encoder and a frozen image backbone provide cosine classification, while visual LoRA factors are alternately optimized. Local B training with A fixed is followed by joint aggregation and scheduled shared B feedback; local A training with B fixed is followed by joint aggregation and, when triggered, retention and classification refinement. Bottom left (A): reliable positive historical margins define capped retention targets. The retention signal and class-balanced classification feedback from all fixed training witnesses jointly refine A with B fixed, using three projected updates. Committed models provide history for subsequent rounds. Bottom right (B): clients holding tail-class data evaluate the same shared model and contribute local logit-adjusted classification gradients to a shared B supplement. Each tail class receives equal total loss weight, while non-tail coefficients remain unchanged. Two projected updates in effective coordinates produce the committed B. Flames and snowflakes indicate trainable and frozen parameters. Bars, history cells, and example training images illustrate mechanisms rather than measured outcomes.
+
+中文图注
+
+整体方法将交替联邦 LoRA 训练与必要判别余量保持、共享 B 反馈修正结合。上层：冻结 CLIP 文本编码器和图像主干，仅交替学习视觉 LoRA 因子。固定 A 进行本地 B 训练和 joint 聚合，随后按日程执行共享 B 反馈；再固定 B 进行本地 A 训练和 joint 聚合，并在满足条件时执行保持与分类联合修正。左下 A：从可靠的历史正判别余量得到截断保持目标，保持信号与全部固定训练见证的类别等权分类反馈共同修正 A，B 保持冻结，执行三步投影更新。已提交模型的历史观察供后续轮次使用。右下 B：含尾类数据的客户端在同一共享模型上计算本地 LA 分类梯度，汇总为一个共享 B 补充更新；各尾类的损失总权重相等，非尾类系数保持不变。在有效坐标中执行两步投影更新后提交 B。火焰和雪花分别表示可训练和冻结。柱形、历史格子和示例训练图片均为机制示意，不表示实测收益。
+
+Schedule and symbol notes for the manuscript
+
+The upper loop shows the within-round order, not four independently trained models.
+Ordinary B training: rounds 1–100, three local epochs per client per round.
+Ordinary A training and refinement: rounds 1–90, one ordinary local epoch.
+Shared B feedback: rounds 30, 40, ..., 100, after ordinary joint B aggregation.
+Rounds 91–100 retain the round-90 A and history while B continues.
+Static joint weights apply only to ordinary local-factor aggregation.
+Shared B feedback gradients already contain global sample coefficients and are summed without applying joint weights again.
+
+A/B in the inset titles name the two method components; italic A/B in the model are the LoRA factors they update.
+The deployed model is one shared adapted CLIP, not an ensemble of the depicted stages.
+W^0 denotes a frozen pretrained linear weight. The actual visual LoRA has rank 4 on Q and V in the last three vision-transformer blocks; its scale is omitted from the schematic branch.
+LA denotes logit adjustment. Both encoders' pretrained weights are frozen; only the indicated LoRA factor is trainable in each stage.
+H_i is a registered reliable historical margin; P_i = min(H_i, 0.01) is the required retained margin; m_i is the current unscaled cosine margin, shown schematically for one view.
+History registration uses positive minima across two views and five nonoverlapping committed rounds, with a positive two-view initialization. A newly registered target takes effect next round.
+A retention uses witnesses with valid history; A classification uses all fixed witnesses, including those without valid history. Its full objective also includes proximity to the ordinary A update.
+A refinement requires valid history, a retention deficit, and a nonzero update radius. Three projected steps are committed directly.
+B_ord is the ordinarily aggregated B. Delta B is one shared supplement with A fixed. The second projected step is committed directly.
+Equal tail-class loss mass does not imply equal individual sample coefficients, equal gradients, or equal accuracy improvements. Non-tail coefficients and the original total tail mass are preserved.
+The two-step B radius follows the current ordinary effective B update norm. The A radius follows the unweighted RMS of the ordinary local A update norms.
+The three displayed clients and weight bars are schematic; the experiment has 30 clients and 20 predefined tail classes.

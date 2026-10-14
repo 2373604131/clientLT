@@ -6506,6 +6506,7 @@ if __name__ == "__main__":
     parser.add_argument('--a_margin_margin_scale', type=float, default=.01)
     parser.add_argument('--a_margin_keep_weight', type=float, default=1.)
     parser.add_argument('--a_margin_learn_weight', type=float, default=1.)
+    parser.add_argument('--a_margin_correction_step_size', type=float, default=.1)
     parser.add_argument('--sfra_retention_weight', type=float, default=10.)
     parser.add_argument('--sfra_classification_weight', type=float, default=1.)
     parser.add_argument('--sfra_witness_batch_size', type=int, default=8)

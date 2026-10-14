@@ -1,0 +1,112 @@
+{
+  "data_source": "Synthetic ClientLT counts with explicit sparse leakage routing",
+  "base_partition_function": "utils.datasplit.partition_client_longtail",
+  "routing_policy": "Post-process simulated counts, preserving every class total and both leakage budgets",
+  "is_simulation": true,
+  "seed": 1,
+  "leakage_seed": 1,
+  "head_count": 5000,
+  "imb_factor": 0.02,
+  "alpha": 0.1,
+  "specialization_lambda": 0.8644986449864499,
+  "head_leakage_scale": 3.0,
+  "tail_classes": [
+    7,
+    8,
+    9
+  ],
+  "tail_clients": [
+    18,
+    19
+  ],
+  "class_totals": [
+    5000,
+    3237,
+    2096,
+    1357,
+    878,
+    568,
+    368,
+    238,
+    154,
+    100
+  ],
+  "tail_leakage_total": 60,
+  "tail_leakage_by_class_7_8_9": [
+    29,
+    19,
+    12
+  ],
+  "tail_leakage_routes": {
+    "7": {
+      "3": 10,
+      "9": 10,
+      "15": 9
+    },
+    "8": {
+      "1": 7,
+      "6": 6,
+      "12": 6
+    },
+    "9": {
+      "4": 4,
+      "7": 4,
+      "11": 4
+    }
+  },
+  "allowed_incoming_classes": [
+    1,
+    2,
+    3,
+    5,
+    6
+  ],
+  "incoming_routes": {
+    "18": {
+      "1": 4,
+      "3": 2,
+      "5": 4
+    },
+    "19": {
+      "2": 6,
+      "6": 4
+    }
+  },
+  "non_tail_samples_on_tail_clients": 20,
+  "clients": [
+    {
+      "client_id": 18,
+      "tail_samples": 175,
+      "non_tail_samples": 10,
+      "counts_by_class": [
+        0,
+        4,
+        0,
+        2,
+        0,
+        4,
+        0,
+        46,
+        124,
+        5
+      ]
+    },
+    {
+      "client_id": 19,
+      "tail_samples": 257,
+      "non_tail_samples": 10,
+      "counts_by_class": [
+        0,
+        0,
+        6,
+        0,
+        0,
+        0,
+        4,
+        163,
+        11,
+        83
+      ]
+    }
+  ]
+}

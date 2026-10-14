@@ -1,0 +1,54 @@
+A+B 框架图 v3：共享提案与修正依据 — 2026-10-14
+
+依据
+用户要求将普通交替训练降为支撑，使 A/B 修正的对象、依据与职责成为主线。
+方法仍为 margin-keep-v1 + F-tail-equal，静态 joint 聚合；没有修改训练代码。
+图的技术依据：docs/cliplora_ab_factorial.txt、docs/cliplora_method_a_margin.txt、
+docs/cliplora_b_tail_equal.txt、utils/cliplora_method_a_margin.py、
+utils/method_a_margin_feedback.py、utils/cliplora_b_routes.py。
+
+结构变化
+1. 将 CLIP 与轮内执行顺序缩至顶部约 15% 高度，保留编码器、LoRA、LA 与冻结符号。
+2. 下方两个大面板按实际执行先后排列：B 在左，A 在右。
+3. 两面板均显示当前因子 → 客户端普通学习 → 服务器 joint → 普通共享提案，
+   再进入独立的共享修正区域；提交矩阵与提案在视觉上区分。
+4. B 的视觉中心是同一个共享模型下发到多个客户端、反馈梯度汇总至共享 Delta B。
+   尾类等权放在底部注释，不再充当整个 B 方法的解释。
+5. A 明确从 A_ord 开始有限修正。服务器维护历史与截断目标，客户端固定训练见证
+   提供保持/分类联合反馈；提交模型的余量统计回传后才登记历史。
+6. 服务器与客户端用独立带标题的区域标明，普通聚合也明确标为服务器步骤。
+7. 五轮、双视图等超参数移入图注；两步、三步保留为低强调旁注。
+
+准确性边界
+A 的历史缺口不等同于当前普通更新造成的遗忘；图中没有画这种因果结论。
+没有画修正后必然越过余量阈值或测试精度上升。
+B 的共享状态反馈不同于组合本地更新，但操作区别不是独立收益的证据。
+方法命名 A/B 与 LoRA 参数 A/B 相关联；普通 A 学习属于完整流程，额外修正单独显示。
+历史在当前共享运行时维护；不宣称历史只保存在客户端。
+客户端/服务器边界是联邦协议逻辑角色。当前单机仿真与共享缓存的实现边界见 caption.txt。
+示例训练图片仅说明数据来源，不声称属于实际固定见证子集。
+
+排版与交付
+figures/framework_v3_en.pdf：英文矢量版。
+figures/framework_v3_zh.pdf：中文矢量版。
+figures/*.png：220 dpi 的实际 PDF 渲染预览。
+figures/*.drawio：文字、连线、面板、参数矩阵分别可编辑；少量图标使用 SVG，
+  示例训练图像使用内嵌 PNG。
+figures/*.svg：从矢量 PDF 导出，文字轮廓化。
+figures/*.tex：TikZ 精确排版源码。
+build_framework.py、render_engine.py：双语布局及统一导出。
+caption.txt：自包含中英文图注与完整协议说明。
+assets/manifest.json：输入图像来源。
+geometry_audit.json：几何检查结果。
+
+验证和限制
+检查中英文真实 PDF 渲染、标签宽度、文字重叠和 Draw.io XML。
+177.8 mm 通栏宽度下，最小普通标签约 8.17 pt；公式上下标更小。
+本机未安装 Draw.io Desktop，没有直接验证 Draw.io 原生渲染；准确论文排版以 PDF 为准。
+Draw.io 数学标签需开启 Extras > Mathematical Typesetting。
+
+重建
+仓库根目录：python presentation/method_ab_structure_20261014/v3/build_framework.py
+解压包内：python build_framework.py
+需要 XeLaTeX、Times New Roman、Microsoft YaHei、pdftoppm、pdftocairo。
+无需训练环境，未执行新的模型训练。

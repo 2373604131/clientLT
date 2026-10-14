@@ -11,14 +11,16 @@ ARM = 'method_a_margin'
 DEFAULTS = dict(epsilon=.01, margin_scale=.01, keep_weight=1., learn_weight=1.)
 
 
-def algorithm_config(**parameters):
+def algorithm_config(correction_step_size=.1, **parameters):
     if set(parameters) - set(DEFAULTS):
         raise ValueError('Unknown necessary-margin parameter')
     values = dict(DEFAULTS, **parameters)
     if any(not math.isfinite(v) or v <= 0 for v in values.values()) or values['epsilon'] > 2:
         raise ValueError('Margin parameters must be finite and positive; epsilon must be <= 2')
+    if not math.isfinite(correction_step_size) or correction_step_size <= 0:
+        raise ValueError('Correction step size must be finite and positive')
     return dict(schema_version=VARIANT, variant=VARIANT, **values,
-        retention_weight=values['keep_weight'], correction_steps=3, correction_step_size=.1,
+        retention_weight=values['keep_weight'], correction_steps=3, correction_step_size=correction_step_size,
         witness_per_local_class=8, witness_views=2, history_window=5, history_improvement=0.,
         history='sample_positive_nonoverlapping_window_min', history_stop_round=90,
         target='min(positive_history, epsilon)', normalization='fixed_shared_margin_scale',

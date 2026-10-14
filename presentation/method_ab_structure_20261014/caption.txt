@@ -1,0 +1,33 @@
+English caption
+
+Overview of the proposed training framework, combining tail-class-equal B feedback with necessary-margin retention and classification learning for A. (a) Clients alternately learn the LoRA factors on a frozen CLIP backbone, and the server aggregates ordinary updates using fixed joint weights. (b) Tail-present clients provide local logit-adjusted classification feedback; tail sample coefficients are rescaled to give each tail class equal total loss weight, while non-tail coefficients are retained. Two projected updates in effective coordinates produce one shared B residual. (c) Reliable positive margins recorded from committed models define capped sample targets P_i=min(H_i,epsilon); a deficit triggers three projected A updates that jointly optimize retention and class-balanced classification. The bottom row gives the within-round order and update schedules; the dashed return denotes history observations used in subsequent rounds, and the bars and history cells are schematic.
+
+中文图注
+
+方法概览：通过尾类等权 B 反馈和 A 的必要判别余量保持与分类联合学习更新共享模型。(a) 客户端在冻结的 CLIP 主干上交替学习 LoRA 因子，服务器使用固定 joint 权重聚合普通更新。(b) 持有尾类样本的客户端计算本地分类反馈，对尾类图片系数重标定，使各尾类具有相同的反馈损失总权重，保留非尾类系数；在有效坐标中进行两步投影更新，得到一个共享 B 补充更新。(c) 从已提交模型登记可靠正间隔，构造截断目标 P_i=min(H_i,epsilon)，在存在保持缺口时通过三步投影更新联合优化保持损失和类别等权分类损失。底部展示每轮真实执行顺序与日程；虚线回路表示供后续轮次使用的历史观察，柱形和历史格子均为机制示意。
+
+Symbol notes
+A,B: LoRA factors, distinct from the names of method components A and B.
+s: LoRA scaling; W0: frozen pretrained linear weight.
+a_i: original global feedback coefficient of image i.
+s_c: sum of original coefficients in tail class c.
+beta_T: original total coefficient mass of all tail classes in that feedback batch.
+T: fixed set of tail classes; not a dynamically selected class subset.
+X: effective-coordinate representation of the supplementary B update.
+R_B: norm of the current ordinary effective B update (rho=1).
+H_i: reliable positive historical margin; P_i=min(H_i,epsilon).
+m_iv: unscaled cosine margin of sample i, view v; sigma: fixed margin scale.
+L_keep: weighted two-view necessary-margin loss over samples with valid history.
+L_cls: all-class-balanced logit-adjusted classification loss over all witnesses.
+lambda_k,lambda_c: retention and classification coefficients (both 1 in current run).
+R_A: unweighted RMS of ordinary local A update norms across clients.
+z_0=0; z_1,z_2,z_3 are three successive projected updates.
+LA: logit adjustment. Frozen text features are used for cosine classification.
+
+Additional protocol details for the main text
+History is based on minima across two views and five nonoverlapping committed rounds;
+registration requires a positive, strictly improved record and takes effect next round.
+The initial model can register positive two-view margins before round 1.
+A correction also requires a nonzero proposal radius. A/history stop after round 90.
+B feedback runs at rounds 30,40,...,100. All feedback uses local training samples.
+The three example tail-weight bars are illustrative and do not denote measured performance.

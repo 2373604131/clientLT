@@ -1,0 +1,12 @@
+﻿method,publication,head80_acc_percent,tail20_acc_percent,paper_url
+New A + New B + joint,Ours,70.4781,72.3025,
+CAPT (fixed aggregation frequency),arXiv 2025; ACM MM 2026 accepted per author page,65.7325,71.1750,https://arxiv.org/abs/2503.06993
+FedPuReL-Global (shared stage only),CVPR 2026,65.7788,65.6975,https://openaccess.thecvf.com/content/CVPR2026/html/Hou_Fine-Tuning_Impairs_the_Balancedness_of_Foundation_Models_in_Long-tailed_Personalized_CVPR_2026_paper.html
+"FedSVD (CLIP-LoRA, non-DP)",NeurIPS 2025,68.4925,62.3650,https://papers.nips.cc/paper_files/paper/2025/hash/ad922aa85d4027ff3502e8e5f406e828-Abstract-Conference.html
+FedYoYo (CLIP-LoRA),ICCV 2025,67.7406,51.3550,https://openaccess.thecvf.com/content/ICCV2025/papers/Yan_You_Are_Your_Own_Best_Teacher_Achieving_Centralized-level_Performance_in_ICCV_2025_paper.pdf
+FedLF (CLIP-LoRA),ACML 2024; proceedings 2025,72.2463,49.6625,https://proceedings.mlr.press/v260/lu25a.html
+FedReLa (FedAvg-LoRA host),ICML 2026,71.7888,40.9250,https://github.com/guangzhengh/FedReLa
+LoRA-A2 (CLIP-LoRA),ACL 2025,71.8906,37.9300,https://aclanthology.org/2025.acl-long.19/
+FedNTD (CLIP-LoRA),NeurIPS 2022,70.8631,37.2800,https://proceedings.neurips.cc/paper_files/paper/2022/hash/fadec8f2e65f181d777507d1df69b92f-Abstract-Conference.html
+RoLoRA (CLIP-LoRA),NeurIPS 2025,69.9188,36.4100,https://proceedings.neurips.cc/paper_files/paper/2025/hash/adf17e7346b6be4c2f2bb40de572e5bc-Abstract-Conference.html
+FedAvg (LoRA implementation),AISTATS 2017,71.6294,36.1450,https://proceedings.mlr.press/v54/mcmahan17a.html

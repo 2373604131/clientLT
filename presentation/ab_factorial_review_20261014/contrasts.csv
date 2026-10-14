@@ -1,0 +1,5 @@
+contrast,left,right,overall_acc,head20_acc,middle60_acc,bottom20_tail_acc,non_tail_acc,mean_prediction_changes,mean_corrected,mean_damaged,tail_classes_improved,tail_classes_worse,tail_classes_tied
+new_A_without_B,new_a_joint,plain_joint,0.0,-0.0024999999999977263,-0.0008333333333325754,0.005000000000009663,-0.0012499999999988631,0.6,0.15,0.15,1,0,19
+new_B_given_new_A,new_a_new_b_joint,new_a_joint,-0.022499999999993747,-0.269999999999996,-0.14416666666666345,0.5899999999999892,-0.1756249999999966,86.15,21.75,24,16,2,2
+new_A_given_new_B,new_a_new_b_joint,plain_new_b_joint,-0.0024999999999977263,0.0,-0.004166666666662877,0.0,-0.003124999999997158,0.95,0.1,0.35,1,1,18
+new_B_given_plain_A,plain_new_b_joint,plain_joint,-0.01999999999999602,-0.27249999999999375,-0.14083333333333314,0.5949999999999989,-0.1737499999999983,86.4,21.85,23.85,16,2,2

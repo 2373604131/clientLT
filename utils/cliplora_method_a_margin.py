@@ -14,7 +14,9 @@ from utils.sfra_math import flatten, unflatten, projected_step, require_finite
 
 class MethodAMarginRuntime(SFRARuntime):
     def configure_algorithm(self):
-        config = algorithm_config(**{k: getattr(self.args, 'a_margin_'+k, v) for k, v in DEFAULTS.items()})
+        config = algorithm_config(
+            correction_step_size=getattr(self.args, 'a_margin_correction_step_size', .1),
+            **{k: getattr(self.args, 'a_margin_'+k, v) for k, v in DEFAULTS.items()})
         if (self.variant != VARIANT or self.strength != config['keep_weight']
                 or getattr(self.args, 'b_transfer_enable', False)
                 or getattr(self.args, 'sfra_b_aggregation', 'sample') != 'sample'
@@ -61,10 +63,17 @@ class MethodAMarginRuntime(SFRARuntime):
                                      for j in sorted(deltas)]).mean().sqrt()
         require_finite(proposal_radius=radius_tensor)
         radius = float(radius_tensor)
+        return self.correct_ordinary(middle, ordinary, radius, rnd)
+
+    def correct_ordinary(self, middle, ordinary, radius, rnd, diagnostic=None):
+        """The production correction, also callable on a saved proposal without training."""
         targets = make_targets(self.history, self.margin_feedback.base_mass,
                                self.sfra_config['epsilon'], self.sfra_config['margin_scale'])
         started = time.perf_counter()
-        before = self.observe_margin(ordinary, rnd, 'ordinary', targets=targets)
+        extra = dict(diagnostics=True) if diagnostic is not None else {}
+        before = self.observe_margin(ordinary, rnd, 'ordinary', targets=targets, **extra)
+        if diagnostic is not None:
+            diagnostic.begin(self, middle, ordinary, radius, rnd, targets, before)
         skip = ('no_valid_history' if not self.history.valid.any() else
                 'zero_proposal_radius' if radius == 0 else
                 'no_history_deficit' if before['deficit_count'] == 0 else '')
@@ -86,13 +95,16 @@ class MethodAMarginRuntime(SFRARuntime):
         if not skip:
             for step in range(self.sfra_config['correction_steps']):
                 measurement = self.observe_margin(at(ordinary_a+radius*z), rnd, f'update_z{step}',
-                                                  targets=targets, gradient=True)
+                                                  targets=targets, gradient=True, **extra)
                 row[f'J_z{step}'] = .5*float(z.square().sum()) + measurement['loss']
                 # The feedback gradient already includes both loss coefficients. Chain R exactly once.
+                previous_z = z
                 z = projected_step(z, radius, measurement['gradient'], 1., self.sfra_config['correction_step_size'])
+                if diagnostic is not None:
+                    diagnostic.step(step, previous_z, z, measurement, at(ordinary_a+radius*z))
             submitted = at(ordinary_a+radius*z)
             # This observation updates history/logs only. It never accepts/rejects a model.
-            final = self.observe_margin(submitted, rnd, 'submitted', targets=targets)
+            final = self.observe_margin(submitted, rnd, 'submitted', targets=targets, **extra)
             row.update(correction_steps=3, submitted_step=3)
         row.update(repair_seconds=time.perf_counter()-started, correction_z_norm=float(z.norm()),
             nonzero_correction=any(not torch.equal(submitted[k], ordinary[k]) for k in self.a_keys),
@@ -100,6 +112,8 @@ class MethodAMarginRuntime(SFRARuntime):
             J_submitted=.5*float(z.square().sum())+final['loss'])
         for g, old, new in zip(('H', 'M', 'T'), before['group_ce'].tolist(), final['group_ce'].tolist()):
             row.update({f'ordinary_CE_{g}': old, f'final_CE_{g}': new})
+        if diagnostic is not None:
+            diagnostic.finish(submitted, z, final, row)
         changed = self.history.commit(final['sample_margins'], rnd)
         row.update(history_registered=int(changed.sum()), history_count_after=int(self.history.valid.sum()),
                    history_last_committed=self.history.last_committed_round, window_count=self.history.block_count)

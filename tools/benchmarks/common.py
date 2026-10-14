@@ -119,7 +119,8 @@ def reference_contract(root):
 def source_hashes():
     from tools.sfra.ab_validation import code_hashes
     files = code_hashes(REPO)  # normalize newlines, as in the frozen A/AB receipts
-    extra = [CONFIG, FACTOR_CONFIG, LONGTAIL_CONFIG, REPO / 'scripts/run_dirichlet_benchmarks.py', REPO / 'scripts/run_longtail_benchmarks.py',
+    extra = [CONFIG, FACTOR_CONFIG, LONGTAIL_CONFIG, REPO / 'scripts/recover_dirichlet_ab.py',
+             REPO / 'scripts/run_dirichlet_benchmarks.py', REPO / 'scripts/run_longtail_benchmarks.py',
              REPO / 'scripts/vendor_paper_baselines.py', REPO / 'scripts/run_factor_benchmarks.py',
              REPO / 'scripts/run_paper_benchmarks.py', REPO / 'scripts/train_paper_baseline.py',
              REPO / 'scripts/collect_paper_benchmarks.py', REPO / 'trainers/capt.py', REPO / 'loss/prompt_loss.py']
