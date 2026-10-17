@@ -9,6 +9,20 @@ __pycache__/
 /logs/
 *.log
 
+# Local figures, presentation sources, and generated reports
+/presentation/
+
+# Discussion notes and experiment write-ups (keep JSON configurations tracked)
+/docs/**/*.md
+/docs/**/*.txt
+/Av2_experiment_implementation_spec.txt
+/ClientLT论文完整故事主线_PFRF版_2026-09-07.md
+/客户端长尾日常讨论.pdf
+/客户端长尾的故事线.pdf
+
+# Temporary analysis, packaging, and deployment artifacts
+/tmp/
+
 *.pth
 *.pt
 *.ckpt

@@ -1,5 +1,0 @@
-cell,overall_acc,head20_acc,middle60_acc,bottom20_tail_acc,non_tail_acc
-plain_joint,70.8655,74.2075,69.47083333333333,71.7075,70.655
-new_a_joint,70.8655,74.205,69.47,71.7125,70.65375
-new_a_new_b_joint,70.843,73.935,69.32583333333334,72.3025,70.478125
-plain_new_b_joint,70.8455,73.935,69.33,72.3025,70.48125

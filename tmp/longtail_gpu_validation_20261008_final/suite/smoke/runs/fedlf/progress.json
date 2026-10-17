@@ -1,7 +1,0 @@
-{
-  "method": "fedlf",
-  "completed_round": 2,
-  "total_rounds": 2,
-  "smoke": true,
-  "checkpoint": "checkpoint_last.pt"
-}
