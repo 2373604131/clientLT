@@ -60,10 +60,11 @@ class TailConcentrationTests(unittest.TestCase):
             main()
         self.assertFalse(output.exists())
         self.assertEqual(buffer.getvalue().count('--lac_method j'), 5)
+        self.assertEqual(buffer.getvalue().count('--lac_client_concurrency 8'), 5)
 
     def test_commands_keep_j_baseline_and_use_distinct_manifests(self):
         args = SimpleNamespace(output_root=self.tmp, data_root=Path('DATA'), seed=42,
-                               protocol_seed=42, num_workers=8)
+                               protocol_seed=42, num_workers=8, client_concurrency=8)
         destinations = set()
         for value in LAMBDAS:
             run = run_path(args, value)
@@ -76,6 +77,7 @@ class TailConcentrationTests(unittest.TestCase):
                                   '--a_refresh_interval': '10', '--cliplora_rank': '4'}.items():
                 self.assertEqual(get(key), expected)
             self.assertEqual(float(get('--specialization_lambda')), value)
+            self.assertEqual(get('--lac_client_concurrency'), '8')
             self.assertEqual(Path(get('--lac_partition_manifest')).parent.parent, run)
             destinations.add(get('--output-dir'))
         self.assertEqual(len(destinations), 5)

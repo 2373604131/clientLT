@@ -1,7 +1,8 @@
 """Prepare or explicitly launch five J-baseline tail-concentration experiments.
 
 Default --stage plan only prints commands. No GPU/model is used in plan/prepare.
-Training is foreground, sequential, and requires --stage train explicitly.
+Five experiments run sequentially; each uses up to 8 concurrent local clients.
+Training is foreground and requires --stage train explicitly.
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ sys.path.insert(0, str(REPO))
 from scripts.run_cliplora_a_refresh import build_command
 
 VALUES = (0.0, 0.25, 0.5, 0.75, 1.0)
-DEFAULT_OUTPUT = 'output/cifar100_LT/j_tail_concentration_if100'
+DEFAULT_OUTPUT = 'output/cifar100_LT/j_tail_concentration_if100_parallel8'
 
 
 @contextmanager
@@ -56,6 +57,7 @@ def command_for(args, value, run):
     index = command.index('DATALOADER.NUM_WORKERS')
     command[index:index] = [
         '--lac_method', 'j', '--lac_partition_manifest', str(run / 'protocol/partition_source.csv'),
+        '--lac_client_concurrency', str(args.client_concurrency),
         '--lac_la_tau', '1.0', '--lac_a_lr_mult', '1.0',
         '--lac_lookahead_rounds', '2', '--lac_min_gain', '0.0001',
         '--lac_tail_tolerance', '0.002', '--lac_patience', '2',
@@ -68,9 +70,11 @@ def specification(args, value):
     sources = ['scripts/cliplora_tail_concentration_protocol.py',
                'scripts/run_cliplora_tail_concentration.py', 'scripts/run_cliplora_a_refresh.py',
                'utils/datasplit.py', 'utils/cliplora_la_control.py',
-               'utils/cliplora_functional_feedback.py', 'datasets/cifar100_LT.py']
+               'utils/cliplora_functional_feedback.py', 'datasets/cifar100_LT.py',
+               'federated_main.py', 'tools/client_aggregation/parallel.py', 'trainers/cliplora.py']
     return {
-        'schema': 'j_tail_concentration_v1', 'lambda': value, 'method': 'j',
+        'schema': 'j_tail_concentration_v2', 'lambda': value, 'method': 'j',
+        'client_concurrency': args.client_concurrency,
         'seed': args.seed, 'split_seed': args.protocol_seed,
         'imbalance_ratio': 100, 'imb_factor_argument': .01, 'intra_group_alpha': .5,
         'clients': 30, 'classes': 100, 'tail_clients': [27, 28, 29],
@@ -166,9 +170,13 @@ def main():
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--protocol-seed', type=int, default=42)
     parser.add_argument('--data-root', type=Path, default=Path('DATA'))
-    parser.add_argument('--output-root', type=Path, default=Path(DEFAULT_OUTPUT))
+    parser.add_argument('--output-root', type=Path)
+    parser.add_argument('--client-concurrency', type=int, choices=(1, 4, 6, 8), default=8)
     parser.add_argument('--num-workers', type=int, default=8)
     args = parser.parse_args()
+    if args.output_root is None:
+        args.output_root = Path(DEFAULT_OUTPUT if args.client_concurrency == 8 else
+                                f'output/cifar100_LT/j_tail_concentration_if100_parallel{args.client_concurrency}')
     if len(set(args.lambdas)) != len(args.lambdas):
         parser.error('--lambdas must be unique')
     if min(args.seed, args.protocol_seed, args.num_workers) < 0:
@@ -178,7 +186,8 @@ def main():
         from scripts.plot_cliplora_tail_concentration import plot_results
         plot_results(args)
         return
-    print('J baseline: IF=100, alpha=0.5, 30 clients, 100 classes, 100 rounds; non-tail allocation fixed.', flush=True)
+    print(f'J baseline: IF=100, alpha=0.5, 30 clients, 100 classes, 100 rounds; '
+          f'non-tail allocation fixed; concurrent clients={args.client_concurrency}.', flush=True)
     for value in args.lambdas:
         run = run_path(args, value)
         if args.stage == 'plan':

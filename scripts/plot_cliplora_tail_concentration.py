@@ -39,9 +39,24 @@ def collect_results(args):
                     'extra_trainable_factor': 'A', 'control_enabled': False}
         if any(config.get(k) != v for k, v in expected.items()):
             raise ValueError(f'Unexpected training baseline: {run}')
+        slots = info['specification']['client_concurrency']
+        if config.get('client_execution', {}).get('max_concurrent_clients') != slots:
+            raise ValueError(f'Actual client concurrency differs from the registered setting: {run}')
         meta = read_json(run / 'bridge_metadata.json')
         if meta['client_sample_counts'] != info['statistics']['client_totals']:
             raise ValueError(f'Client totals changed in training: {run}')
+        if slots > 1:
+            for rnd, factor in [(r, 'AB') for r in range(1, 101)] + [(r, 'A') for r in range(10, 100, 10)]:
+                execution = read_json(run / 'parallel_execution' / f'r{rnd:03d}_{factor}.json')
+                clients = execution['selected_client_ids']
+                audits = execution['client_audits']
+                if (execution['slots'] != slots or execution['clients'] != 30
+                        or execution['round'] != rnd or execution['factor'] != factor
+                        or clients != meta['schedule'][rnd - 1]
+                        or sorted(clients) != list(range(30))
+                        or sorted(row['client_id'] for row in audits) != list(range(30))
+                        or any(not 0 <= row['slot'] < slots for row in audits)):
+                    raise ValueError(f'Invalid parallel execution record: {run}, round {rnd}, {factor}')
         common_keys = ('pool_sha256', 'test_sha256', 'probe_images_sha256',
                        'probe_manifest_sha256', 'schedule_sha256', 'initial_lora_sha256',
                        'frozen_model_sha256', 'training_code_hashes')
@@ -69,7 +84,7 @@ def collect_results(args):
             'peak_to_final_pp': float(tail[peak_index] - tail[-1]),
             'peak_to_last20_pp': float(tail[peak_index] - tail[81:101].mean()),
             'last20_overall_acc': float(np.mean([float(r['overall_acc']) for r in rows[81:101]])),
-            'optimizer_steps': done['total_optimizer_steps'],
+            'optimizer_steps': done['total_optimizer_steps'], 'client_concurrency': slots,
         })
         curves.extend({'lambda': value, 'round': int(r['round']),
                        'tail_acc': float(r['bottom20_tail_acc']),

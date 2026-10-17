@@ -6494,6 +6494,8 @@ if __name__ == "__main__":
     parser.add_argument('--cliplora_bridge_audit', type=str2bool, default=False)
     parser.add_argument('--lac_method', choices=['off', 'e0', 'e1', 'e2', 'e3', 'e4', 'e5', 'j', 's'], default='off')
     parser.add_argument('--lac_partition_manifest', default='')
+    parser.add_argument('--lac_client_concurrency', type=int, choices=(1, 4, 6, 8), default=1,
+                        help='Concurrent local clients for plain J only; 1 keeps legacy serial execution')
     parser.add_argument('--lac_la_tau', type=float, default=1.0)
     parser.add_argument('--lac_a_lr_mult', type=float, default=1.0)
     parser.add_argument('--lac_lookahead_rounds', type=int, default=2)

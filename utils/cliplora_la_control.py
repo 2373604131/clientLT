@@ -50,6 +50,12 @@ class LAControlRuntime:
         self.control = self.method in ('e4', 'e5')
         self.periodic = self.method in ('e1', 'e3', 'j', 's')
         self.normal_factor = 'AB' if self.method == 'j' else 'B'
+        self.client_concurrency = getattr(args, 'lac_client_concurrency', 1)
+        if self.client_concurrency not in (1, 4, 6, 8):
+            raise ValueError('Expected 1, 4, 6 or 8 concurrent clients')
+        if self.client_concurrency > 1 and (self.method != 'j' or type(self) is not LAControlRuntime):
+            raise ValueError('lac_client_concurrency is supported only by the plain J runtime')
+        self.client_pool = None
         self.tau = args.lac_la_tau if self.method in ('e2', 'e3', 'e5', 'j', 's') else 0.
         self.h = args.lac_lookahead_rounds
         self.eps_hist = args.lac_tail_tolerance if args.lac_history_tolerance is None else args.lac_history_tolerance
@@ -133,6 +139,19 @@ class LAControlRuntime:
             'steps_per_epoch':self.steps_per_epoch,
             'normal_steps_expected':100*3*self.steps_per_epoch,
             'extra_steps_expected':self.steps_per_epoch*len(self.rounds)}
+        if self.method == 'j' and type(self) is LAControlRuntime:
+            self.config['client_execution'] = {
+                'backend': 'threads_with_private_cuda_streams' if self.client_concurrency > 1 else 'original_serial',
+                'max_concurrent_clients': self.client_concurrency,
+                'synchronization': 'all 30 clients finish before aggregation in schedule order',
+                'forward': 'original dense LoRA and text forward',
+                'local_AB_epochs': 3, 'local_A_epochs': 1,
+            }
+        if self.client_concurrency > 1:
+            from tools.client_aggregation.parallel import LoRAClientPool
+            torch.set_num_threads(1)
+            with isolated_rng():
+                self.client_pool = LoRAClientPool(self, slots=self.client_concurrency, optimize_forward=False)
         write_json(self.root / 'control_config.json', self.config)
         write_json(self.root / 'class_prior.json', {'counts':counts.tolist(), 'prior':self.prior.tolist(), 'tail_ids':self.tail.tolist()})
         (self.root / 'resolved_config.yaml').write_text(str(cfg), encoding='utf-8')
@@ -140,6 +159,9 @@ class LAControlRuntime:
         for name in ('utils/cliplora_la_control.py','utils/cliplora_functional_feedback.py','datasets/cifar100_LT.py',
                      'Dassl/dassl/data/data_manager.py','Dassl/dassl/engine/trainer.py'):
             repo = Path(__file__).resolve().parents[1]
+            self.audit.meta['training_code_hashes'][name] = hashlib.sha256((repo/name).read_bytes()).hexdigest()
+        if self.client_concurrency > 1:
+            name = 'tools/client_aggregation/parallel.py'
             self.audit.meta['training_code_hashes'][name] = hashlib.sha256((repo/name).read_bytes()).hexdigest()
         write_json(self.root / 'bridge_metadata.json', self.audit.meta)
         (self.root / 'checkpoints').mkdir(exist_ok=True)
@@ -201,6 +223,10 @@ class LAControlRuntime:
 
     def train_phase(self, state, rnd, factor='B', extra=False, branch='main', candidate=0,
                     return_deltas=False):
+        if getattr(self, 'client_pool', None) is not None:
+            from tools.client_aggregation.parallel import parallel_phase
+            after, deltas = parallel_phase(self, state, rnd, factor, extra, branch, candidate)
+            return (after, deltas) if return_deltas else after
         phase = ('refresh_A' if factor=='A' else 'extra_B') if extra else f'normal_{factor}'
         event_id = f'r{rnd:03d}_c{candidate:03d}_{branch}_{phase}'
         selected = list(map(int,self.schedule[rnd-1]))

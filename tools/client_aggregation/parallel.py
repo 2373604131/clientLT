@@ -82,10 +82,10 @@ def plan_phase(loaders, clients, factor, seed, rnd):
             with torch.random.fork_rng(devices=[]):
                 torch.default_generator.manual_seed(seed + 1000003*rnd + 1009*client)
                 plans[client] = plan_batches(loaders[client], 1)
-        elif factor == 'B':
+        elif factor in ('B', 'AB'):
             plans[client] = plan_batches(loaders[client], 3)
         else:
-            raise ValueError('Only separate A/B phases are supported')
+            raise ValueError('Expected A, B or joint AB training')
     return plans
 
 
@@ -138,7 +138,9 @@ def compare_states(left, right, atol=1e-6, rtol=1e-5):
 def train_local(model, state, keys, dataset, plan, factor, device, optimizer_factory, step, adjustment):
     """Canonical optimizer step and scheduler, independent of a mutable Trainer."""
     parameters = dict(model.named_parameters())
-    active = [k for k in keys if k.endswith('_lora_' + factor)]
+    if factor not in ('A', 'B', 'AB'):
+        raise ValueError('Expected A, B or joint AB training')
+    active = list(keys) if factor == 'AB' else [k for k in keys if k.endswith('_lora_' + factor)]
     with torch.no_grad():
         for key in keys:
             parameters[key].copy_(state[key])
@@ -170,11 +172,32 @@ def train_local(model, state, keys, dataset, plan, factor, device, optimizer_fac
         sample_presentations=samples, scheduler_steps=len(plan) if scheduler is not None else 0)
 
 
+def local_optimizer(model, factor, runtime, build_standard):
+    """Preserve the serial runtime's distinct A/B parameter groups for J."""
+    if factor == 'AB':
+        parameters = dict(model.named_parameters())
+        groups = [
+            {'params': [parameters[k] for k in runtime.a_keys],
+             'lr': runtime.config['normal_a_lr'],
+             'weight_decay': runtime.config['normal_a_weight_decay']},
+            {'params': [parameters[k] for k in runtime.b_keys],
+             'lr': runtime.config['normal_b_lr'],
+             'weight_decay': runtime.config['normal_b_weight_decay']},
+        ]
+        return build_standard(model, runtime.cfg, param_groups=groups)
+    if factor == 'B':
+        return build_standard(model, runtime.cfg)
+    if factor == 'A':
+        return torch.optim.SGD([p for p in model.parameters() if p.requires_grad],
+            lr=runtime.config['extra_a_lr'], momentum=.9, weight_decay=0.), None
+    raise ValueError('Expected A, B or joint AB training')
+
+
 class LoRAClientPool:
-    def __init__(self, runtime):
+    def __init__(self, runtime, *, slots=None, optimize_forward=True):
         self.runtime = runtime
         self.device = torch.device(runtime.trainer.device)
-        self.slots = runtime.job['settings']['client_concurrency']
+        self.slots = runtime.job['settings']['client_concurrency'] if slots is None else slots
         if self.slots not in (4, 6, 8):
             raise ValueError('Expected 4, 6 or 8 concurrent clients')
         if self.device.type != 'cuda' or torch.cuda.device_count() != 1:
@@ -192,18 +215,17 @@ class LoRAClientPool:
         self.step = cliplora_optimizer_step
 
         def optimizer_factory(model, factor):
-            if factor == 'B':
-                return build_cliplora_optimizer_and_scheduler(model, runtime.cfg)
-            return torch.optim.SGD([p for p in model.parameters() if p.requires_grad],
-                lr=runtime.config['extra_a_lr'], momentum=.9, weight_decay=0.), None
+            return local_optimizer(model, factor, runtime, build_cliplora_optimizer_and_scheduler)
 
         self.optimizer_factory = optimizer_factory
         self.models = clone_models(runtime.trainer.model, self.keys, self.slots)
-        from utils.sfra_execution import enable_model_execution
-        # Build each private cache on the main stream before threaded use.
-        for model in self.models:
-            enable_model_execution(model)
-            model._sfra_text_cache.get()
+        if optimize_forward:
+            from utils.sfra_execution import enable_model_execution
+            # Existing SFRA users retain their optimized execution path. J keeps
+            # its original dense LoRA/text forwards with optimize_forward=False.
+            for model in self.models:
+                enable_model_execution(model)
+                model._sfra_text_cache.get()
         self.streams = [torch.cuda.Stream(device=self.device) for _ in range(self.slots)]
         torch.cuda.synchronize(self.device)
 
@@ -241,8 +263,8 @@ def parallel_phase(runtime, state, rnd, factor, extra, branch, candidate):
     from scripts.run_ab_validation import write_json
     from utils.cliplora_a_refresh import aggregate_refresh_deltas, train_only
     from utils.lora_aggregation import aggregate_lora_state
-    phase = 'refresh_A' if extra else 'normal_B'
-    if branch != 'main' or (factor, extra) not in (('B', False), ('A', True)):
+    phase = 'refresh_A' if extra else f'normal_{factor}'
+    if branch != 'main' or (factor, extra) not in (('B', False), ('AB', False), ('A', True)):
         raise ValueError('Unsupported parallel phase')
     selected = list(map(int, runtime.schedule[rnd-1]))
     if sorted(selected) != list(range(30)):
@@ -253,7 +275,9 @@ def parallel_phase(runtime, state, rnd, factor, extra, branch, candidate):
     plans = plan_phase(pool.loaders, selected, factor, runtime.args.seed, rnd)
     # Smoke executes one ordinary round, with no serial/parallel comparison pilot.
     results, execution = pool.run(state, selected, plans, factor)
-    keys = runtime.a_keys if factor == 'A' else runtime.b_keys
+    if set(results) != set(selected):
+        raise RuntimeError('Missing/extra client results; aggregation is forbidden')
+    keys = runtime.keys if factor == 'AB' else (runtime.a_keys if factor == 'A' else runtime.b_keys)
     local = {c: results[c][0] for c in selected}
     deltas = {c: {k: local[c][k]-state[k] for k in keys} for c in selected}
     execution.update(round=rnd, factor=factor, selected_client_ids=selected,
@@ -263,12 +287,12 @@ def parallel_phase(runtime, state, rnd, factor, extra, branch, candidate):
         cost = results[c][1]
         runtime.budget.append(dict(event_id=event_id, round=rnd, candidate_round=candidate,
             branch=branch, phase=phase, client_id=c, **cost, committed=True, trainable_factor=factor,
-            a_optimizer_steps=cost['optimizer_steps'] if extra else 0,
-            b_optimizer_steps=0 if extra else cost['optimizer_steps'],
+            a_optimizer_steps=cost['optimizer_steps'] if factor in ('A', 'AB') else 0,
+            b_optimizer_steps=cost['optimizer_steps'] if factor in ('B', 'AB') else 0,
             upload_bytes=sum(v.numel()*v.element_size() for v in local[c].values()),
             modeled_downlink_bytes=sum(state[k].numel()*state[k].element_size() for k in runtime.keys)))
     weights = runtime.phase_aggregation_weights(selected, rnd, factor, extra, branch)
-    if not extra:
+    if factor == 'B' and not extra:
         local, deltas = runtime.prepare_b_aggregation(state, local, deltas, selected, rnd)
     after = (aggregate_refresh_deltas(state, deltas, weights, keys) if extra else
              aggregate_lora_state(state, local, selected, keys, weights))
@@ -285,7 +309,7 @@ def parallel_phase(runtime, state, rnd, factor, extra, branch, candidate):
     runtime.load_training_state(after)
     train_only(runtime.trainer.model, 'B')
     # Preserve the original shared-C wrapper and its single residual injection.
-    if not extra and runtime.b_transfer is not None and runtime.b_transfer.scheduled(rnd):
+    if factor == 'B' and not extra and getattr(runtime, 'b_transfer', None) is not None and runtime.b_transfer.scheduled(rnd):
         after = runtime.b_transfer.apply_shared(state, after, rnd)
         event.update(state_role='ordinary_B_before_shared_transfer',
                      shared_transfer_state_path=f'b_transfer_rounds/r{rnd:03d}/commit.pt')
