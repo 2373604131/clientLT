@@ -1,0 +1,154 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+\usepackage[pagenumbers]{cvpr}
+\usepackage{xeCJK}
+\setmainfont{Times New Roman}
+\setCJKmainfont[BoldFont=FandolSong-Bold,ItalicFont=FandolKai-Regular]{FandolSong-Regular}
+\setCJKsansfont{FandolHei-Regular}
+\usepackage{tabularx,array}
+\usepackage{balance}
+\definecolor{cvprblue}{rgb}{0.21,0.49,0.74}
+\usepackage[breaklinks,colorlinks,allcolors=cvprblue]{hyperref}
+\setlength{\emergencystretch}{1em}
+\renewcommand{\abstractname}{摘要}
+\renewcommand{\figurename}{图}
+\renewcommand{\tablename}{表}
+\renewcommand{\refname}{参考文献}
+\hfuzz=0.2pt
+\author{中文工作稿}
+\date{}
+\renewcommand{\thetable}{S\arabic{table}}
+
+\title{联邦长尾学习中的尾部类别知识保持与跨客户端知识迁移：补充材料}
+
+\begin{document}
+
+\maketitle
+
+\section*{S1. 实现与训练配置}
+
+\subsection*{S1.1 普通聚合}
+
+完整配置使用 joint 权重执行普通因子聚合。服务器在训练前取得各客户端类别计数 $n_{jc}$，令 $\pi_j=n_j/N$、$P_{jc}=n_{jc}/n_j$、$u_c=1/C$，求解
+
+
+\begin{equation}\min_{w\geq0,\,\mathbf1^\top w=1}
+D_{\mathrm{KL}}(u\|P^\top w)+\frac{\lambda_{\mathrm{agg}}}{2}
+\sum_j\frac{(w_j-\pi_j)^2}{\pi_j}.\end{equation}
+
+取 $\lambda_{\mathrm{agg}}=0.1$，以 $\pi$ 初始化，使用 FP64 的 SLSQP，停止容差为 $10^{-12}$，迭代上限为 2,000。数值求解设置 $w_j\geq10^{-12}$，并检查权重归一化、目标值和 KKT 条件。固定数据划分下仅求解一次，同一组权重用于普通 $B$ 聚合与普通 $A$ 提案。方法 A 的分类惩罚继续按原样本量权重计算；方法 B 的反馈客户端等权参与组合优化。
+
+
+该实验设置中，服务器可见逐客户端类别计数、本地参数更新，以及用于保持修正和组合优化的反馈量与梯度。本地训练图像和反馈图像保留在客户端。正文表 2 的配对模块实验使用 $\pi_j$ 聚合，各组采用相同聚合规则和普通训练日程。
+
+
+\subsection*{S1.2 方法 A 的目标与优化}
+
+方法 A 对每个非空客户端—类别组合固定选取至多 8 张训练图像，以原图和水平翻转作为两个确定性视图。保持反馈使用原始余弦分数，不加入 LA 或温度缩放。客户端更新均从本轮共同的 $A_t$ 出发；响应梯度也在该共同起点计算。
+
+
+令 $r_{qvj}=\langle\nabla_A F_{qv}(A_t),\Delta A_j\rangle$。当两个视图上的响应均大于 $10^{-6}$ 时，$a_{qj}=\min_v r_{qvj}$，否则为零。正响应均值为 $u_q=(\sum_j a_{qj})/|\{j:a_{qj}>0\}|$。来源集中程度 $\rho_q=1/N_q^{\mathrm{eff}}$ 在无正响应时沿用历史值，其初值为 $1/K$；保持权重在具有当前目标或有效历史目标的组合上归一化。
+
+
+历史记录使用互不重叠的五轮区间。每个区间取五轮最终全局模型、两个视图上的最低间隔，只有比已有记录至少高出 0.001 时才登记；首次登记前，以初始模型的双视图最低间隔判断是否发生改善。初始值仅作为登记参照。新登记的记录从下一轮开始参与保持目标。
+
+
+分类惩罚中的损失为
+
+
+\begin{equation}\widehat L(A)=\sum_k\pi_k\sum_{c:n_{kc}>0}
+\frac{n_{kc}}{n_k}\widehat L_{kc}(A),\end{equation}
+
+其中 $\widehat L_{kc}$ 在对应反馈图像上计算全局频率 LA。优化取 $\lambda_F=10$、$\mu_{\mathrm{cls}}=1$，从 $z=0$ 开始，以步长 0.1 执行三次投影梯度更新，每步将 $z$ 投影到单位球。当前目标、历史目标、来源权重及归一化尺度在本轮修正内保持固定。
+
+
+\subsection*{S1.3 方法 B 的反馈与训练日程}
+
+候选探测在普通 $B$ 聚合后的模型上进行。对于接收客户端 $k$ 持有而来源客户端 $j\ne k$ 不含有的尾部类别，测试加入 $0.1\Delta B_j$ 后的 LA 损失；只要其中一个类别的损失下降，就将 $j$ 加入该接收客户端的候选集合。各集合取并集后统一优化。完整配置八次执行中的并集均包含 30 个客户端。
+
+
+当前划分有 22 个客户端实际持有尾部样本，均参与反馈。尾部与非尾部图像分组轮换采样，两组损失权重分别为 0.35 和 0.65；仅有尾部样本时使用尾部损失。每次执行将全部 $C_{j\ell}$ 置零，固定来源更新及普通聚合因子，使用学习率 0.3 的 Adam 优化两步，矩阵正则系数为 0.001，最后一次性注入补充更新。
+
+
+六个 LoRA 适配层位于 CLIP ViT-B/16 视觉编码器最后三个 block 的 q/v 投影，秩为 4，缩放为 $1/\sqrt r$，训练精度为 FP32。SGD 动量为 0.9，$B$ 阶段权重衰减为 0.0005，$A$ 阶段为零；全局 LA 系数为 1。每轮流程如下：
+
+
+1. 固定 $A$，各客户端训练 $B$ 三个 epoch，形成普通聚合模型。
+
+
+2. 第 30、40、……、100 轮执行方法 B，将共享补充更新合并到 $B$。
+
+
+3. 第 1—90 轮固定共同 $B$，训练 $A$ 一个 epoch，形成普通提案并执行方法 A。
+
+
+4. 提交本轮全局模型，更新历史预测间隔。第 91—100 轮只执行 $B$ 阶段及相应组合。
+
+
+\section*{S2. 动机分析的完整口径}
+
+\subsection*{S2.1 参数更新策略与保持表现}
+
+正文图 1 使用 S 策略：每轮训练 $B$ 三个 epoch，前 90 轮训练 $A$ 一个 epoch。另两种策略为 J 与 E3：J 在普通阶段联合更新两个因子，并在第 10、20、……、90 轮额外训练 $A$；E3 在普通阶段仅训练 $B$，并在相同的九个轮次训练 $A$。三者均采用全局 LA 和样本量聚合。J 是因子训练策略名称，joint 是正文完整配置使用的聚合权重名称。
+
+
+\par\medskip\noindent\begin{minipage}{\columnwidth}\centering\captionof{table}{Rank-4、种子 42 的峰值至末轮 Tail20 回落，单位为百分点。}\small\setlength{\tabcolsep}{3pt}
+
+\begin{tabularx}{\columnwidth}{Xrrr}\toprule 策略 & Client-LT & 常规 Dirichlet & Matched \\\midrule
+
+J & 12.15 & 1.80 & 0.40 \\
+
+S & 3.45 & 0.90 & 0.65 \\
+
+E3 & 0.35 & 0.05 & 0.20 \\
+
+\bottomrule\end{tabularx}\end{minipage}\par\medskip
+
+Matched 与 Client-LT 同时保持每类样本总量和每个客户端样本总量一致；常规 Dirichlet 仅共享全局长尾样本池。结果呈现出客户端分布与参数更新策略对保持轨迹的共同影响。
+
+
+\subsection*{S2.2 客户端更新路径诊断}
+
+该诊断使用 rank-2 LoRA、训练种子 42 与全参与样本量聚合。类别分数定义为正确类别 logit 减去其他类别 logits 的 logsumexp，并对该类别分析样本求平均。沿实际全局更新路径，以八点 Gauss–Legendre 积分将分数变化分解到客户端更新。随后按客户端是否含目标类别样本及作用方向进行分组。
+
+
+表 S2 汇总第 11—100 轮区间：以第 10 轮为左边界，对第 10、20、……、100 轮的诊断值作梯形时间累计，再对尾部 20 类取平均。数值的单位为累计诊断分数变化。
+
+
+\par\medskip\noindent\begin{minipage}{\columnwidth}\centering\captionof{table}{按标签归属与作用方向分解的累计客户端更新贡献。}\small\setlength{\tabcolsep}{3pt}
+
+\begin{tabularx}{\columnwidth}{Xrr}\toprule 来源与方向 & Client-LT & Matched \\\midrule
+
+含目标类别样本，正向 & 6.874 & 14.553 \\
+
+含目标类别样本，负向幅度 & 0.463 & 1.921 \\
+
+不含目标类别样本，正向 & 17.642 & 14.646 \\
+
+不含目标类别样本，负向幅度 & 25.612 & 28.353 \\
+
+全部来源，正向 & 24.516 & 29.200 \\
+
+\bottomrule\end{tabularx}\end{minipage}\par\medskip
+
+Client-LT 中，直接持有目标标签的来源所提供的正向作用下降，而不持有目标标签的来源同时产生正负作用。正文据此采用预测响应识别支持，并通过本地反馈学习更新组合。
+
+
+\section*{S3. 比较版本与训练开销}
+
+\subsection*{S3.1 对比方法的实验实现}
+
+正文表 1 使用共享 CLIP 骨干上的实验版本。FedAvg-LoRA 采用联合因子训练与 CE，FedAvg-LoRA＋LA 使用全局频率 LA；CAPT 使用固定聚合版本；FedPuReL 使用全局阶段的 CLIP-LoRA 适配；FedNTD、FedLF 和 FedYoYo 使用 CLIP-LoRA 适配；FedReLa 使用 CE 训练和一次重标记；RoLoRA 使用 CLIP 交替因子适配；FedSVD 使用非 DP 的 CLIP-LoRA 适配；LoRA-A$^2$ 使用共享 rank-4 的 CLIP 适配。各方法遵循各自的本地训练与额外计算流程。
+
+
+正文表 2 中，直接校准在 $B$ 的全坐标残差上优化，使用与方法 B 相同的反馈样本、分组损失和优化步数，并在每步匹配对应有效权重增量的范数。它检验相同反馈预算下不同残差参数化所产生的分类表现。
+
+
+\subsection*{S3.2 训练开销}
+
+当前训练日程中，普通 $B$ 训练执行 105,600 个本地优化步，前 90 轮的 $A$ 适配执行 31,680 步。方法 A 额外执行 270 次投影修正，方法 B 在八个轮次中执行 16 次组合优化。30 个来源、六个适配层、rank-4 对应 $30\times6\times4^2=2,880$ 个组合参数。
+
+
+原样本量聚合的两个种子实验中，方法 A 的额外模拟上行和下行通信量分别约为 1.23 GB 和 6.80 GB；方法 B 分别约为 4.07 MB 和 406.40 MB。反馈与模型修正构成主要额外训练成本，补充更新合并后沿用同一全局模型进行推理。
+
+
+\end{document}

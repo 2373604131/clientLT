@@ -34,7 +34,10 @@ FILES = ('tools/client_aggregation/__init__.py', 'tools/client_aggregation/weigh
     'scripts/run_cliplora_joint_tail30.py', 'tools/client_aggregation/tail30.py',
     'utils/b_route_math.py', 'utils/b_tail_equal.py', 'utils/cliplora_b_routes.py',
     'utils/cliplora_ab_factorial.py', 'tools/client_aggregation/ab_factorial.py',
-    'scripts/run_cliplora_ab_factorial.py', 'tools/sfra/b_routes.py')
+    'scripts/run_cliplora_ab_factorial.py', 'tools/sfra/b_routes.py',
+    'tools/client_aggregation/new_a_old_b.py', 'scripts/run_cliplora_new_a_old_b.py',
+    'tools/client_aggregation/a_schedule.py', 'utils/cliplora_margin_a_schedule.py',
+    'scripts/run_cliplora_a_schedule.py')
 CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='client-longtail',
     arms=list(ARMS), aggregation='KL(uniform || R.T @ w) + lambda/2 * chi_square(w || sample_weights)',
     scope='ordinary B aggregation every round; ordinary A aggregation when A is opened',
@@ -92,6 +95,14 @@ def method_a_margin_contract(parameters):
 
 
 def validate_arm(job):
+    from tools.client_aggregation.a_schedule import enabled as scheduled, validate as validate_schedule
+    if scheduled(job):
+        validate_schedule(job)
+        return
+    from tools.client_aggregation.new_a_old_b import enabled as old_b_enabled, validate as validate_old_b
+    if old_b_enabled(job):
+        validate_old_b(job)
+        return
     from tools.client_aggregation.ab_factorial import enabled, validate
     if enabled(job):
         validate(job)
@@ -302,12 +313,21 @@ def audit_runtime_config(run, job):
         expected_base.update(normal_trainable_factor='B', extra_trainable_factor='A',
             candidate_rounds=list(range(1, 91)), control_enabled=False,
             a_lr_mult=1., extra_a_lr=.001, extra_weight_decay=0., normal_b_lr=.001)
+    from tools.client_aggregation.a_schedule import enabled as scheduled, rounds_for
+    if scheduled(job):
+        rounds = rounds_for(job)
+        expected_base.update(candidate_rounds=rounds, extra_steps_expected=len(rounds)*steps_per_epoch,
+                             extra_trainable_factor='A' if rounds else None)
     for key, value in expected_base.items():
         if base.get(key) != value:
             raise ValueError('Base training mismatch: ' + key)
     transfer = cfg.get('b_transfer')
     from tools.client_aggregation.ab_factorial import has_new_b
-    if has_new_b(job):
+    from tools.client_aggregation.new_a_old_b import enabled as old_b_enabled, transfer_config as old_b_config
+    if old_b_enabled(job):
+        if transfer != old_b_config(job['mode']):
+            raise ValueError('Old B differs from the frozen shared donor-C configuration')
+    elif has_new_b(job):
         from utils.cliplora_ab_factorial import transfer_config
         if transfer != transfer_config(job['mode']):
             raise ValueError('New B differs from registered F-tail-equal configuration')

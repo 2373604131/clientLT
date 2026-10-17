@@ -1,0 +1,31 @@
+{
+  "main_chinese_characters": 4487,
+  "old_main_chinese_characters": 8906,
+  "reduction_percent": 49.6,
+  "display_equations": 8,
+  "numeric_table_values_verified": 90,
+  "reference_count": 22,
+  "aggregation_protocols_separated": true,
+  "main_layout": {
+    "output": [
+      "Output written on main.pdf (6 pages)."
+    ],
+    "overfull_boxes": [],
+    "missing_glyphs": [],
+    "references_start_page": [
+      "6"
+    ]
+  },
+  "supplement_layout": {
+    "output": [
+      "Output written on supplement.pdf (2 pages)."
+    ],
+    "overfull_boxes": [],
+    "missing_glyphs": [],
+    "references_start_page": []
+  },
+  "main_pages": 5,
+  "template_commit": "12909ae",
+  "layout_configuration": "Official CVPR 2026 style; 10pt, two columns, US letter; added Chinese fonts; original margins",
+  "english_translation_page_count_verified": false
+}

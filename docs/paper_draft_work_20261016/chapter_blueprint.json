@@ -1,0 +1,20 @@
+{
+  "title":"联邦长尾学习中的尾部类别知识保持与跨客户端知识迁移",
+  "type":"Technique paper",
+  "central_claim":"Use client-side class feedback to preserve prediction margins supported by concentrated positive update sources, while learning a shared low-dimensional recombination of client updates on a class-distribution-aware aggregation base.",
+  "chapters":[
+    {"section":"Abstract","role":"Self-contained problem, idea, implementation and actual results","evidence":["E03","E10","E11","E12"],"judgment":"State final configuration O/T and paired retention findings without a SOTA claim"},
+    {"section":"1 Introduction","role":"Six connected paragraphs: distributed rarity; adaptation and retention; observed trajectory; two design challenges; solution; contributions","evidence":["E01","E02","E04","E05","E06","E07","E08"],"judgment":"Make retention the primary technical thread; shared update recombination is an auxiliary learning mechanism"},
+    {"section":"2 Related Work","role":"Long-tail adaptation; retention and parameter updates; contribution-aware coordination","evidence":["literature1-19"],"judgment":"Locate concrete mechanism differences without claiming the prior field ignored client distributions"},
+    {"section":"3 Problem and Observations","role":"Define fixed-class global task, Client-LT, rank4 trajectories, rank2 response diagnostic","evidence":["E04","E05"],"judgment":"Explain why data counts, useful update responses and historical ability are different information"},
+    {"section":"4 Method","role":"Overview; joint convex aggregation; source-aware retention; shared-C transfer; full algorithm","evidence":["E03","E06","E07","E08"],"judgment":"Write the exact frozen implementation, including candidate union, original CP weighting and schedule"},
+    {"section":"5 Experiments","role":"Development setup; shared-CLIP configurations; original two-seed module ablations; same-start sample retention; transfer tradeoff; cost","evidence":["E09","E10","E11","E12"],"judgment":"Keep final joint results and original sample-weighted paired evidence in separate tables; report all four class groups"},
+    {"section":"6 Conclusion","role":"Answer the initial question and identify empirical retention/adaptation tradeoff","evidence":["E10","E11","E12"],"judgment":"Preservation of scarce-source capabilities is a useful adaptation objective; reduce overhead and overall-accuracy tradeoff as substantive open directions"}
+  ],
+  "contributions":[
+    {"claim":"Characterize client-distribution-dependent tail degradation and update support","section":"3","evidence":["E04","E05"],"status":"Observed in explicitly identified diagnostic configurations"},
+    {"claim":"Source-aware current/historical margin retention with classification-constrained correction","section":"4.3","evidence":["E06","E11","E12"],"status":"Implementation plus paired original-protocol ablations"},
+    {"claim":"An integrated class-aware aggregation and shared-update recombination framework, with measured tail/overall tradeoff","section":"4.2,4.4,5","evidence":["E03","E07","E08","E10","E11"],"status":"Final configuration observed; broader independent evaluation remains outside current claims"}
+  ],
+  "review_targets":["Sentence necessity","Numeric provenance","Protocol identity","Citation verification in a fresh context","Formula notation consistency","No placeholders or invented results"]
+}

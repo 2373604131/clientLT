@@ -1,0 +1,53 @@
+[
+  {
+    "key": "moon",
+    "url": "https://openaccess.thecvf.com/content/CVPR2021/papers/Li_Model-Contrastive_Federated_Learning_CVPR_2021_paper.pdf",
+    "status": "downloaded_and_extracted",
+    "pages": 10
+  },
+  {
+    "key": "fedftg",
+    "url": "https://openaccess.thecvf.com/content/CVPR2022/papers/Zhang_Fine-Tuning_Global_Model_via_Data-Free_Knowledge_Distillation_for_Non-IID_Federated_CVPR_2022_paper.pdf",
+    "status": "downloaded_and_extracted",
+    "pages": 10
+  },
+  {
+    "key": "fedpurel",
+    "url": "https://openaccess.thecvf.com/content/CVPR2026/papers/Hou_Fine-Tuning_Impairs_the_Balancedness_of_Foundation_Models_in_Long-tailed_Personalized_CVPR_2026_paper.pdf",
+    "status": "downloaded_and_extracted",
+    "pages": 10
+  },
+  {
+    "key": "neglected_tails",
+    "url": "https://openaccess.thecvf.com/content/CVPR2024/papers/Parashar_The_Neglected_Tails_in_Vision-Language_Models_CVPR_2024_paper.pdf",
+    "status": "downloaded_and_extracted",
+    "pages": 10
+  },
+  {
+    "key": "deit_lt",
+    "url": "https://openaccess.thecvf.com/content/CVPR2024/papers/Rangwani_DeiT-LT_Distillation_Strikes_Back_for_Vision_Transformer_Training_on_Long-Tailed_CVPR_2024_paper.pdf",
+    "status": "downloaded_and_extracted",
+    "pages": 11
+  },
+  {
+    "key": "category_extrapolation",
+    "url": "https://openaccess.thecvf.com/content/CVPR2025/papers/Zhao_Learning_from_Neighbors_Category_Extrapolation_for_Long-Tail_Learning_CVPR_2025_paper.pdf",
+    "status": "downloaded_and_extracted",
+    "pages": 10
+  },
+  {
+    "key": "cvpr.sty",
+    "url": "https://raw.githubusercontent.com/cvpr-org/author-kit/12909ae/cvpr.sty",
+    "status": "downloaded"
+  },
+  {
+    "key": "main.tex",
+    "url": "https://raw.githubusercontent.com/cvpr-org/author-kit/12909ae/main.tex",
+    "status": "downloaded"
+  },
+  {
+    "key": "README.md",
+    "url": "https://raw.githubusercontent.com/cvpr-org/author-kit/12909ae/README.md",
+    "status": "downloaded"
+  }
+]

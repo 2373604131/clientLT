@@ -1,0 +1,16 @@
+{
+  "characters": 21499,
+  "chinese_characters": 8910,
+  "references": 20,
+  "display_equations": 15,
+  "numeric_table_values_verified": 90,
+  "figures": 2,
+  "table_sizes": [
+    12,
+    6,
+    6
+  ],
+  "placeholders_found": false,
+  "numeric_status": "pass",
+  "source_protocols_separated": true
+}

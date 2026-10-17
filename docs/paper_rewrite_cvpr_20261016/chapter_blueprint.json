@@ -1,0 +1,21 @@
+{
+  "manuscript": "docs/论文中文初稿_CVPR_精简重写版_20261016.md",
+  "working_language": "Chinese",
+  "central_argument": "Preserve tail-class abilities acquired during federated adaptation through source-aware historical margin targets; use client feedback to learn a supplementary combination of existing updates.",
+  "sections": [
+    {"section": "Abstract and Introduction", "page_budget": 1.25, "role": "State client-distribution-dependent retention problem; connect it to A and B", "evidence": ["partition_and_trajectories", "implementation", "main_results"]},
+    {"section": "Related Work", "page_budget": 0.5, "role": "Locate the work among federated long-tail learning, visual adaptation and functional retention", "evidence": ["verified_references_1_to_22"]},
+    {"section": "Problem and Observations", "page_budget": 0.75, "role": "Same-pool and fixed-marginal comparisons motivate retention; rank-2 diagnostic motivates response-based support", "evidence": ["partition_and_trajectories", "rank2_diagnostic"]},
+    {"section": "Method", "page_budget": 2.25, "role": "Derive source weights, current/historical targets, bounded correction and feedback-driven update combination", "evidence": ["implementation"]},
+    {"section": "Experiments", "page_budget": 3.0, "role": "Report final configuration, paired component effects, sample retention and update reuse", "evidence": ["main_results", "paired_modules", "same_start_retention"]},
+    {"section": "Conclusion", "page_budget": 0.25, "role": "Return to retaining acquired tail abilities and reusing client updates", "evidence": ["paired_modules", "same_start_retention"]}
+  ],
+  "budget_convention": "Eight-page editorial budget includes figures and tables; Chinese working-copy layout is measured separately. References and supplementary material are outside the main-text budget. English translation requires its own layout check.",
+  "editorial_decisions": [
+    "Joint is a disclosed fixed training configuration, not a contribution or separate main methodology section.",
+    "Final joint results and paired sample-weighted component experiments remain explicitly distinct.",
+    "No claims of generic SOTA, formal privacy, donor-pruning advantage or absent-label-only gain attribution.",
+    "Operational thresholds, solver settings and complete schedules are placed in the supplement.",
+    "No proposed multi-dataset experiment is represented as completed evidence."
+  ]
+}

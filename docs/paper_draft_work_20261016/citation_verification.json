@@ -1,0 +1,955 @@
+{
+  "verification_date": "2026-10-16",
+  "verifier": "independent fresh-context citation verifier",
+  "ladder_rung": 1,
+  "input_scope": {
+    "paper": "G:/桌面/CAPT/docs/论文中文初稿_CVPR_joint旧A旧B_20261016.md",
+    "rules": "C:/Users/Administrator/.codex/skills/paper-writer/references/verification-ladder.md",
+    "excluded": "未读取作者证据地图或起草推理；非文献实验数据未核验。"
+  },
+  "method": "逐条使用完整标题、作者+关键词+年份、核心关键词三种检索，共60条基本检索，辅以原始出版页、作者arXiv摘要和官方站点的定向搜索。对每个引用点按其实际主张强度检查。只依据原始论文、官方出版与作者数据页面作结论。",
+  "summary": {
+    "total": 20,
+    "verified": 20,
+    "metadata_mismatch": 0,
+    "not_found": 0,
+    "overclaim": 0,
+    "inconclusive": 0,
+    "unresolved_required_corrections": 0,
+    "optional_citation_scope_clarifications": 1
+  },
+  "scope_note": "VERIFIED表示实际引用主张被所取得原始摘要或引用层证据支持；不表示复核所有被引论文的实验结论或当前论文的实验数据。",
+  "entries": [
+    {
+      "id": 1,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[1] Brendan McMahan, Eider Moore, Daniel Ramage, Seth Hampson, Blaise Agüera y Arcas. [Communication-Efficient Learning of Deep Networks from Decentralized Data](https://proceedings.mlr.press/v54/mcmahan17a.html). AISTATS, 2017.",
+      "reference_line": 353,
+      "verified_metadata": {
+        "title": "Communication-Efficient Learning of Deep Networks from Decentralized Data",
+        "authors": [
+          "Brendan McMahan",
+          "Eider Moore",
+          "Daniel Ramage",
+          "Seth Hampson",
+          "Blaise Agüera y Arcas"
+        ],
+        "year": 2017,
+        "venue": "AISTATS, PMLR 54"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "Communication-Efficient Learning of Deep Networks from Decentralized Data",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "McMahan Moore decentralized learning 2017",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "federated iterative model averaging decentralized data",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://proceedings.mlr.press/v54/mcmahan17a.html"
+      ],
+      "prose_claim_reviewed": "联邦视觉分类通过多个客户端的本地训练与模型聚合，学习一个共同使用的全局模型 [1]。",
+      "evidence_summary": "原始出版摘要明确提出保留本地数据、聚合本地计算更新并通过迭代模型平均学习共享模型。",
+      "notes": "PMLR署名为Brendan McMahan；arXiv署名H. Brendan McMahan。草稿与所引PMLR一致。",
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 2,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[2] Alec Radford, Jong Wook Kim, Chris Hallacy, et al. [Learning Transferable Visual Models From Natural Language Supervision](https://proceedings.mlr.press/v139/radford21a.html). ICML, 2021.",
+      "reference_line": 355,
+      "verified_metadata": {
+        "title": "Learning Transferable Visual Models From Natural Language Supervision",
+        "authors": [
+          "Alec Radford",
+          "Jong Wook Kim",
+          "Chris Hallacy",
+          "Aditya Ramesh",
+          "Gabriel Goh",
+          "Sandhini Agarwal",
+          "Girish Sastry",
+          "Amanda Askell",
+          "Pamela Mishkin",
+          "Jack Clark",
+          "Gretchen Krueger",
+          "Ilya Sutskever"
+        ],
+        "year": 2021,
+        "venue": "ICML, PMLR 139"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "Learning Transferable Visual Models From Natural Language Supervision",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Radford Kim visual language supervision 2021",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "CLIP transferable visual models natural language",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://proceedings.mlr.press/v139/radford21a.html"
+      ],
+      "prose_claim_reviewed": "视觉语言模型提供的可迁移表示 [2]",
+      "evidence_summary": "原始出版摘要直接描述图文预训练表示及下游零样本迁移。",
+      "notes": null,
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 3,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[3] Jiang-Xin Shi, Tong Wei, Zhi Zhou, Jie-Jing Shao, Xin-Yan Han, Yu-Feng Li. [Long-Tail Learning with Foundation Model: Heavy Fine-Tuning Hurts](https://proceedings.mlr.press/v235/shi24g.html). ICML, 2024.",
+      "reference_line": 357,
+      "verified_metadata": {
+        "title": "Long-Tail Learning with Foundation Model: Heavy Fine-Tuning Hurts",
+        "authors": [
+          "Jiang-Xin Shi",
+          "Tong Wei",
+          "Zhi Zhou",
+          "Jie-Jing Shao",
+          "Xin-Yan Han",
+          "Yu-Feng Li"
+        ],
+        "year": 2024,
+        "venue": "ICML, PMLR 235"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "Long-Tail Learning with Foundation Model: Heavy Fine-Tuning Hurts",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Shi Wei Zhou long-tail heavy fine tuning 2024",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "LIFT long tail foundation model",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://proceedings.mlr.press/v235/shi24g.html"
+      ],
+      "prose_claim_reviewed": "LIFT 发现重度微调可能损伤基础模型的尾部类别表现，并采用轻量适配 [3]",
+      "evidence_summary": "原始出版摘要明确报告重度微调导致尾类性能下降，并由此提出自适应轻量微调方法LIFT。",
+      "notes": null,
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 4,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[4] Shihao Hou, Xinyi Shang, Shreyank N Gowda, et al. [CAPT: Class-Aware Prompt Tuning for Federated Long-Tailed Learning with Vision-Language Model](https://arxiv.org/abs/2503.06993). arXiv:2503.06993, 2025.",
+      "reference_line": 359,
+      "verified_metadata": {
+        "title": "CAPT: Class-Aware Prompt Tuning for Federated Long-Tailed Learning with Vision-Language Model",
+        "authors": [
+          "Shihao Hou",
+          "Xinyi Shang",
+          "Shreyank N Gowda",
+          "Yang Lu",
+          "Chao Wu",
+          "Yan Yan",
+          "Hanzi Wang"
+        ],
+        "year": 2025,
+        "venue": "arXiv:2503.06993"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "CAPT: Class-Aware Prompt Tuning for Federated Long-Tailed Learning with Vision-Language Model",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Hou Shang Gowda CAPT 2025",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "CAPT class aware prompt federated long tailed",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://arxiv.org/abs/2503.06993"
+      ],
+      "prose_claim_reviewed": "CAPT 通过类别感知提示处理联邦数据异质性与类别不平衡 [4]",
+      "evidence_summary": "作者摘要明确提出类别感知与通用双提示，面向非IID与长尾并存问题。",
+      "notes": "草稿明确引用2025年arXiv版本；不要求改成会议版本。",
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 5,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[5] Shihao Hou, Chikai Shang, Zhiheng Yang, et al. [Fine-Tuning Impairs the Balancedness of Foundation Models in Long-tailed Personalized Federated Learning](https://arxiv.org/abs/2605.02247). CVPR, 2026.",
+      "reference_line": 361,
+      "verified_metadata": {
+        "title": "Fine-Tuning Impairs the Balancedness of Foundation Models in Long-tailed Personalized Federated Learning",
+        "authors": [
+          "Shihao Hou",
+          "Chikai Shang",
+          "Zhiheng Yang",
+          "Jiacheng Yang",
+          "Xinyi Shang",
+          "Junlong Gao",
+          "Yiqun Zhang",
+          "Yang Lu"
+        ],
+        "year": 2026,
+        "venue": "CVPR"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "Fine-Tuning Impairs the Balancedness of Foundation Models in Long-tailed Personalized Federated Learning",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Hou Shang Yang FedPuReL 2026",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "FedPuReL gradient purification residual learning",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://arxiv.org/abs/2605.02247",
+        "https://openaccess.thecvf.com/content/CVPR2026/papers/Hou_Fine-Tuning_Impairs_the_Balancedness_of_Foundation_Models_in_Long-tailed_Personalized_CVPR_2026_paper.pdf"
+      ],
+      "prose_claim_reviewed": "FedPuReL 利用零样本预测引导全局知识保持，并进一步开展个性化残差学习 [5]",
+      "evidence_summary": "作者摘要明确写出用零样本预测净化本地梯度、维持类别平衡全局模型，并在冻结全局模型之上进行个性化残差校正；arXiv备注及CVF论文均确认CVPR 2026。",
+      "notes": null,
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 6,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[6] Gihun Lee, Minchan Jeong, Yongjin Shin, Sangmin Bae, Se-Young Yun. [Preservation of the Global Knowledge by Not-True Distillation in Federated Learning](https://proceedings.neurips.cc/paper_files/paper/2022/hash/fadec8f2e65f181d777507d1df69b92f-Abstract-Conference.html). NeurIPS, 2022.",
+      "reference_line": 363,
+      "verified_metadata": {
+        "title": "Preservation of the Global Knowledge by Not-True Distillation in Federated Learning",
+        "authors": [
+          "Gihun Lee",
+          "Minchan Jeong",
+          "Yongjin Shin",
+          "Sangmin Bae",
+          "Se-Young Yun"
+        ],
+        "year": 2022,
+        "venue": "NeurIPS 35"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "Preservation of the Global Knowledge by Not-True Distillation in Federated Learning",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Lee Jeong Shin not true distillation 2022",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "FedNTD global knowledge forgetting",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://proceedings.neurips.cc/paper_files/paper/2022/hash/fadec8f2e65f181d777507d1df69b92f-Abstract-Conference.html"
+      ],
+      "prose_claim_reviewed": "FedNTD 将跨轮知识遗忘与联邦数据异质性联系起来，通过蒸馏维护全局知识 [6]；FedNTD 则在联邦学习中利用非真类蒸馏维护全局知识 [6]。",
+      "evidence_summary": "官方摘要同时说明跨轮全局遗忘、本地分布外知识遗忘及针对非真类的蒸馏。",
+      "notes": null,
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 7,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[7] Youbang Sun, Zitao Li, Yaliang Li, Bolin Ding. [Improving LoRA in Privacy-preserving Federated Learning](https://proceedings.iclr.cc/paper_files/paper/2024/hash/4e243e95c913b367775d71d7182b99d9-Abstract-Conference.html). ICLR, 2024.",
+      "reference_line": 365,
+      "verified_metadata": {
+        "title": "Improving LoRA in Privacy-preserving Federated Learning",
+        "authors": [
+          "Youbang Sun",
+          "Zitao Li",
+          "Yaliang Li",
+          "Bolin Ding"
+        ],
+        "year": 2024,
+        "venue": "ICLR"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "Improving LoRA in Privacy-preserving Federated Learning",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Sun Li Ding LoRA 2024",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "FFA LoRA frozen randomly initialized",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://proceedings.iclr.cc/paper_files/paper/2024/hash/4e243e95c913b367775d71d7182b99d9-Abstract-Conference.html"
+      ],
+      "prose_claim_reviewed": "FFA-LoRA 固定随机初始化的因子，仅训练另一因子 [7]",
+      "evidence_summary": "官方摘要明确指出固定随机非零初始化矩阵，仅微调零初始化矩阵。",
+      "notes": null,
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 8,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[8] Shuangyi Chen, Yuanxin Guo, Yue Ju, Harik Dalal, Zhongwen Zhu, Ashish Khisti. [Robust Federated Finetuning of LLMs via Alternating Optimization of LoRA](https://arxiv.org/abs/2502.01755). NeurIPS, 2025.",
+      "reference_line": 367,
+      "verified_metadata": {
+        "title": "Robust Federated Finetuning of LLMs via Alternating Optimization of LoRA",
+        "authors": [
+          "Shuangyi Chen",
+          "Yuanxin Guo",
+          "Yue Ju",
+          "Harik Dalal",
+          "Zhongwen Zhu",
+          "Ashish Khisti"
+        ],
+        "year": 2025,
+        "venue": "NeurIPS"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "Robust Federated Finetuning of LLMs via Alternating Optimization of LoRA",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Chen Guo Ju alternating LoRA 2025",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "RoLoRA alternating optimization",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://arxiv.org/abs/2502.01755",
+        "https://proceedings.neurips.cc/paper_files/paper/2025/file/adf17e7346b6be4c2f2bb40de572e5bc-Paper-Conference.pdf"
+      ],
+      "prose_claim_reviewed": "RoLoRA 采用交替优化 [8]；LoRA 因子冻结与交替优化分别提供了限制参数变化和保留适配能力的途径 [7, 8]。",
+      "evidence_summary": "作者摘要说明LoRA投影矩阵交替优化，并讨论同时学习上下投影对表达能力的重要性；备注与官方会议论文吻合。",
+      "notes": null,
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 9,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[9] Aditya Krishna Menon, Sadeep Jayasumana, Ankit Singh Rawat, Himanshu Jain, Andreas Veit, Sanjiv Kumar. [Long-tail learning via logit adjustment](https://openreview.net/pdf?id=37nvvqkCo5). ICLR, 2021.",
+      "reference_line": 369,
+      "verified_metadata": {
+        "title": "Long-tail learning via logit adjustment",
+        "authors": [
+          "Aditya Krishna Menon",
+          "Sadeep Jayasumana",
+          "Ankit Singh Rawat",
+          "Himanshu Jain",
+          "Andreas Veit",
+          "Sanjiv Kumar"
+        ],
+        "year": 2021,
+        "venue": "ICLR"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "Long-tail learning via logit adjustment",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Menon Jayasumana Rawat logit adjustment 2021",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "long tail logit adjustment class frequency",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://arxiv.org/abs/2007.07314",
+        "https://openreview.net/pdf?id=37nvvqkCo5",
+        "https://research.google/pubs/long-tail-learning-via-logit-adjustment/"
+      ],
+      "prose_claim_reviewed": "Logit adjustment 从类别频率出发修正分类目标，为长尾分类提供了直接的损失设计 [9]。",
+      "evidence_summary": "作者摘要直接说明按标签频率调整logit，既可训练后处理也可用于训练损失；arXiv备注明确为ICLR 2021。",
+      "notes": "OpenReview直接访问触发浏览器验证；其已索引原始PDF以及作者arXiv摘要完成交叉核验，不构成未决项。",
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 10,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[10] Xiuhua Lu, Peng Li, Xuefeng Jiang. [FedLF: Adaptive Logit Adjustment and Feature Optimization in Federated Long-Tailed Learning](https://proceedings.mlr.press/v260/lu25a.html). Proceedings of the 16th Asian Conference on Machine Learning, PMLR 260, 2025.",
+      "reference_line": 371,
+      "verified_metadata": {
+        "title": "FedLF: Adaptive Logit Adjustment and Feature Optimization in Federated Long-Tailed Learning",
+        "authors": [
+          "Xiuhua Lu",
+          "Peng Li",
+          "Xuefeng Jiang"
+        ],
+        "year": 2025,
+        "venue": "Proceedings of the 16th Asian Conference on Machine Learning, PMLR 260"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "FedLF: Adaptive Logit Adjustment and Feature Optimization in Federated Long-Tailed Learning",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Lu Li Jiang FedLF 2025",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "FedLF adaptive logit feature optimization",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://proceedings.mlr.press/v260/lu25a.html"
+      ],
+      "prose_claim_reviewed": "FedLF 结合自适应 logit 调整与特征优化 [10]",
+      "evidence_summary": "原始出版摘要列出自适应logit调整、连续类别中心优化及特征去相关。",
+      "notes": "16th ACML会议在2024年举行，但所引PMLR卷260官方BibTeX及出版页面年份为2025；草稿按出版年列2025正确。",
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 11,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[11] Shanshan Yan, Zexi Li, Chao Wu, et al. [You Are Your Own Best Teacher: Achieving Centralized-level Performance in Federated Learning under Heterogeneous and Long-tailed Data](https://openaccess.thecvf.com/content/ICCV2025/html/Yan_You_Are_Your_Own_Best_Teacher_Achieving_Centralized-level_Performance_in_ICCV_2025_paper.html). ICCV, 2025.",
+      "reference_line": 373,
+      "verified_metadata": {
+        "title": "You Are Your Own Best Teacher: Achieving Centralized-level Performance in Federated Learning under Heterogeneous and Long-tailed Data",
+        "authors": [
+          "Shanshan Yan",
+          "Zexi Li",
+          "Chao Wu",
+          "Meng Pang",
+          "Yang Lu",
+          "Yan Yan",
+          "Hanzi Wang"
+        ],
+        "year": 2025,
+        "venue": "ICCV"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "You Are Your Own Best Teacher: Achieving Centralized-level Performance in Federated Learning under Heterogeneous and Long-tailed Data",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Yan Li Wu FedYoYo 2025",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "FedYoYo self distillation logit adjustment",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://openaccess.thecvf.com/content/ICCV2025/html/Yan_You_Are_Your_Own_Best_Teacher_Achieving_Centralized-level_Performance_in_ICCV_2025_paper.html",
+        "https://arxiv.org/abs/2503.06916"
+      ],
+      "prose_claim_reviewed": "FedYoYo 通过增强视图之间的自蒸馏和分布感知 logit 调整改进本地表示 [11]",
+      "evidence_summary": "CVF官方搜索索引返回完整作者及ICCV 2025 BibTeX；CVF与arXiv摘要均明确弱/强增强样本间蒸馏和分布感知logit调整。",
+      "notes": "CVF直接打开返回403；官方域名搜索返回该文完整元数据与摘要，且作者arXiv可访问。这里使用原始来源索引，不使用第三方AI摘要。",
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 12,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[12] Guangzheng Hu, Patricia Menendez, Feng Liu, Mingming Gong, Guanghui Wang, Liuhua Peng. [FedReLa: Imbalanced Federated Learning via Re-Labeling](https://proceedings.mlr.press/v306/hu26ao.html). ICML, 2026.",
+      "reference_line": 375,
+      "verified_metadata": {
+        "title": "FedReLa: Imbalanced Federated Learning via Re-Labeling",
+        "authors": [
+          "Guangzheng Hu",
+          "Patricia Menendez",
+          "Feng Liu",
+          "Mingming Gong",
+          "Guanghui Wang",
+          "Liuhua Peng"
+        ],
+        "year": 2026,
+        "venue": "ICML, PMLR 306"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "FedReLa: Imbalanced Federated Learning via Re-Labeling",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Hu Menendez Liu FedReLa 2026",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "FedReLa imbalanced re labeling",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://proceedings.mlr.press/v306/hu26ao.html"
+      ],
+      "prose_claim_reviewed": "FedReLa 从样本重标记的角度处理类别不平衡与客户端异质性 [12]。",
+      "evidence_summary": "原始出版摘要明确指出基于特征依赖的标签重分配器重标记样本，以处理类别不平衡与数据异质性共存。",
+      "notes": null,
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 13,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[13] Mariya Toneva, Alessandro Sordoni, Remi Tachet des Combes, Adam Trischler, Yoshua Bengio, Geoffrey J. Gordon. [An Empirical Study of Example Forgetting during Deep Neural Network Learning](https://arxiv.org/abs/1812.05159). ICLR, 2019.",
+      "reference_line": 377,
+      "verified_metadata": {
+        "title": "An Empirical Study of Example Forgetting during Deep Neural Network Learning",
+        "authors": [
+          "Mariya Toneva",
+          "Alessandro Sordoni",
+          "Remi Tachet des Combes",
+          "Adam Trischler",
+          "Yoshua Bengio",
+          "Geoffrey J. Gordon"
+        ],
+        "year": 2019,
+        "venue": "ICLR"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "An Empirical Study of Example Forgetting during Deep Neural Network Learning",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Toneva Sordoni forgetting 2019",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "example forgetting correctly incorrectly neural learning",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://arxiv.org/abs/1812.05159",
+        "https://openreview.net/pdf?id=BJlxm30cKm"
+      ],
+      "prose_claim_reviewed": "Toneva 等通过此类遗忘事件研究单一分类任务的学习动态 [13]",
+      "evidence_summary": "作者摘要明确定义训练样本从分类正确变为错误的遗忘事件，并限定在单一分类任务学习动态；备注及会议PDF索引明确为ICLR 2019。",
+      "notes": "2018为arXiv初稿年份，所引会议版2019正确。",
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 14,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[14] Edward J. Hu, Yelong Shen, Phillip Wallis, et al. [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685). arXiv:2106.09685, 2021.",
+      "reference_line": 379,
+      "verified_metadata": {
+        "title": "LoRA: Low-Rank Adaptation of Large Language Models",
+        "authors": [
+          "Edward J. Hu",
+          "Yelong Shen",
+          "Phillip Wallis",
+          "Zeyuan Allen-Zhu",
+          "Yuanzhi Li",
+          "Shean Wang",
+          "Lu Wang",
+          "Weizhu Chen"
+        ],
+        "year": 2021,
+        "venue": "arXiv:2106.09685"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "LoRA: Low-Rank Adaptation of Large Language Models",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Hu Shen Wallis LoRA 2021",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "low rank adaptation language models",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://arxiv.org/abs/2106.09685"
+      ],
+      "prose_claim_reviewed": "LoRA 用低秩参数增量实现预训练模型适配 [14]",
+      "evidence_summary": "作者摘要明确冻结预训练权重，注入可训练低秩分解矩阵。",
+      "notes": "草稿明确引用arXiv 2021版本，且v1/v2均为2021；无需强制替换为ICLR 2022。",
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 15,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[15] Seanie Lee, Sangwoo Park, Dong Bok Lee, et al. [FedSVD: Adaptive Orthogonalization for Private Federated Learning with LoRA](https://arxiv.org/abs/2505.12805). NeurIPS, 2025.",
+      "reference_line": 381,
+      "verified_metadata": {
+        "title": "FedSVD: Adaptive Orthogonalization for Private Federated Learning with LoRA",
+        "authors": [
+          "Seanie Lee",
+          "Sangwoo Park",
+          "Dong Bok Lee",
+          "Dominik Wagner",
+          "Haebin Seong",
+          "Tobias Bocklet",
+          "Juho Lee",
+          "Sung Ju Hwang"
+        ],
+        "year": 2025,
+        "venue": "NeurIPS"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "FedSVD: Adaptive Orthogonalization for Private Federated Learning with LoRA",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Lee Park Lee FedSVD 2025",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "FedSVD adaptive orthogonalization",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://arxiv.org/abs/2505.12805"
+      ],
+      "prose_claim_reviewed": "FedSVD 通过全局 SVD 重参数化调整低秩因子 [15]",
+      "evidence_summary": "作者摘要详细说明聚合B后，对BA进行全局SVD重分解以更新A/B；备注注明NeurIPS 2025。",
+      "notes": null,
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 16,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[16] Jabin Koo, Minwoo Jang, Jungseul Ok. [Towards Robust and Efficient Federated Low-Rank Adaptation with Heterogeneous Clients](https://aclanthology.org/2025.acl-long.19/). ACL, 2025.",
+      "reference_line": 383,
+      "verified_metadata": {
+        "title": "Towards Robust and Efficient Federated Low-Rank Adaptation with Heterogeneous Clients",
+        "authors": [
+          "Jabin Koo",
+          "Minwoo Jang",
+          "Jungseul Ok"
+        ],
+        "year": 2025,
+        "venue": "ACL"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "Towards Robust and Efficient Federated Low-Rank Adaptation with Heterogeneous Clients",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Koo Jang Ok LoRA 2025",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "LoRA A2 alternating freeze adaptive rank selection",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://aclanthology.org/2025.acl-long.19/"
+      ],
+      "prose_claim_reviewed": "LoRA-A² 结合交替冻结与自适应秩选择 [16]",
+      "evidence_summary": "ACL原始出版摘要直接给出方法全称Alternating freeze and Adaptive rank selection。",
+      "notes": null,
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 17,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[17] Zheng Wang, Xiaoliang Fan, Jianzhong Qi, Chenglu Wen, Cheng Wang, Rongshan Yu. [Federated Learning with Fair Averaging](https://www.ijcai.org/proceedings/2021/223). IJCAI, 2021.",
+      "reference_line": 385,
+      "verified_metadata": {
+        "title": "Federated Learning with Fair Averaging",
+        "authors": [
+          "Zheng Wang",
+          "Xiaoliang Fan",
+          "Jianzhong Qi",
+          "Chenglu Wen",
+          "Cheng Wang",
+          "Rongshan Yu"
+        ],
+        "year": 2021,
+        "venue": "IJCAI"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "Federated Learning with Fair Averaging",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Wang Fan Qi federated fair averaging 2021",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "FedFV gradient conflicts",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://www.ijcai.org/proceedings/2021/223"
+      ],
+      "prose_claim_reviewed": "FedFV 根据梯度冲突协调客户端更新 [17]",
+      "evidence_summary": "官方摘要明确检测梯度冲突，在聚合之前修改梯度方向与大小。",
+      "notes": null,
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 18,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[18] Nurbek Tastan, Samar Fares, Toluwani Aremu, Samuel Horváth, Karthik Nandakumar. [Redefining Contributions: Shapley-Driven Federated Learning](https://www.ijcai.org/proceedings/2024/554). IJCAI, 2024.",
+      "reference_line": 387,
+      "verified_metadata": {
+        "title": "Redefining Contributions: Shapley-Driven Federated Learning",
+        "authors": [
+          "Nurbek Tastan",
+          "Samar Fares",
+          "Toluwani Aremu",
+          "Samuel Horváth",
+          "Karthik Nandakumar"
+        ],
+        "year": 2024,
+        "venue": "IJCAI"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "Redefining Contributions: Shapley-Driven Federated Learning",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Tastan Fares Aremu ShapFed 2024",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "ShapFed class specific weighted aggregation",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://www.ijcai.org/proceedings/2024/554"
+      ],
+      "prose_claim_reviewed": "ShapFed 评估类别相关的客户端贡献并据此进行加权聚合 [18]",
+      "evidence_summary": "官方摘要明确类别特异贡献评估与据此构造的ShapFed-WA加权聚合。",
+      "notes": null,
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 19,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[19] Michael Zhang, Karan Sapra, Sanja Fidler, Serena Yeung, Jose M. Alvarez. [Personalized Federated Learning with First Order Model Optimization](https://arxiv.org/abs/2012.08565). ICLR, 2021.",
+      "reference_line": 389,
+      "verified_metadata": {
+        "title": "Personalized Federated Learning with First Order Model Optimization",
+        "authors": [
+          "Michael Zhang",
+          "Karan Sapra",
+          "Sanja Fidler",
+          "Serena Yeung",
+          "Jose M. Alvarez"
+        ],
+        "year": 2021,
+        "venue": "ICLR"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "Personalized Federated Learning with First Order Model Optimization",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Zhang Sapra Fidler FedFomo 2021",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "FedFomo personalized weighted model combinations",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://arxiv.org/abs/2012.08565",
+        "https://openreview.net/pdf?id=ehJqJQk9cw"
+      ],
+      "prose_claim_reviewed": "FedFomo 根据客户端从其他模型获得的收益学习个性化组合 [19]。",
+      "evidence_summary": "作者摘要直接说明按客户端从其他模型受益程度求客户端特定加权模型组合；备注及原始会议PDF索引确认ICLR 2021。",
+      "notes": null,
+      "required_corrections": [],
+      "suggested_clarifications": []
+    },
+    {
+      "id": 20,
+      "status": "VERIFIED",
+      "metadata_status": "VERIFIED",
+      "claim_status": "SUPPORTED_AT_ABSTRACT_OR_CITATION_LEVEL",
+      "reference_as_reviewed": "[20] Alex Krizhevsky. [Learning Multiple Layers of Features from Tiny Images](https://www.cs.toronto.edu/~kriz/learning-features-2009-TR.pdf). University of Toronto, Technical Report, 2009.",
+      "reference_line": 391,
+      "verified_metadata": {
+        "title": "Learning Multiple Layers of Features from Tiny Images",
+        "authors": [
+          "Alex Krizhevsky"
+        ],
+        "year": 2009,
+        "venue": "University of Toronto, Technical Report"
+      },
+      "queries": [
+        {
+          "form": "full_title",
+          "query": "Learning Multiple Layers of Features from Tiny Images",
+          "execution": "completed"
+        },
+        {
+          "form": "author_keywords_year",
+          "query": "Krizhevsky tiny images technical report 2009",
+          "execution": "completed"
+        },
+        {
+          "form": "core_keywords",
+          "query": "CIFAR 100 learning multiple layers features",
+          "execution": "completed"
+        }
+      ],
+      "primary_sources": [
+        "https://www.cs.toronto.edu/~kriz/learning-features-2009-TR.pdf",
+        "https://cave.cs.toronto.edu/kriz/cifar.html"
+      ],
+      "prose_claim_reviewed": "图 1 展示 CIFAR-100-LT [20] 上的实际分配。",
+      "evidence_summary": "作者官方数据页面明确要求引用该2009技术报告作为CIFAR数据集来源，并给出题目、作者和年份。该来源支持原始CIFAR-100，未支持具体长尾采样或Client-LT分配。",
+      "notes": "原始PDF直接访问超时，但官方原始PDF搜索索引显示封面作者和日期，官方数据页面确认报告及数据出处。建议将引文移到原始CIFAR-100名称后，避免把长尾构造也归于该报告；这是引文范围澄清，未发现虚假文献或元数据错误。",
+      "required_corrections": [],
+      "suggested_clarifications": [
+        {
+          "original": "图 1 展示 CIFAR-100-LT [20] 上的实际分配。",
+          "replacement": "图 1 展示基于 CIFAR-100 [20] 构建的长尾样本池在客户端之间的实际分配。",
+          "reason": "[20]是原始CIFAR数据集报告；长尾构造与客户端分配由当前论文说明。"
+        }
+      ]
+    }
+  ]
+}

@@ -17,7 +17,11 @@ from utils.sfra_math import require_finite
 
 def runtime_class(job):
     from tools.client_aggregation.ab_factorial import has_new_b
+    from tools.client_aggregation.new_a_old_b import enabled as old_b_enabled
     new_b = has_new_b(job)
+    old_b = old_b_enabled(job)
+    from tools.client_aggregation.a_schedule import enabled as scheduled, rounds_for, configure as configure_schedule
+    scheduled_a = scheduled(job)
     base = SFRARuntime
     if job['arm'] == 'method_a_v2':
         from utils.cliplora_method_a_v2 import MethodAV2Runtime
@@ -25,6 +29,9 @@ def runtime_class(job):
     elif job['arm'] == 'method_a_margin':
         from utils.cliplora_method_a_margin import MethodAMarginRuntime
         base = MethodAMarginRuntime
+    if scheduled_a:
+        from utils.cliplora_margin_a_schedule import ScheduledMarginRuntime
+        base = ScheduledMarginRuntime
     if new_b:
         from utils.cliplora_ab_factorial import with_tail_equal
         base = with_tail_equal(base)
@@ -52,6 +59,8 @@ def runtime_class(job):
 
                 self.b_transfer.apply_shared = measured_transfer
             print('CLIENT AGGREGATION:', aggregation_name(job['aggregation']), job['arm'],
+                  '; fixed A schedule '+str(rounds_for(job))+'; original shared donor C' if scheduled_a else
+                  '; new A + original shared donor C; fixed two-step B, no rollback' if old_b else
                   '; ordinary/new A + F-tail-equal; fixed two-step B, no rollback' if new_b else
                   '; frozen A has no refresh' if self.is_frozen else
                   '; ordinary A rounds1..90; no correction or transfer' if job['arm'] == 'plain_a' else
@@ -83,6 +92,8 @@ def runtime_class(job):
                     or bool(self.sfra_config.get('b_transfer')) != (job['arm'] == 'ab')):
                 raise ValueError('Wrong registered runtime variant or B transfer setting')
             if job['arm'] == 'method_a_margin':
+                if scheduled_a:
+                    configure_schedule(self, job)
                 for key, value in job['contract']['method_a_margin'].items():
                     if self.sfra_config.get(key) != value:
                         raise ValueError('New A worker differs from registered configuration: '+key)
@@ -108,6 +119,9 @@ def runtime_class(job):
             if new_b:
                 from utils.cliplora_ab_factorial import transfer_config
                 self.sfra_config['b_transfer'] = transfer_config(job['mode'])
+            elif old_b:
+                from tools.client_aggregation.new_a_old_b import transfer_config
+                self.sfra_config['b_transfer'] = transfer_config(job['mode'])
             self.sfra_config['joint_aggregation'] = dict(schema=SCHEMA, arm=job['arm'], mode=job['mode'],
                 lambda_value=job['aggregation']['lambda_value'], weights_sha256=job['aggregation']['weights_sha256'])
             from tools.client_aggregation.protocol import client_execution_config
@@ -129,7 +143,7 @@ def runtime_class(job):
         def phase_aggregation_weights(self, selected, rnd, factor, extra=False, branch='main'):
             if (sorted(selected) != list(range(30)) or branch != 'main'
                     or not (factor == 'B' and not extra and 1 <= rnd <= 100
-                            or factor == 'A' and extra and not self.is_frozen and 1 <= rnd <= 90)):
+                            or factor == 'A' and extra and not self.is_frozen and rnd in rounds_for(job))):
                 raise ValueError('Unexpected aggregation phase')
             if job.get('aggregation', {}).get('rule') == 'joint_floor16':
                 actual = np.array([self.joint_weights[j] for j in range(30)], dtype=np.float64)
@@ -216,7 +230,7 @@ def runtime_class(job):
             self.evaluate_predictions(state, rnd, stage, self.root / 'stage_predictions' / stage)
 
         def publish(self, state, rnd, decision_round):
-            if new_b and rnd > 0:
+            if (new_b or old_b) and rnd > 0:
                 # Both new-A and ordinary-A loops finalize B exactly once before checkpointing.
                 self.b_transfer.observe_global(state, rnd, committed=True)
             if self.is_frozen and state_hash(state, self.a_keys) != state_hash(self.initial, self.a_keys):

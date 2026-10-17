@@ -1,0 +1,7 @@
+{
+  "imagenet-lt": {"root": "DATA/imagenet-lt"},
+  "food101": {"root": "DATA/food-101"},
+  "cub200": {"root": "DATA/CUB_200_2011"},
+  "dtd": {"root": "DATA/dtd", "split_id": 1},
+  "cifar100-lt": {"root": "DATA"}
+}

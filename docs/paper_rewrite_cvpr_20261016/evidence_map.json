@@ -1,0 +1,42 @@
+{
+  "partition_and_trajectories": {
+    "sources": ["presentation/clientlt_setting_audit_20261008/data/partition_summary.csv", "presentation/clientlt_setting_audit_20261008/data/retention_summary.csv", "presentation/clientlt_setting_audit_20261008/data/training_curves.csv"],
+    "scope": "Rank-4, seed 42, three partition schemes and controlled training schedules",
+    "use": "Section 3 and Figure 1; main curve uses S; J and E3 are supplementary"
+  },
+  "rank2_diagnostic": {
+    "sources": ["output/eri_closure_v1/seed42_preregistered_analysis.md"],
+    "scope": "Rank-2 path-integrated score attribution, seed 42; not final-method causal attribution",
+    "use": "Motivate response-based support and update reuse"
+  },
+  "implementation": {
+    "sources": ["utils/sfra_math.py", "utils/cliplora_sfra.py", "utils/sfra_feedback.py", "utils/cliplora_b_shared_transfer.py", "utils/cliplora_b_transfer.py", "tools/client_aggregation/weights.py", "tools/client_aggregation/protocol.py", "docs/cliplora_method_a_full_cp.md", "docs/cliplora_b_shared_transfer.md"],
+    "scope": "Frozen old A and old B, joint weights; no new-A-v2 mechanism",
+    "use": "Section 4 and Supplement S1"
+  },
+  "main_results": {
+    "sources": ["output/benchmark_tables_20261013/main_table_clientlt.csv", "output/combined_baselines_review_20261012/interpretation.txt", "output/old_ab_decision_20261015/joint_and_strong_control.csv", "output/old_ab_decision_20261015/audit.json"],
+    "scope": "CIFAR-100-LT Client-LT, training seed 42, adapted baseline versions, last-20-round means",
+    "use": "Table 1; final Overall 70.4700 and Tail20 72.6325"
+  },
+  "paired_modules": {
+    "sources": ["output/ab_decision_review_20261003/per_run.csv", "output/old_ab_decision_20261015/original_two_seed_results.csv"],
+    "scope": "Original sample-weighted protocol, seeds 42 and 3407",
+    "use": "Table 2 and Supplement S3 costs"
+  },
+  "same_start_retention": {
+    "sources": ["output/method_a_analysis_20260927/sample_retention.csv", "output/method_a_supplement_analysis_20260929/common_short_origin.csv"],
+    "scope": "Five-round continuations from round-60 and round-80 anchors",
+    "use": "Table 3; both correct-to-wrong and wrong-to-correct endpoints reported"
+  },
+  "literature": {
+    "downloaded_exemplars": "source_manifest.json",
+    "reading_synthesis": "CVPR原文阅读与重写依据.md",
+    "independent_verification": "citation_verification_v2.json"
+  },
+  "validation": {
+    "script": "build_manuscript.py",
+    "report": "validation.json",
+    "coverage": "90 main-table values checked against archives; reference coverage; equation count; Chinese length; typesetting log and rendered page inspection"
+  }
+}

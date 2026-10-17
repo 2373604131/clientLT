@@ -113,6 +113,9 @@ def preflight(plan, check_cuda=False):
 
 
 def smoke_rounds(job):
+    from tools.client_aggregation.new_a_old_b import enabled as old_b_enabled
+    if old_b_enabled(job):
+        return 1
     from tools.client_aggregation.ab_factorial import enabled
     if enabled(job):
         return 6
