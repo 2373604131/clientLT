@@ -193,13 +193,25 @@ def local_optimizer(model, factor, runtime, build_standard):
     raise ValueError('Expected A, B or joint AB training')
 
 
+def phase_logit_adjustment(runtime, factor):
+    """Select the actual optimizer input without mutating shared trainer state."""
+    from tools.client_aggregation.six_ablation import enabled, losses_for
+    job = getattr(runtime, 'job', {})
+    if enabled(job):
+        if losses_for(job)[factor]['la_tau'] == 0.:
+            return None
+        if runtime.trainer.training_logit_adjustment is None:
+            raise ValueError('Registered LA phase is missing its logit adjustment')
+    return runtime.trainer.training_logit_adjustment
+
+
 class LoRAClientPool:
     def __init__(self, runtime, *, slots=None, optimize_forward=True):
         self.runtime = runtime
         self.device = torch.device(runtime.trainer.device)
         self.slots = runtime.job['settings']['client_concurrency'] if slots is None else slots
-        if self.slots not in (4, 6, 8):
-            raise ValueError('Expected 4, 6 or 8 concurrent clients')
+        if type(self.slots) is not int or not 2 <= self.slots <= 30:
+            raise ValueError('Expected 2..30 concurrent clients')
         if self.device.type != 'cuda' or torch.cuda.device_count() != 1:
             raise ValueError('Parallel execution needs exactly one visible CUDA GPU per experiment')
         self.keys = runtime.keys
@@ -243,7 +255,7 @@ class LoRAClientPool:
                 try:
                     values, costs = train_local(self.models[slot], state, self.keys,
                         self.loaders[client].dataset, plans[client], factor, self.device,
-                        self.optimizer_factory, self.step, self.runtime.trainer.training_logit_adjustment)
+                        self.optimizer_factory, self.step, phase_logit_adjustment(self.runtime, factor))
                     return values, costs, dict(client_id=client, slot=slot,
                         batch_plan_sha256=plan_digest(plans[client]))
                 finally:
@@ -282,6 +294,13 @@ def parallel_phase(runtime, state, rnd, factor, extra, branch, candidate):
     deltas = {c: {k: local[c][k]-state[k] for k in keys} for c in selected}
     execution.update(round=rnd, factor=factor, selected_client_ids=selected,
                      client_audits=[results[c][2] for c in selected])
+    from tools.client_aggregation.six_ablation import enabled, losses_for
+    if enabled(runtime.job):
+        loss = losses_for(runtime.job)[factor]
+        applied = phase_logit_adjustment(runtime, factor) is not None
+        if applied != (loss['la_tau'] > 0.):
+            raise ValueError('Unexpected phase-specific LA optimizer input')
+        execution.update(ordinary_loss=loss, logit_adjustment_applied=applied)
     write_json(runtime.root/'parallel_execution'/f'r{rnd:03d}_{factor}.json', execution)
     for c in selected:
         cost = results[c][1]

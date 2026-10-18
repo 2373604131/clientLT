@@ -13,6 +13,7 @@ from tools.client_aggregation.protocol import (ARMS, B_ROUNDS, DIAGNOSTIC_ROUNDS
 from tools.client_aggregation.ab_factorial import has_new_b
 from tools.client_aggregation.new_a_old_b import enabled as has_old_b
 from tools.client_aggregation.a_schedule import enabled as scheduled_a, rounds_for as a_rounds_for
+from tools.client_aggregation.six_ablation import enabled as six_enabled, has_b as six_has_b
 
 METRICS = ('overall_acc', 'head20_acc', 'middle60_acc', 'bottom20_tail_acc', 'non_tail_acc')
 
@@ -56,6 +57,8 @@ def expected_stages(job, completed):
     for rnd in rounds:
         for stage in ('ordinary_B', 'sample_weighted_B_counterfactual'):
             yield rnd, stage
+        if six_has_b(job) and rnd in transfers:
+            yield rnd, 'after_B_transfer'
         if job['arm'] in ('ab', 'plain_a', 'method_a', 'method_a_v2', 'method_a_margin'):
             if (job['arm'] == 'ab' or has_new_b(job) or has_old_b(job)) and rnd in transfers:
                 yield rnd, 'after_B_transfer'
@@ -133,6 +136,12 @@ def audit_run(run, job, completed=100):
                     or [r['client_id'] for r in execution['client_audits']] != clients
                     or any(not 0 <= r['slot'] < slots for r in execution['client_audits'])):
                 raise ValueError('Invalid parallel client execution record')
+            if six_enabled(job):
+                from tools.client_aggregation.six_ablation import losses_for
+                loss = losses_for(job)[factor]
+                if (execution.get('ordinary_loss') != loss
+                        or execution.get('logit_adjustment_applied') is not (loss['la_tau'] > 0.)):
+                    raise ValueError('Ordinary phase loss audit failed: CE for plain A, LA for method A and B')
     # Numerical comparison pilots are no longer part of smoke or completion acceptance.
     from tools.sfra.simple_controls import partition_counts
     actual_counts = partition_counts(read_csv(run / 'partition_manifest.csv'), job['aggregation']['counts']['tail_ids'])
@@ -151,11 +160,11 @@ def audit_run(run, job, completed=100):
     corrections = read_csv(run / 'sfra_rounds.csv')
     if job['arm'] in ('frozen', 'plain_a') and (corrections or progress['functional_correction_steps']):
         raise ValueError('Frozen/plain-A arm executed functional correction')
-    if not (has_new_b(job) or has_old_b(job)) and job['arm'] in ('plain_a', 'method_a', 'method_a_v2', 'method_a_margin') and (progress.get('b_transfer_events', 0)
+    if not (has_new_b(job) or has_old_b(job) or six_has_b(job)) and job['arm'] in ('plain_a', 'method_a', 'method_a_v2', 'method_a_margin') and (progress.get('b_transfer_events', 0)
             or progress.get('b_transfer_optimizer_steps', 0)
             or ((run / 'b_transfer_rounds.csv').is_file() and read_csv(run / 'b_transfer_rounds.csv'))):
         raise ValueError('A-only experiment executed source B transfer')
-    if frozen and not scheduled_a(job) and (progress.get('b_transfer_events', 0) or progress.get('b_transfer_optimizer_steps', 0)
+    if frozen and not scheduled_a(job) and ((not six_has_b(job) and (progress.get('b_transfer_events', 0) or progress.get('b_transfer_optimizer_steps', 0)))
             or any(row.get('trainable_factor', 'B') != 'B' or int(row.get('a_optimizer_steps') or 0)
                    for row in budgets)):
         raise ValueError('Frozen arm executed A training or source B transfer')
@@ -200,6 +209,9 @@ def audit_run(run, job, completed=100):
     elif has_old_b(job):
         from tools.client_aggregation.new_a_old_b import audit_b
         audit_b(run, job, progress, completed)
+    if six_enabled(job):
+        from tools.client_aggregation.six_ablation import audit_b
+        audit_b(run, job, progress, completed)
     groups = groups_for(job)
     curves = sorted(read_csv(run / 'round_metrics.csv'), key=lambda r: int(r['round']))
     if [int(r['round']) for r in curves] != list(range(completed + 1)):
@@ -238,7 +250,7 @@ def audit_run(run, job, completed=100):
         if any(not math.isclose(actual[m], float(record[m]), abs_tol=1e-8) for m in METRICS):
             raise ValueError('Stage metadata differs from predictions')
         stages[rnd, stage] = sample
-        b_stage = 'after_B_transfer' if (has_new_b(job) or has_old_b(job)) and (rnd, 'after_B_transfer') in set(expected_stages(job, completed)) else 'ordinary_B'
+        b_stage = 'after_B_transfer' if (has_new_b(job) or has_old_b(job) or six_has_b(job)) and (rnd, 'after_B_transfer') in set(expected_stages(job, completed)) else 'ordinary_B'
         if job['arm'] == 'plain_a' and stage == ('ordinary_A' if rnd <= 90 else b_stage):
             committed = load_json(run / 'predictions' / f'r{rnd:03d}.json')
             if any(not record.get(k) or record[k] != committed.get(k) for k in ('a_sha256', 'b_sha256')):

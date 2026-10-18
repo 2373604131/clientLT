@@ -16,6 +16,8 @@ from utils.sfra_math import require_finite
 
 
 def runtime_class(job):
+    from tools.client_aggregation.six_ablation import enabled as six_enabled, has_b as six_has_b
+    six = six_enabled(job)
     from tools.client_aggregation.ab_factorial import has_new_b
     from tools.client_aggregation.new_a_old_b import enabled as old_b_enabled
     new_b = has_new_b(job)
@@ -35,6 +37,9 @@ def runtime_class(job):
     if new_b:
         from utils.cliplora_ab_factorial import with_tail_equal
         base = with_tail_equal(base)
+    if six:
+        from utils.cliplora_six_ablation import with_six_ablation
+        base = with_six_ablation(base)
     class JointAggregationRuntime(base):
         def __init__(self, *args, **kwargs):
             from tools.client_aggregation.numerics import apply_policy, policy_for
@@ -59,6 +64,7 @@ def runtime_class(job):
 
                 self.b_transfer.apply_shared = measured_transfer
             print('CLIENT AGGREGATION:', aggregation_name(job['aggregation']), job['arm'],
+                  '; A loss='+self.config['ordinary_phase_losses']['A']['loss']+'; B loss=LA; method B='+str(six_has_b(job)) if six else
                   '; fixed A schedule '+str(rounds_for(job))+'; original shared donor C' if scheduled_a else
                   '; new A + original shared donor C; fixed two-step B, no rollback' if old_b else
                   '; ordinary/new A + F-tail-equal; fixed two-step B, no rollback' if new_b else
@@ -122,6 +128,14 @@ def runtime_class(job):
             elif old_b:
                 from tools.client_aggregation.new_a_old_b import transfer_config
                 self.sfra_config['b_transfer'] = transfer_config(job['mode'])
+            if six:
+                from tools.client_aggregation.six_ablation import losses_for, transfer_config
+                losses = losses_for(job)
+                self.config['ordinary_phase_losses'] = losses
+                self.sfra_config['ordinary_phase_losses'] = losses
+                write_json(self.root/'ordinary_phase_losses.json', losses)
+                if six_has_b(job):
+                    self.sfra_config['b_transfer'] = transfer_config(job['mode'])
             self.sfra_config['joint_aggregation'] = dict(schema=SCHEMA, arm=job['arm'], mode=job['mode'],
                 lambda_value=job['aggregation']['lambda_value'], weights_sha256=job['aggregation']['weights_sha256'])
             from tools.client_aggregation.protocol import client_execution_config
@@ -170,6 +184,8 @@ def runtime_class(job):
                 verify_active('deterministic')
             if self.is_frozen and (factor != 'B' or extra):
                 raise ValueError('Frozen arm must never train A or execute extra local training')
+            if six and getattr(self, 'client_pool', None) is None:
+                raise ValueError('All six ablation cells require parallel local training')
             if getattr(self, 'client_pool', None) is not None:
                 from tools.client_aggregation.parallel import parallel_phase
                 after, deltas = parallel_phase(self, state, rnd, factor, extra, branch, candidate)
@@ -264,7 +280,7 @@ def runtime_class(job):
                     scope='process CUDA allocated high-water mark, including diagnostics'))
 
         def run(self, initial_state):
-            if not self.is_frozen:
+            if six or not self.is_frozen:
                 return super().run(initial_state)
             last = getattr(self.args, 'sfra_stop_after_round', 0) or 100
             if self.resume_payload:

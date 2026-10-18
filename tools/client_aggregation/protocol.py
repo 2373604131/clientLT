@@ -37,7 +37,8 @@ FILES = ('tools/client_aggregation/__init__.py', 'tools/client_aggregation/weigh
     'scripts/run_cliplora_ab_factorial.py', 'tools/sfra/b_routes.py',
     'tools/client_aggregation/new_a_old_b.py', 'scripts/run_cliplora_new_a_old_b.py',
     'tools/client_aggregation/a_schedule.py', 'utils/cliplora_margin_a_schedule.py',
-    'scripts/run_cliplora_a_schedule.py')
+    'scripts/run_cliplora_a_schedule.py', 'tools/client_aggregation/six_ablation.py',
+    'utils/cliplora_six_ablation.py', 'scripts/run_six_ablation.py')
 CONTRACT = dict(schema=SCHEMA, seed=42, rounds=100, clients=30, partition='client-longtail',
     arms=list(ARMS), aggregation='KL(uniform || R.T @ w) + lambda/2 * chi_square(w || sample_weights)',
     scope='ordinary B aggregation every round; ordinary A aggregation when A is opened',
@@ -95,6 +96,10 @@ def method_a_margin_contract(parameters):
 
 
 def validate_arm(job):
+    from tools.client_aggregation.six_ablation import enabled as six_enabled, validate as validate_six
+    if six_enabled(job):
+        validate_six(job)
+        return
     from tools.client_aggregation.a_schedule import enabled as scheduled, validate as validate_schedule
     if scheduled(job):
         validate_schedule(job)
@@ -246,13 +251,13 @@ def check_aggregation(spec):
 def client_execution_config(job):
     from tools.client_aggregation.numerics import policy_for, DETERMINISTIC
     slots = job.get('settings', {}).get('client_concurrency', 1)
-    if slots in (4, 6, 8):
+    if type(slots) is int and 2 <= slots <= 30:
         from tools.client_aggregation.parallel import EXECUTION
         result = dict(EXECUTION, max_concurrent_clients=slots)
     elif slots == 1:
         result = dict(version=1, backend='original_serial', max_concurrent_clients=1)
     else:
-        raise ValueError('Only 1, 4, 6 or 8 concurrent clients are supported')
+        raise ValueError('Concurrent clients must be an integer from 1 to 30')
     if policy_for(job) == 'deterministic':
         result['cuda_numerics'] = dict(DETERMINISTIC)
     if job.get('settings', {}).get('parallel_validation') == 'off':
@@ -324,7 +329,10 @@ def audit_runtime_config(run, job):
     transfer = cfg.get('b_transfer')
     from tools.client_aggregation.ab_factorial import has_new_b
     from tools.client_aggregation.new_a_old_b import enabled as old_b_enabled, transfer_config as old_b_config
-    if old_b_enabled(job):
+    from tools.client_aggregation.six_ablation import enabled as six_enabled, audit_config as audit_six
+    if six_enabled(job):
+        audit_six(run, job, cfg)
+    elif old_b_enabled(job):
         if transfer != old_b_config(job['mode']):
             raise ValueError('Old B differs from the frozen shared donor-C configuration')
     elif has_new_b(job):

@@ -365,7 +365,7 @@ class SharedDonorBTransfer(DonorBTransfer):
             self.measure_shared('committed_global')
         summary = self.pending['summary']
         summary['seconds'] += time.perf_counter()-started
-        summary['A_updated_this_round'] = rnd <= 90
+        summary['A_updated_this_round'] = rnd in getattr(self.runtime, 'sfra_config', {}).get('refresh_rounds', range(1, 91))
         summary['tail_la_gain_after_B_aggregation'] = (summary['ordinary_global_B_tail_la']
                                                       - summary['transferred_global_B_tail_la'])
         summary['tail_la_change_during_A'] = (summary['committed_global_tail_la']
